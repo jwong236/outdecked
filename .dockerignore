@@ -1,0 +1,46 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+DEPLOYMENT.md
+GOOGLE_CLOUD_DEPLOYMENT.md
+NETLIFY_DEPLOYMENT.md
+
+# Deployment files
+deploy.sh
+deploy.ps1
+cloudbuild.yaml
+
+# Development files
+*.pyc
+__pycache__
+.pytest_cache
+.coverage
+.env
+.venv
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Database (will be created in container)
+cards.db
+
+# Static demo files
+netlify-static/
+
+# Old requirements files
+requirements-heroku.txt
+app-heroku.py
