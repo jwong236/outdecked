@@ -1,0 +1,402 @@
+{% extends "base.html" %}
+
+{% block title %}Search Cards - TopDeck{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-search text-primary me-3"></i>
+                Search Cards
+            </h1>
+            
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form id="searchForm" class="row g-3">
+                        <div class="col-md-6">
+                            <label for="searchQuery" class="form-label">Search Cards</label>
+                            <input type="text" class="form-control" id="searchQuery" name="q" 
+                                   placeholder="Enter card name..." value="{{ query or '' }}">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="gameFilter" class="form-label">Filter by Game</label>
+                            <select class="form-select" id="gameFilter" name="game">
+                                <option value="">All Games</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-search me-2"></i>Search
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Results Header -->
+            <div id="resultsHeader" class="card mb-3" style="display: none;">
+                <div class="card-body py-2">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0" id="resultsTitle">
+                            <span id="resultsText">Search Results</span>
+                            <span id="resultsCount" class="badge bg-primary ms-2">0 cards</span>
+                        </h5>
+                        <div class="d-flex align-items-center gap-3">
+                            <span class="text-muted small" id="paginationInfo">Page 1 of 1</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loading State -->
+            <div id="loadingState" class="text-center py-5" style="display: none;">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3">Searching cards...</p>
+            </div>
+            
+            <!-- Results Grid -->
+            <div id="resultsGrid" class="search-results" style="display: none;">
+                <!-- Cards will be populated by JavaScript -->
+            </div>
+            
+            <!-- Pagination Controls -->
+            <div id="paginationControls" class="d-flex justify-content-center mt-4" style="display: none;">
+                <nav aria-label="Search results pagination">
+                    <ul class="pagination" id="paginationList">
+                        <!-- Pagination buttons will be populated by JavaScript -->
+                    </ul>
+                </nav>
+            </div>
+            
+            <!-- No Results State -->
+            <div id="noResultsState" class="text-center py-5" style="display: none;">
+                <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                <h4 class="text-muted">No cards found</h4>
+                <p class="text-muted">Try adjusting your search terms or game filter.</p>
+            </div>
+            
+            <!-- Initial State -->
+            <div id="initialState" class="text-center py-5">
+                <i class="fas fa-search fa-3x text-primary mb-3"></i>
+                <h4 class="text-muted">Start searching for cards</h4>
+                <p class="text-muted">Enter a card name above to begin your search.</p>
+                <a href="/" class="btn btn-primary">
+                    <i class="fas fa-download me-2"></i>Scrape Some Cards First
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let currentQuery = '';
+let currentGame = '';
+let totalPages = 1;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadGames();
+    
+    // Handle form submission
+    document.getElementById('searchForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        currentQuery = document.getElementById('searchQuery').value.trim();
+        currentGame = document.getElementById('gameFilter').value;
+        currentPage = 1;
+        performSearch();
+    });
+    
+    // Auto-submit form when game filter changes
+    document.getElementById('gameFilter').addEventListener('change', function() {
+        currentGame = this.value;
+        currentPage = 1;
+        performSearch();
+    });
+    
+    // Check if we have URL parameters for initial search
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryParam = urlParams.get('q');
+    const gameParam = urlParams.get('game');
+    
+    if (queryParam || gameParam) {
+        document.getElementById('searchQuery').value = queryParam || '';
+        currentQuery = queryParam || '';
+        currentGame = gameParam || '';
+        performSearch();
+    } else {
+        // If no URL parameters, show all cards by default
+        performSearch();
+    }
+});
+
+function loadGames() {
+    fetch('/games')
+        .then(response => response.json())
+        .then(games => {
+            const gameFilter = document.getElementById('gameFilter');
+            const currentValue = gameFilter.value;
+            
+            // Clear existing options except "All Games"
+            gameFilter.innerHTML = '<option value="">All Games</option>';
+            
+            // Add game options
+            games.forEach(game => {
+                const option = document.createElement('option');
+                option.value = game;
+                option.textContent = game;
+                gameFilter.appendChild(option);
+            });
+            
+            // Restore previous selection
+            gameFilter.value = currentValue;
+        })
+        .catch(error => {
+            console.error('Error loading games:', error);
+        });
+}
+
+function performSearch() {
+    // Show loading state
+    showLoadingState();
+    
+    // Build search URL
+    const params = new URLSearchParams();
+    if (currentQuery) params.append('q', currentQuery);
+    if (currentGame) params.append('game', currentGame);
+    params.append('page', currentPage);
+    
+    // Update URL without page reload
+    const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+    window.history.pushState({}, '', newUrl);
+    
+    // Perform search
+    fetch(`/api/search?${params.toString()}`)
+        .then(response => response.json())
+        .then(data => {
+            displayResults(data);
+        })
+        .catch(error => {
+            console.error('Error searching cards:', error);
+            showErrorState();
+        });
+}
+
+function displayResults(data) {
+    const cards = data.cards;
+    const pagination = data.pagination;
+    
+    // Update pagination info
+    currentPage = pagination.current_page;
+    totalPages = pagination.total_pages;
+    
+    // Hide all states
+    hideAllStates();
+    
+    if (cards.length === 0) {
+        showNoResultsState();
+        return;
+    }
+    
+    // Show results
+    showResultsState();
+    
+    // Update results header
+    updateResultsHeader(pagination);
+    
+    // Display cards
+    displayCards(cards);
+    
+    // Update pagination controls
+    updatePaginationControls(pagination);
+}
+
+function updateResultsHeader(pagination) {
+    const resultsText = document.getElementById('resultsText');
+    const resultsCount = document.getElementById('resultsCount');
+    const paginationInfo = document.getElementById('paginationInfo');
+    
+    // Update results text
+    if (currentQuery && currentGame) {
+        resultsText.textContent = `Search results for "${currentQuery}" in ${currentGame}`;
+    } else if (currentQuery) {
+        resultsText.textContent = `Search results for "${currentQuery}"`;
+    } else if (currentGame) {
+        resultsText.textContent = `All cards in ${currentGame}`;
+    } else {
+        resultsText.textContent = 'All cards';
+    }
+    
+    // Update count
+    resultsCount.textContent = `${pagination.total_cards.toLocaleString()} cards`;
+    
+    // Update pagination info
+    paginationInfo.textContent = `Page ${pagination.current_page} of ${pagination.total_pages}`;
+}
+
+function displayCards(cards) {
+    const resultsGrid = document.getElementById('resultsGrid');
+    
+    let html = '';
+    cards.forEach(card => {
+        html += `
+            <div class="card h-100">
+                <div class="card-body p-0">
+                    <img src="${card.image_url}" alt="${card.name}" class="card-image" 
+                         onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjhmOGY4Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+'">
+                </div>
+                <div class="card-body">
+                    <h6 class="card-title text-truncate" title="${card.name}">${card.name}</h6>
+                    <p class="card-text small text-muted mb-2">${card.game}</p>
+                    <div class="d-flex gap-2">
+                        <a href="${card.card_url}" target="_blank" class="btn btn-outline-primary btn-sm flex-fill">
+                            <i class="fas fa-external-link-alt me-1"></i>View
+                        </a>
+                        <button class="btn btn-success btn-sm flex-fill" onclick="downloadImage('${card.image_url}', '${card.name}')">
+                            <i class="fas fa-download me-1"></i>Download
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    resultsGrid.innerHTML = html;
+}
+
+function updatePaginationControls(pagination) {
+    const paginationList = document.getElementById('paginationList');
+    
+    if (totalPages <= 1) {
+        document.getElementById('paginationControls').style.display = 'none';
+        return;
+    }
+    
+    document.getElementById('paginationControls').style.display = 'flex';
+    
+    let html = '';
+    
+    // Previous button
+    if (pagination.has_prev) {
+        html += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="goToPage(${pagination.prev_page}); return false;">
+                    <i class="fas fa-chevron-left"></i>
+                </a>
+            </li>
+        `;
+    } else {
+        html += `
+            <li class="page-item disabled">
+                <span class="page-link">
+                    <i class="fas fa-chevron-left"></i>
+                </span>
+            </li>
+        `;
+    }
+    
+    // Page numbers
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+    
+    if (startPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1); return false;">1</a></li>`;
+        if (startPage > 2) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        if (i === currentPage) {
+            html += `<li class="page-item active"><span class="page-link">${i}</span></li>`;
+        } else {
+            html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${i}); return false;">${i}</a></li>`;
+        }
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+        html += `<li class="page-item"><a class="page-link" href="#" onclick="goToPage(${totalPages}); return false;">${totalPages}</a></li>`;
+    }
+    
+    // Next button
+    if (pagination.has_next) {
+        html += `
+            <li class="page-item">
+                <a class="page-link" href="#" onclick="goToPage(${pagination.next_page}); return false;">
+                    <i class="fas fa-chevron-right"></i>
+                </a>
+            </li>
+        `;
+    } else {
+        html += `
+            <li class="page-item disabled">
+                <span class="page-link">
+                    <i class="fas fa-chevron-right"></i>
+                </span>
+            </li>
+        `;
+    }
+    
+    paginationList.innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    performSearch();
+}
+
+function showLoadingState() {
+    hideAllStates();
+    document.getElementById('loadingState').style.display = 'block';
+}
+
+function showResultsState() {
+    hideAllStates();
+    document.getElementById('resultsHeader').style.display = 'block';
+    document.getElementById('resultsGrid').style.display = 'grid';
+    document.getElementById('paginationControls').style.display = 'flex';
+}
+
+function showNoResultsState() {
+    hideAllStates();
+    document.getElementById('resultsHeader').style.display = 'block';
+    document.getElementById('noResultsState').style.display = 'block';
+}
+
+function showErrorState() {
+    hideAllStates();
+    document.getElementById('noResultsState').style.display = 'block';
+    document.getElementById('noResultsState').querySelector('h4').textContent = 'Error loading results';
+    document.getElementById('noResultsState').querySelector('p').textContent = 'Please try again later.';
+}
+
+function hideAllStates() {
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('resultsHeader').style.display = 'none';
+    document.getElementById('resultsGrid').style.display = 'none';
+    document.getElementById('paginationControls').style.display = 'none';
+    document.getElementById('noResultsState').style.display = 'none';
+    document.getElementById('initialState').style.display = 'none';
+}
+
+function downloadImage(imageUrl, cardName) {
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = imageUrl;
+    link.download = `${cardName.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.jpg`;
+    link.target = '_blank';
+    
+    // Trigger download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+{% endblock %}

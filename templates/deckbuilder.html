@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Deck Builder - TopDeck{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <!-- Header -->
+    <div class="text-center mb-4">
+        <h1 class="display-5 fw-bold text-primary mb-3">
+            <i class="fas fa-layer-group me-3"></i>Deck Builder
+        </h1>
+        <p class="lead text-muted">Build and manage your card game decks</p>
+    </div>
+
+    <!-- Coming Soon Card -->
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card text-center">
+                <div class="card-body py-5">
+                    <div class="mb-4">
+                        <i class="fas fa-tools fa-4x text-muted"></i>
+                    </div>
+                    <h3 class="text-primary mb-3">Deck Builder Coming Soon!</h3>
+                    <p class="lead text-muted mb-4">
+                        We're working hard to bring you an amazing deck building experience with drag-and-drop functionality, 
+                        deck validation, and much more.
+                    </p>
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <i class="fas fa-mouse-pointer fa-2x text-primary mb-2"></i>
+                                <h6>Drag & Drop</h6>
+                                <small class="text-muted">Intuitive card management</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <i class="fas fa-check-circle fa-2x text-success mb-2"></i>
+                                <h6>Deck Validation</h6>
+                                <small class="text-muted">Format compliance checking</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-center">
+                                <i class="fas fa-chart-bar fa-2x text-info mb-2"></i>
+                                <h6>Deck Statistics</h6>
+                                <small class="text-muted">Mana curves and analysis</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="/search" class="btn btn-primary">
+                            <i class="fas fa-search me-2"></i>Browse Cards
+                        </a>
+                        <a href="/proxy-printer" class="btn btn-outline-primary">
+                            <i class="fas fa-print me-2"></i>Print Proxies
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features Preview -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3 class="text-center mb-4">Planned Features</h3>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 text-center">
+                <div class="card-body">
+                    <i class="fas fa-search fa-2x text-primary mb-3"></i>
+                    <h6>Card Search Integration</h6>
+                    <p class="text-muted small">Search and add cards directly to your deck from the database</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 text-center">
+                <div class="card-body">
+                    <i class="fas fa-save fa-2x text-success mb-3"></i>
+                    <h6>Deck Management</h6>
+                    <p class="text-muted small">Save, load, and organize multiple decks with custom names</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 text-center">
+                <div class="card-body">
+                    <i class="fas fa-share fa-2x text-info mb-3"></i>
+                    <h6>Deck Sharing</h6>
+                    <p class="text-muted small">Share your decks with friends via unique URLs</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-3">
+            <div class="card h-100 text-center">
+                <div class="card-body">
+                    <i class="fas fa-file-pdf fa-2x text-warning mb-3"></i>
+                    <h6>Export Options</h6>
+                    <p class="text-muted small">Export deck lists as PDFs or text files</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Placeholder for future deck builder functionality
+    console.log('Deck Builder page loaded - coming soon!');
+</script>
+{% endblock %}
