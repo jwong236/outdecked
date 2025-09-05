@@ -73,19 +73,19 @@ gcloud run deploy topdeck `
 $ServiceUrl = gcloud run services describe topdeck --region=$Region --format="value(status.url)"
 
 Write-Host ""
-Write-Host "🎉 Deployment successful!" -ForegroundColor $Green
+Write-Host "Deployment successful!" -ForegroundColor $Green
 Write-Host "=================================================="
 Write-Host "Service URL: $ServiceUrl" -ForegroundColor $Blue
 Write-Host "Health Check: $ServiceUrl/health" -ForegroundColor $Blue
 Write-Host ""
-Write-Host "📝 Next steps:" -ForegroundColor $Yellow
+Write-Host "Next steps:" -ForegroundColor $Yellow
 Write-Host "1. Visit the service URL to access your application"
 Write-Host "2. Test the health endpoint to ensure it's running"
 Write-Host "3. Start scraping some cards!"
 Write-Host ""
-Write-Host "💡 Useful commands:" -ForegroundColor $Yellow
-Write-Host "• View logs: gcloud run services logs read topdeck --region=$Region"
-Write-Host "• Update service: gcloud run services update topdeck --region=$Region"
-Write-Host "• Delete service: gcloud run services delete topdeck --region=$Region"
+Write-Host "Useful commands:" -ForegroundColor $Yellow
+Write-Host "- View logs: gcloud run services logs read topdeck --region=$Region"
+Write-Host "- Update service: gcloud run services update topdeck --region=$Region"
+Write-Host "- Delete service: gcloud run services delete topdeck --region=$Region"
 Write-Host ""
-Write-Host "Happy scraping! 🃏" -ForegroundColor $Green
+Write-Host "Happy scraping!" -ForegroundColor $Green
