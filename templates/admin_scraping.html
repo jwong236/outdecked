@@ -12,10 +12,11 @@
         <p class="lead text-muted">Scrape new cards from TCGPlayer to update your database</p>
     </div>
 
-    <!-- Scraping Form -->
+    <!-- Main Content Row -->
     <div class="row">
-        <div class="col-lg-8">
-            <div class="card">
+        <!-- Left Column: Scraping Form, Status, and Console -->
+        <div class="col-lg-6">
+            <div class="card mb-4">
                 <div class="card-header bg-primary text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-cog me-2"></i>Scraping Configuration
@@ -23,33 +24,32 @@
                 </div>
                 <div class="card-body">
                     <form id="scrapingForm">
-                        <div class="row g-3">
-                            <div class="col-md-6">
-                                <label for="gameName" class="form-label">Game Name</label>
-                                <select class="form-select" id="gameName" name="game_name" required>
-                                    <option value="">Select a game...</option>
-                                    <option value="Pokemon">Pokemon</option>
-                                    <option value="Union Arena">Union Arena</option>
-                                </select>
+                        <div class="mb-3">
+                            <label for="gameName" class="form-label">Game Name</label>
+                            <select class="form-select" id="gameName" name="game_name" required>
+                                <option value="">Select a game...</option>
+                                <option value="Pokemon">Pokemon</option>
+                                <option value="Union Arena">Union Arena</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Scraping Mode</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="scrape_mode" id="scrapeAll" value="all" checked>
+                                <label class="form-check-label" for="scrapeAll">
+                                    Scrape from page 1 to the end
+                                </label>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">Scraping Mode</label>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="scrape_mode" id="scrapeAll" value="all" checked>
-                                    <label class="form-check-label" for="scrapeAll">
-                                        Scrape from page 1 to the end
-                                    </label>
-                                </div>
-                                <div class="form-check">
-                                    <input class="form-check-input" type="radio" name="scrape_mode" id="scrapeRange" value="range">
-                                    <label class="form-check-label" for="scrapeRange">
-                                        Scrape specific page range
-                                    </label>
-                                </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="scrape_mode" id="scrapeRange" value="range">
+                                <label class="form-check-label" for="scrapeRange">
+                                    Scrape specific page range
+                                </label>
                             </div>
                         </div>
                         
-                        <div class="row g-3 mt-2" id="pageRange" style="display: none;">
+                        <div class="row g-3" id="pageRange" style="display: none;">
                             <div class="col-md-6">
                                 <label for="startPage" class="form-label">Start Page</label>
                                 <input type="number" class="form-control" id="startPage" name="start_page" min="1" value="1">
@@ -61,18 +61,105 @@
                         </div>
 
                         <div class="mt-4">
-                            <button type="submit" class="btn btn-primary btn-lg">
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
                                 <i class="fas fa-play me-2"></i>Start Scraping
                             </button>
                         </div>
                     </form>
                 </div>
             </div>
+
+            <!-- Success Alert -->
+            <div class="alert alert-success alert-dismissible fade show" id="successAlert" style="display: none;">
+                <i class="fas fa-check-circle me-2"></i>
+                <span id="successMessage"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Scraping Status Panel -->
+            <div class="card mb-4" id="scrapingStatus" style="display: none;">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-sync-alt me-2"></i>
+                        Scraping Status
+                    </h6>
+                    <button class="btn btn-danger btn-sm" id="stopScrapingBtn">
+                        <i class="fas fa-stop me-2"></i>
+                        Stop Scraping
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-primary mb-1" id="currentPage">-</h4>
+                                <small class="text-muted">Current Page</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-success mb-1" id="totalPages">-</h4>
+                                <small class="text-muted">Total Pages</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-warning mb-1" id="cardsFound">-</h4>
+                                <small class="text-muted">Cards Found</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-info mb-1" id="gameNameStatus">-</h4>
+                                <small class="text-muted">Game</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 id="progressBar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Console Logs Panel -->
+            <div class="card mb-4" id="consoleLogsPanel" style="display: none;">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-terminal me-2"></i>
+                        Console Logs
+                    </h6>
+                    <div>
+                        <button class="btn btn-outline-light btn-sm me-2" id="clearLogsBtn">
+                            <i class="fas fa-trash me-1"></i>Clear
+                        </button>
+                        <button class="btn btn-outline-light btn-sm" id="toggleLogsBtn">
+                            <i class="fas fa-chevron-up me-1"></i>Collapse
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" id="consoleLogs" style="max-height: 300px; overflow-y: auto; background-color: #1e1e1e; color: #00ff00; font-family: 'Courier New', monospace;">
+                    <div class="console-line">Console ready...</div>
+                </div>
+            </div>
         </div>
 
-        <!-- Game Statistics -->
-        <div class="col-lg-4">
-            <div class="card">
+        <!-- Right Column: Database Stats & Game Statistics -->
+        <div class="col-lg-6">
+            <!-- Database Stats Card -->
+            <div class="card mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                <div class="card-body text-center text-white" id="databaseStatsContent">
+                    <div class="spinner-border text-white" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Loading database stats...</p>
+                </div>
+            </div>
+
+            <!-- Game Statistics Card -->
+            <div class="card mb-4">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0">
                         <i class="fas fa-chart-bar me-2"></i>Game Statistics
@@ -83,105 +170,29 @@
                         <div class="spinner-border text-primary" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <p class="mt-2 text-muted">Loading statistics...</p>
+                        <p class="mt-2 text-muted">Loading game statistics...</p>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- Success Alert -->
-    <div class="alert alert-success alert-dismissible fade show mt-4" id="successAlert" style="display: none;">
-        <i class="fas fa-check-circle me-2"></i>
-        <span id="successMessage"></span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-
-    <!-- Scraping Status -->
-    <div class="card mt-4" id="scrapingStatus" style="display: none;">
-        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">
-                <i class="fas fa-sync-alt me-2"></i>
-                Scraping Status
-            </h6>
-            <button class="btn btn-danger btn-sm" id="stopScrapingBtn">
-                <i class="fas fa-stop me-2"></i>
-                Stop Scraping
-            </button>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-3">
-                    <div class="text-center">
-                        <h4 class="text-primary mb-1" id="currentPage">-</h4>
-                        <small class="text-muted">Current Page</small>
-                    </div>
+            <!-- Important Notes Card -->
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Important Notes
+                    </h6>
                 </div>
-                <div class="col-md-3">
-                    <div class="text-center">
-                        <h4 class="text-success mb-1" id="totalPages">-</h4>
-                        <small class="text-muted">Total Pages</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="text-center">
-                        <h4 class="text-warning mb-1" id="cardsFound">-</h4>
-                        <small class="text-muted">Cards Found</small>
-                    </div>
-                </div>
-                <div class="col-md-3">
-                    <div class="text-center">
-                        <h4 class="text-info mb-1" id="gameName">-</h4>
-                        <small class="text-muted">Game</small>
-                    </div>
+                <div class="card-body">
+                    <ul class="mb-0 small">
+                        <li><strong>Please ask Jacob before scraping</strong> - This process can take a long time and uses system resources</li>
+                        <li><strong>If you see any bugs please screenshot and let Jacob know</strong> - Help improve the system</li>
+                        <li><strong>Scraping respects robots.txt</strong> - 10 second delay between pages to be respectful</li>
+                        <li><strong>Stop button may take a moment</strong> - The system needs to finish current page processing</li>
+                        <li><strong>Database updates automatically</strong> - New cards are saved as they're found</li>
+                    </ul>
                 </div>
             </div>
-            <div class="mt-3">
-                <div class="progress">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                         id="progressBar" role="progressbar" style="width: 0%"></div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Console Logs -->
-    <div class="card mt-4" style="display: none;">
-        <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
-            <h6 class="mb-0">
-                <i class="fas fa-terminal me-2"></i>
-                Console Logs
-            </h6>
-            <div>
-                <button class="btn btn-outline-light btn-sm me-2" id="clearLogsBtn">
-                    <i class="fas fa-trash me-1"></i>Clear
-                </button>
-                <button class="btn btn-outline-light btn-sm" id="toggleLogsBtn">
-                    <i class="fas fa-chevron-up me-1"></i>Collapse
-                </button>
-            </div>
-        </div>
-        <div class="card-body" id="consoleLogs" style="max-height: 300px; overflow-y: auto; background-color: #1e1e1e; color: #00ff00; font-family: 'Courier New', monospace;">
-            <div class="console-line">Console ready...</div>
-        </div>
-    </div>
-
-    <!-- Important Notes -->
-    <div class="card mt-4">
-        <div class="card-header bg-warning text-dark">
-            <h6 class="mb-0">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                Important Notes
-            </h6>
-        </div>
-        <div class="card-body">
-            <ul class="mb-0">
-                <li><strong>Please ask Jacob before scraping</strong> - This process can take a long time and uses system resources</li>
-                <li><strong>If you see any bugs please screenshot and let Jacob know</strong> - Help improve the system</li>
-                <li><strong>Scraping respects robots.txt</strong> - 10 second delay between pages to be respectful</li>
-                <li><strong>Stop button may take a moment</strong> - The system needs to finish current page processing</li>
-                <li><strong>Database updates automatically</strong> - New cards are saved as they're found</li>
-            </ul>
         </div>
     </div>
 </div>
@@ -195,6 +206,7 @@
         setupFormHandlers();
         setupConsoleLogs();
         loadGameStats();
+        loadDatabaseStats();
     });
 
     function setupFormHandlers() {
@@ -236,14 +248,14 @@
         })
         .then(response => response.json())
         .then(result => {
-            if (result.success) {
+            if (result.message) {
                 console.log('Scraping started successfully');
                 addConsoleLog('Scraping started successfully!', 'success');
                 
                 // Show success message
                 const successAlert = document.getElementById('successAlert');
                 const successMessage = document.getElementById('successMessage');
-                successMessage.textContent = `Scraping started for ${result.game_name}`;
+                successMessage.textContent = result.message;
                 successAlert.style.display = 'block';
 
                 // Start polling for status
@@ -284,7 +296,7 @@
 
     function updateScrapingStatus(status) {
         const statusCard = document.getElementById('scrapingStatus');
-        const consoleLogsCard = document.querySelector('.card:has(#consoleLogs)');
+        const consoleLogsCard = document.getElementById('consoleLogsPanel');
         
         if (status.is_running) {
             statusCard.style.display = 'block';
@@ -293,7 +305,7 @@
             document.getElementById('currentPage').textContent = status.current_page || '-';
             document.getElementById('totalPages').textContent = status.total_pages || '-';
             document.getElementById('cardsFound').textContent = status.cards_found || '0';
-            document.getElementById('gameName').textContent = status.game_name || '-';
+            document.getElementById('gameNameStatus').textContent = status.game_name || '-';
             
             // Update progress bar
             const progressBar = document.getElementById('progressBar');
@@ -322,7 +334,7 @@
             })
             .then(response => response.json())
             .then(result => {
-                if (result.success) {
+                if (result.message) {
                     addConsoleLog('Scraping stopped successfully.', 'info');
                 } else {
                     addConsoleLog(`Error stopping: ${result.error}`, 'error');
@@ -341,6 +353,23 @@
         }
     }
 
+    function loadDatabaseStats() {
+        fetch('/api/stats')
+            .then(response => response.json())
+            .then(data => {
+                const statsContent = document.getElementById('databaseStatsContent');
+                let html = `
+                    <h1 class="display-4 fw-bold mb-2">${data.total_cards || '0'}</h1>
+                    <h5 class="mb-0">Total Cards</h5>
+                `;
+                statsContent.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading database stats:', error);
+                document.getElementById('databaseStatsContent').innerHTML = '<p class="text-white">Error loading stats</p>';
+            });
+    }
+
     function loadGameStats() {
         fetch('/api/game-stats')
             .then(response => response.json())
@@ -348,8 +377,8 @@
                 const statsContent = document.getElementById('gameStatsContent');
                 let html = '';
                 
-                if (data.games && data.games.length > 0) {
-                    data.games.forEach(game => {
+                if (data && data.length > 0) {
+                    data.forEach(game => {
                         html += `
                             <div class="mb-3">
                                 <h6 class="text-success">${game.game_name}</h6>
