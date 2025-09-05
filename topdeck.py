@@ -555,6 +555,10 @@ def proxy_printer():
 
 @app.route("/scrape", methods=["POST"])
 def start_scraping():
+    # Check if scraping is already running
+    if scraping_status["is_running"]:
+        return jsonify({"error": "Scraping is already in progress. Please wait for it to complete or stop it first."}), 409
+    
     data = request.get_json()
     game_name = data.get("game_name", "Unknown Game")
     start_page = int(data.get("start_page", 1))

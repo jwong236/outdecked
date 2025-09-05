@@ -260,10 +260,20 @@
 
                 // Start polling for status
                 startStatusPolling();
-            } else {
+            } else if (result.error) {
                 console.error('Failed to start scraping:', result.error);
                 addConsoleLog(`Error: ${result.error}`, 'error');
-                alert('Failed to start scraping: ' + result.error);
+                
+                // Show error message in the success alert (but styled as error)
+                const successAlert = document.getElementById('successAlert');
+                const successMessage = document.getElementById('successMessage');
+                successMessage.textContent = result.error;
+                successAlert.className = 'alert alert-danger alert-dismissible fade show';
+                successAlert.style.display = 'block';
+            } else {
+                console.error('Unknown response:', result);
+                addConsoleLog('Unknown error occurred', 'error');
+                alert('Unknown error occurred');
             }
         })
         .catch(error => {
