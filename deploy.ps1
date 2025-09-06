@@ -1,4 +1,4 @@
-# TopDeck - Google Cloud Run Deployment Script (PowerShell)
+# OutDecked - Google Cloud Run Deployment Script (PowerShell)
 # This script deploys the application to Google Cloud Run
 
 param(
@@ -11,7 +11,7 @@ $Green = "Green"
 $Yellow = "Yellow"
 $Blue = "Blue"
 
-Write-Host "🚀 TopDeck - Google Cloud Run Deployment" -ForegroundColor $Blue
+Write-Host "🚀 OutDecked - Google Cloud Run Deployment" -ForegroundColor $Blue
 Write-Host "=================================================="
 
 # Check if gcloud is installed
@@ -54,12 +54,12 @@ Write-Host "🔨 Building and deploying to Cloud Run..." -ForegroundColor $Blue
 
 # Build the container
 Write-Host "Building container image..."
-gcloud builds submit --tag "gcr.io/$ProjectId/topdeck"
+gcloud builds submit --tag "gcr.io/$ProjectId/outdecked"
 
 # Deploy to Cloud Run
 Write-Host "Deploying to Cloud Run..."
-gcloud run deploy topdeck `
-    --image "gcr.io/$ProjectId/topdeck" `
+gcloud run deploy outdecked `
+    --image "gcr.io/$ProjectId/outdecked" `
     --region $Region `
     --platform managed `
     --allow-unauthenticated `
@@ -70,7 +70,7 @@ gcloud run deploy topdeck `
     --set-env-vars FLASK_ENV=production
 
 # Get the service URL
-$ServiceUrl = gcloud run services describe topdeck --region=$Region --format="value(status.url)"
+$ServiceUrl = gcloud run services describe outdecked --region=$Region --format="value(status.url)"
 
 Write-Host ""
 Write-Host "Deployment successful!" -ForegroundColor $Green
@@ -84,8 +84,8 @@ Write-Host "2. Test the health endpoint to ensure it's running"
 Write-Host "3. Start scraping some cards!"
 Write-Host ""
 Write-Host "Useful commands:" -ForegroundColor $Yellow
-Write-Host "- View logs: gcloud run services logs read topdeck --region=$Region"
-Write-Host "- Update service: gcloud run services update topdeck --region=$Region"
-Write-Host "- Delete service: gcloud run services delete topdeck --region=$Region"
+Write-Host "- View logs: gcloud run services logs read outdecked --region=$Region"
+Write-Host "- Update service: gcloud run services update outdecked --region=$Region"
+Write-Host "- Delete service: gcloud run services delete outdecked --region=$Region"
 Write-Host ""
 Write-Host "Happy scraping!" -ForegroundColor $Green

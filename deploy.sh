@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# TopDeck - Google Cloud Run Deployment Script
+# OutDecked - Google Cloud Run Deployment Script
 # This script deploys the application to Google Cloud Run
 
 set -e
@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}🚀 TopDeck - Google Cloud Run Deployment${NC}"
+echo -e "${BLUE}🚀 OutDecked - Google Cloud Run Deployment${NC}"
 echo "=================================================="
 
 # Check if gcloud is installed
@@ -54,12 +54,12 @@ echo -e "${BLUE}🔨 Building and deploying to Cloud Run...${NC}"
 
 # Build the container
 echo "Building container image..."
-gcloud builds submit --tag gcr.io/${PROJECT_ID}/topdeck
+gcloud builds submit --tag gcr.io/${PROJECT_ID}/outdecked
 
 # Deploy to Cloud Run
 echo "Deploying to Cloud Run..."
-gcloud run deploy topdeck \
-    --image gcr.io/${PROJECT_ID}/topdeck \
+gcloud run deploy outdecked \
+    --image gcr.io/${PROJECT_ID}/outdecked \
     --region ${REGION} \
     --platform managed \
     --allow-unauthenticated \
@@ -70,7 +70,7 @@ gcloud run deploy topdeck \
     --set-env-vars FLASK_ENV=production
 
 # Get the service URL
-SERVICE_URL=$(gcloud run services describe topdeck --region=${REGION} --format="value(status.url)")
+SERVICE_URL=$(gcloud run services describe outdecked --region=${REGION} --format="value(status.url)")
 
 echo ""
 echo -e "${GREEN}🎉 Deployment successful!${NC}"
@@ -84,8 +84,8 @@ echo "2. Test the health endpoint to ensure it's running"
 echo "3. Start scraping some cards!"
 echo ""
 echo -e "${YELLOW}💡 Useful commands:${NC}"
-echo "• View logs: gcloud run services logs read topdeck --region=${REGION}"
-echo "• Update service: gcloud run services update topdeck --region=${REGION}"
-echo "• Delete service: gcloud run services delete topdeck --region=${REGION}"
+echo "• View logs: gcloud run services logs read outdecked --region=${REGION}"
+echo "• Update service: gcloud run services update outdecked --region=${REGION}"
+echo "• Delete service: gcloud run services delete outdecked --region=${REGION}"
 echo ""
 echo -e "${GREEN}Happy scraping! 🃏${NC}"

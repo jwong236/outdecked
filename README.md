@@ -1,6 +1,6 @@
-# TopDeck
+# OutDecked
 
-A powerful web application that extracts card data from TCGPlayer and provides a searchable interface for trading cards. Built with Flask, TopDeck allows you to scrape multiple pages of cards from any supported TCG game and build a local database for easy searching and image downloading.
+A powerful web application that extracts card data from TCGPlayer and provides a searchable interface for trading cards. Built with Flask, OutDecked allows you to scrape multiple pages of cards from any supported TCG game and build a local database for easy searching and image downloading.
 
 ## Features
 
@@ -43,7 +43,7 @@ The application features a clean, modern interface with:
 
 3. **Run the application**
    ```bash
-   python topdeck.py
+   python outdecked.py
    ```
 
 4. **Open your browser**
@@ -64,7 +64,7 @@ See `GOOGLE_CLOUD_DEPLOYMENT.md` for detailed deployment instructions.
 ### Getting Started
 
 1. **Start the Application**
-   - Run `python topdeck.py`
+   - Run `python outdecked.py`
    - Open your web browser to `http://localhost:5000`
 
 2. **Scrape Your First Cards**
@@ -98,8 +98,8 @@ Here are some example TCGPlayer URLs you can use:
 ## Project Structure
 
 ```
-topdeck/
-├── topdeck.py                # Main Flask application
+outdecked/
+├── outdecked.py                # Main Flask application
 ├── config.py                 # Configuration settings
 ├── requirements.txt          # Python dependencies
 ├── Dockerfile               # Container configuration
@@ -194,7 +194,7 @@ The application can be configured using environment variables:
 Run the application in debug mode for detailed error messages:
 ```bash
 export FLASK_ENV=development
-python topdeck.py
+python outdecked.py
 ```
 
 ## Legal and Ethical Considerations

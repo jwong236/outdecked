@@ -1,6 +1,6 @@
 # Google Cloud Run Deployment Guide
 
-This guide will help you deploy TopDeck to Google Cloud Run, a serverless platform that automatically scales your application.
+This guide will help you deploy OutDecked to Google Cloud Run, a serverless platform that automatically scales your application.
 
 ## Prerequisites
 
@@ -46,11 +46,11 @@ chmod +x deploy.sh
 2. **Build and deploy:**
    ```bash
    # Build the container
-   gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/topdeck
+   gcloud builds submit --tag gcr.io/YOUR_PROJECT_ID/outdecked
    
    # Deploy to Cloud Run
-   gcloud run deploy topdeck \
-     --image gcr.io/YOUR_PROJECT_ID/topdeck \
+   gcloud run deploy outdecked \
+     --image gcr.io/YOUR_PROJECT_ID/outdecked \
      --region us-central1 \
      --platform managed \
      --allow-unauthenticated \
@@ -67,7 +67,7 @@ chmod +x deploy.sh
 You can set environment variables during deployment:
 
 ```bash
-gcloud run services update topdeck \
+gcloud run services update outdecked \
   --region us-central1 \
   --set-env-vars FLASK_ENV=production,REQUEST_DELAY=2,MAX_PAGES_PER_SESSION=20
 ```
@@ -122,7 +122,7 @@ Consider using Cloud SQL (PostgreSQL):
    gcloud sql databases create cards --instance=tcgplayer-db
    ```
 
-3. **Update topdeck.py to use PostgreSQL:**
+3. **Update outdecked.py to use PostgreSQL:**
    - Install `psycopg2-binary` in requirements.txt
    - Update database connection code
    - Set `DATABASE_URL` environment variable
@@ -132,10 +132,10 @@ Consider using Cloud SQL (PostgreSQL):
 ### View Logs
 ```bash
 # Real-time logs
-gcloud run services logs tail topdeck --region us-central1
+gcloud run services logs tail outdecked --region us-central1
 
 # Historical logs
-gcloud run services logs read topdeck --region us-central1
+gcloud run services logs read outdecked --region us-central1
 ```
 
 ### Cloud Console
@@ -171,7 +171,7 @@ gcloud run services logs read topdeck --region us-central1
 2. **Service Won't Start**
    ```bash
    # Check service logs
-   gcloud run services logs read topdeck --region us-central1
+   gcloud run services logs read outdecked --region us-central1
    ```
 
 3. **Memory Issues**
@@ -189,7 +189,7 @@ gcloud run services logs read topdeck --region us-central1
 Test your deployment:
 ```bash
 # Get service URL
-SERVICE_URL=$(gcloud run services describe topdeck --region=us-central1 --format="value(status.url)")
+SERVICE_URL=$(gcloud run services describe outdecked --region=us-central1 --format="value(status.url)")
 
 # Test health endpoint
 curl $SERVICE_URL/health
@@ -201,7 +201,7 @@ curl $SERVICE_URL/health
 ```bash
 # Map custom domain
 gcloud run domain-mappings create \
-  --service topdeck \
+  --service outdecked \
   --domain your-domain.com \
   --region us-central1
 ```
@@ -261,9 +261,9 @@ gcloud sql backups create --instance=tcgplayer-db
 # Complete deployment example
 gcloud config set project my-tcgplayer-project
 gcloud services enable cloudbuild.googleapis.com run.googleapis.com
-gcloud builds submit --tag gcr.io/my-tcgplayer-project/topdeck
-gcloud run deploy topdeck \
-  --image gcr.io/my-tcgplayer-project/topdeck \
+gcloud builds submit --tag gcr.io/my-tcgplayer-project/outdecked
+gcloud run deploy outdecked \
+  --image gcr.io/my-tcgplayer-project/outdecked \
   --region us-central1 \
   --platform managed \
   --allow-unauthenticated \
@@ -274,4 +274,4 @@ gcloud run deploy topdeck \
   --set-env-vars FLASK_ENV=production,REQUEST_DELAY=2
 ```
 
-Your TopDeck will be available at the provided Cloud Run URL!
+Your OutDecked will be available at the provided Cloud Run URL!
