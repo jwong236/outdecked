@@ -988,6 +988,83 @@ def api_stats():
     })
 
 
+@app.route("/api/backup-database", methods=["GET"])
+def backup_database():
+    """Download the current database as a backup file"""
+    try:
+        # Check if database file exists
+        if not os.path.exists("cards.db"):
+            return jsonify({"error": "Database file not found"}), 404
+        
+        # Read the database file
+        with open("cards.db", "rb") as db_file:
+            db_data = db_file.read()
+        
+        # Create response with database file
+        response = app.response_class(
+            db_data,
+            mimetype='application/octet-stream',
+            headers={
+                'Content-Disposition': f'attachment; filename=topdeck_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db'
+            }
+        )
+        return response
+    except Exception as e:
+        return jsonify({"error": f"Failed to backup database: {str(e)}"}), 500
+
+@app.route("/api/restore-database", methods=["POST"])
+def restore_database():
+    """Upload and restore a database backup file"""
+    try:
+        # Check if file was uploaded
+        if 'database_file' not in request.files:
+            return jsonify({"error": "No database file uploaded"}), 400
+        
+        file = request.files['database_file']
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+        
+        # Validate file extension
+        if not file.filename.endswith('.db'):
+            return jsonify({"error": "Invalid file type. Please upload a .db file"}), 400
+        
+        # Read the uploaded file
+        db_data = file.read()
+        
+        # Create backup of current database (if it exists)
+        if os.path.exists("cards.db"):
+            backup_name = f"cards_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+            os.rename("cards.db", backup_name)
+        
+        # Write the new database
+        with open("cards.db", "wb") as db_file:
+            db_file.write(db_data)
+        
+        # Verify the database is valid by trying to connect
+        try:
+            conn = sqlite3.connect("cards.db")
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+            tables = cursor.fetchall()
+            conn.close()
+            
+            if not tables:
+                # If no tables, restore the backup
+                if os.path.exists(backup_name):
+                    os.rename(backup_name, "cards.db")
+                return jsonify({"error": "Invalid database file - no tables found"}), 400
+                
+        except sqlite3.Error:
+            # If database is corrupted, restore the backup
+            if os.path.exists(backup_name):
+                os.rename(backup_name, "cards.db")
+            return jsonify({"error": "Invalid database file - corrupted or invalid format"}), 400
+        
+        return jsonify({"message": "Database restored successfully"})
+        
+    except Exception as e:
+        return jsonify({"error": f"Failed to restore database: {str(e)}"}), 500
+
 # Initialize database when app starts (for Cloud Run)
 init_db()
 

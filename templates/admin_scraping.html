@@ -193,6 +193,30 @@
                     </ul>
                 </div>
             </div>
+
+            <!-- Database Backup/Restore Card -->
+            <div class="card mt-4">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-database me-2"></i>
+                        Database Backup & Restore
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">
+                        Download your database to keep a backup, or upload a previous backup to restore your data.
+                    </p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" id="downloadDbBtn">
+                            <i class="fas fa-download me-2"></i>Download Database Backup
+                        </button>
+                        <button class="btn btn-outline-success btn-sm" id="uploadDbBtn">
+                            <i class="fas fa-upload me-2"></i>Upload Database Backup
+                        </button>
+                    </div>
+                    <input type="file" id="databaseFileInput" accept=".db" style="display: none;">
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -467,5 +491,81 @@
 
     // Set up stop button
     document.getElementById('stopScrapingBtn').addEventListener('click', stopScraping);
+
+    // Database backup/restore functionality
+    document.getElementById('downloadDbBtn').addEventListener('click', function() {
+        addConsoleLog('Starting database backup download...', 'info');
+        
+        fetch('/api/backup-database')
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Failed to download database');
+                    });
+                }
+            })
+            .then(blob => {
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `topdeck_backup_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.db`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                addConsoleLog('Database backup downloaded successfully!', 'success');
+            })
+            .catch(error => {
+                console.error('Error downloading database:', error);
+                addConsoleLog(`Error: ${error.message}`, 'error');
+            });
+    });
+
+    document.getElementById('uploadDbBtn').addEventListener('click', function() {
+        document.getElementById('databaseFileInput').click();
+    });
+
+    document.getElementById('databaseFileInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!file.name.endsWith('.db')) {
+            addConsoleLog('Error: Please select a .db file', 'error');
+            return;
+        }
+
+        addConsoleLog(`Uploading database backup: ${file.name}...`, 'info');
+
+        const formData = new FormData();
+        formData.append('database_file', file);
+
+        fetch('/api/restore-database', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.message) {
+                addConsoleLog('Database restored successfully!', 'success');
+                // Reload the page to refresh stats
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            } else if (result.error) {
+                addConsoleLog(`Error: ${result.error}`, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error restoring database:', error);
+            addConsoleLog(`Error: ${error.message}`, 'error');
+        });
+
+        // Clear the file input
+        event.target.value = '';
+    });
 </script>
 {% endblock %}
