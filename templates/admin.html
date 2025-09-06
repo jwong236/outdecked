@@ -99,37 +99,6 @@
         </div>
     </div>
 
-    <!-- Recent Activity -->
-    <div class="mt-5">
-        <h3 class="text-center mb-4">Recent Activity</h3>
-        <div class="card">
-            <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-4 text-center">
-                        <div class="mb-2">
-                            <i class="fas fa-clock fa-2x text-muted"></i>
-                        </div>
-                        <h6>Last Scrape</h6>
-                        <p class="text-muted small" id="lastScrape">Loading...</p>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        <div class="mb-2">
-                            <i class="fas fa-plus fa-2x text-success"></i>
-                        </div>
-                        <h6>Cards Added Today</h6>
-                        <p class="text-muted small" id="cardsToday">Loading...</p>
-                    </div>
-                    <div class="col-md-4 text-center">
-                        <div class="mb-2">
-                            <i class="fas fa-check-circle fa-2x text-primary"></i>
-                        </div>
-                        <h6>System Status</h6>
-                        <p class="text-muted small" id="systemStatus">Loading...</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -146,17 +115,11 @@
             .then(data => {
                 document.getElementById('totalCards').textContent = data.total_cards || '0';
                 document.getElementById('gameCount').textContent = data.game_count || '0';
-                document.getElementById('lastScrape').textContent = data.last_scrape || 'Never';
-                document.getElementById('cardsToday').textContent = data.cards_today || '0';
-                document.getElementById('systemStatus').textContent = 'Online';
             })
             .catch(error => {
                 console.error('Error loading admin stats:', error);
                 document.getElementById('totalCards').textContent = 'Error';
                 document.getElementById('gameCount').textContent = 'Error';
-                document.getElementById('lastScrape').textContent = 'Error';
-                document.getElementById('cardsToday').textContent = 'Error';
-                document.getElementById('systemStatus').textContent = 'Error';
             });
     }
 </script>

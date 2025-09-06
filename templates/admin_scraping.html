@@ -187,9 +187,6 @@
                     <ul class="mb-0 small">
                         <li><strong>Please ask Jacob before scraping</strong> - This process can take a long time and uses system resources</li>
                         <li><strong>If you see any bugs please screenshot and let Jacob know</strong> - Help improve the system</li>
-                        <li><strong>Scraping respects robots.txt</strong> - 10 second delay between pages to be respectful</li>
-                        <li><strong>Stop button may take a moment</strong> - The system needs to finish current page processing</li>
-                        <li><strong>Database updates automatically</strong> - New cards are saved as they're found</li>
                     </ul>
                 </div>
             </div>
@@ -225,13 +222,35 @@
 {% block scripts %}
 <script>
     let statusInterval;
+    let socket;
 
     document.addEventListener('DOMContentLoaded', function() {
+        setupWebSocket();
         setupFormHandlers();
         setupConsoleLogs();
         loadGameStats();
         loadDatabaseStats();
+        checkScrapingStatus(); // Check if scraping is already running
     });
+
+    function setupWebSocket() {
+        // Connect to WebSocket
+        socket = io();
+        
+        // Listen for scraping log messages
+        socket.on('scraping_log', function(logEntry) {
+            addConsoleLog(`[${logEntry.timestamp}] ${logEntry.message}`, logEntry.type);
+        });
+        
+        // Listen for connection events
+        socket.on('connect', function() {
+            console.log('WebSocket connected');
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('WebSocket disconnected');
+        });
+    }
 
     function setupFormHandlers() {
         const form = document.getElementById('scrapingForm');
@@ -305,6 +324,31 @@
             addConsoleLog(`Error: ${error.message}`, 'error');
             alert('Error starting scraping: ' + error.message);
         });
+    }
+
+    function checkScrapingStatus() {
+        // Check if scraping is already running when page loads
+        fetch('/api/scraping-status')
+            .then(response => response.json())
+            .then(status => {
+                if (status.is_running) {
+                    // Show status and console components
+                    document.getElementById('scrapingStatus').style.display = 'block';
+                    document.getElementById('consoleLogsPanel').style.display = 'block';
+                    
+                    // Update status display
+                    updateScrapingStatus(status);
+                    
+                    // Start polling for updates
+                    startStatusPolling();
+                    
+                    // Add a log message
+                    addConsoleLog('Resumed monitoring existing scraping process...', 'info');
+                }
+            })
+            .catch(error => {
+                console.error('Error checking scraping status:', error);
+            });
     }
 
     function startStatusPolling() {
