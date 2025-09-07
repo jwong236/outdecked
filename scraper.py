@@ -1,877 +1,531 @@
-"""
-Web scraping functionality for OutDecked card management system.
-"""
+#!/usr/bin/env python3
 
-import requests
-from bs4 import BeautifulSoup
+import logging
 import time
-import re
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service
-from models import METADATA_FIELDS_EXACT
+from selenium.common.exceptions import TimeoutException
+from bs4 import BeautifulSoup
+from flask_socketio import SocketIO
+from models import scraping_status
+
+# Setup logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("scraping.log"), logging.StreamHandler()],
+)
+logger = logging.getLogger(__name__)
 
 
-def add_scraping_log(message, log_type="info", socketio=None):
-    """Add a log message to the scraping status and emit via WebSocket"""
-    import datetime
-    from models import scraping_status
+def add_scraping_log(message, level="info", socketio=None):
+    """Add a log entry to the scraping status and emit via SocketIO."""
+    timestamp = time.strftime("%H:%M:%S")
+    log_entry = f"[{timestamp}] {message}"
 
-    timestamp = datetime.datetime.now().strftime("%H:%M:%S")
-    log_entry = {"timestamp": timestamp, "message": message, "type": log_type}
+    # Add to scraping status logs
     scraping_status["logs"].append(log_entry)
-    # Keep only the last 50 logs to prevent memory issues
-    if len(scraping_status["logs"]) > 50:
-        scraping_status["logs"] = scraping_status["logs"][-50:]
 
-    # Emit the log message via WebSocket if socketio is available
+    # Log to file and terminal
+    if level == "error":
+        logger.error(message)
+    elif level == "warning":
+        logger.warning(message)
+    else:
+        logger.info(message)
+
+    # Emit via SocketIO if available
     if socketio:
-        socketio.emit("scraping_log", log_entry)
+        socketio.emit(
+            "scraping_log", {"timestamp": timestamp, "message": message, "type": level}
+        )
 
 
-def scrape_card_metadata(card_url):
-    """Scrape detailed metadata from a TCGPlayer card page using Selenium for Vue.js"""
+def extract_card_metadata_from_soup(soup, card_url, socketio=None):
+    """Extract metadata from BeautifulSoup object of card page."""
+    metadata = {}
+
+    # Get card description
+    description_elem = soup.select_one(".product__item-details__description")
+    if description_elem:
+        metadata["card_text"] = description_elem.get_text().strip()
+
+    # Get all attribute list items
+    attribute_items = soup.select(".product__item-details__attributes li")
+
+    for li in attribute_items:
+        # Each li contains: <div><strong>Name:</strong><span>Value</span></div>
+        strong = li.find("strong")
+        span = li.find("span")
+
+        if strong and span:
+            key = strong.get_text().strip().rstrip(":")
+            value = span.get_text().strip()
+
+            # Debug logging to see what attributes are being found
+            if socketio:
+                add_scraping_log(
+                    f"Found attribute: '{key}' = '{value}'", "info", socketio
+                )
+
+            # Store with cleaned key and map to expected field names
+            clean_key = key.lower().replace(" ", "_").replace("(", "").replace(")", "")
+
+            # Map to expected field names for frontend compatibility
+            field_mapping = {
+                "number": "card_number",
+                "activation_energy": "color",
+                "required_energy": "cost_2",
+                "action_point_cost": "cost_1",
+                "battle_point_bp": "battle_points",
+                "trigger": "special_ability",
+                "series_name": "series",
+            }
+
+            # Use mapped field name if available, otherwise use clean key
+            final_key = field_mapping.get(clean_key, clean_key)
+            metadata[final_key] = value
+
+    # Extract price from spotlight section
+    price_elem = soup.select_one(".spotlight__price")
+    if price_elem:
+        price_text = price_elem.get_text().strip()
+        if price_text:  # Only process if price text is not empty
+            # Remove $ sign and store as numeric value
+            try:
+                price_value = float(price_text.replace("$", ""))
+                metadata["price"] = price_value
+                if socketio:
+                    add_scraping_log(f"Found price: ${price_value}", "info", socketio)
+            except ValueError:
+                if socketio:
+                    add_scraping_log(
+                        f"Could not parse price: '{price_text}'", "warning", socketio
+                    )
+        else:
+            if socketio:
+                add_scraping_log("Price element found but empty", "warning", socketio)
+    else:
+        if socketio:
+            add_scraping_log(
+                "No price element found for this card", "warning", socketio
+            )
+
+    # Extract high-quality image URL
+    image_element = soup.select_one(
+        ".image-set__grid .swiper__slide .lazy-image__wrapper img"
+    )
+    if image_element:
+        srcset = image_element.get("srcset", "")
+        if srcset:
+            # Parse srcset to find the highest quality image (1000x1000)
+            srcset_parts = srcset.split(",")
+            highest_quality_url = ""
+            max_width = 0
+
+            for part in srcset_parts:
+                part = part.strip()
+                if " " in part:
+                    url, width_str = part.rsplit(" ", 1)
+                    url = url.strip()
+                    width_str = width_str.strip()
+
+                    if width_str.endswith("w"):
+                        try:
+                            width = int(width_str[:-1])
+                            if width > max_width:
+                                max_width = width
+                                highest_quality_url = url
+                        except ValueError:
+                            continue
+
+            if highest_quality_url:
+                metadata["image_url"] = highest_quality_url
+            else:
+                src = image_element.get("src", "")
+                if src:
+                    metadata["image_url"] = src
+        else:
+            src = image_element.get("src", "")
+            if src:
+                metadata["image_url"] = src
+
+    return metadata
+
+
+def scrape_card_page_selenium(
+    card_url, socketio=None, driver=None, last_request_time=None
+):
+    """Scrape metadata from individual card page using Selenium."""
+    should_close_driver = False
+    if driver is None:
+        # Create new driver if none provided
+        should_close_driver = True
+        try:
+            if socketio:
+                add_scraping_log(
+                    f"Starting Selenium scrape for: {card_url}", "info", socketio
+                )
+
+            logger.debug(f"Loading card page with Selenium: {card_url}")
+
+            # Setup Chrome options with anti-detection measures
+            chrome_options = Options()
+            chrome_options.add_argument("--headless")
+            chrome_options.add_argument("--no-sandbox")
+            chrome_options.add_argument("--disable-dev-shm-usage")
+            chrome_options.add_argument("--disable-gpu")
+            chrome_options.add_argument("--window-size=1920,1080")
+            chrome_options.add_argument(
+                "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            chrome_options.add_argument("--disable-background-networking")
+            chrome_options.add_argument("--disable-default-apps")
+            chrome_options.add_argument("--disable-sync")
+            chrome_options.add_argument("--disable-translate")
+            chrome_options.add_argument("--disable-background-timer-throttling")
+            chrome_options.add_argument("--disable-renderer-backgrounding")
+            chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+            chrome_options.add_experimental_option(
+                "excludeSwitches", ["enable-automation"]
+            )
+            chrome_options.add_experimental_option("useAutomationExtension", False)
+
+            driver = webdriver.Chrome(options=chrome_options)
+
+            # Execute script to remove webdriver property
+            driver.execute_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
+        except Exception as e:
+            error_msg = f"Error creating WebDriver: {e}"
+            logger.error(error_msg)
+            if socketio:
+                add_scraping_log(f"ERROR: {error_msg}", "error", socketio)
+            return {}
+
+    try:
+
+        # Dynamic sleep to ensure exactly 10 seconds between requests
+        if last_request_time is not None:
+            current_time = time.time()
+            time_since_last = current_time - last_request_time
+            if time_since_last < 10:
+                sleep_time = 10 - time_since_last
+                time.sleep(sleep_time)
+
+        if socketio:
+            add_scraping_log(f"Loading page: {card_url}", "info", socketio)
+
+        # Update request_time before making the request
+        request_time = time.time()
+
+        driver.get(card_url)
+
+        # Wait for the actual content we need to load
+        try:
+            WebDriverWait(driver, 10).until(
+                lambda driver: driver.find_elements(
+                    By.CSS_SELECTOR, ".product__item-details__attributes li"
+                )
+                or driver.find_elements(By.CSS_SELECTOR, ".spotlight__price")
+            )
+        except TimeoutException:
+            pass  # Elements may still be present, proceed with extraction
+
+        # Get page content (WebDriverWait already ensured elements are loaded)
+        page_source = driver.page_source
+        soup = BeautifulSoup(page_source, "html.parser")
+
+        # Check if we have the required content
+        has_attributes = soup.select(".product__item-details__attributes li")
+        has_price = soup.select_one(".spotlight__price")
+
+        if not has_attributes and not has_price:
+            if socketio:
+                add_scraping_log(
+                    f"WARNING: No content found on page {card_url}", "warning", socketio
+                )
+
+        if socketio:
+            add_scraping_log(
+                "Extracting metadata from page content...", "info", socketio
+            )
+
+        metadata = extract_card_metadata_from_soup(soup, card_url, socketio)
+
+        if socketio:
+            add_scraping_log(
+                f"Metadata extraction complete. Found {len(metadata)} fields",
+                "info",
+                socketio,
+            )
+
+        logger.debug(f"Extracted {len(metadata)} metadata fields from {card_url}")
+        return metadata, request_time
+
+    except Exception as e:
+        error_msg = f"Error scraping card metadata from {card_url}: {e}"
+        logger.error(error_msg)
+        if socketio:
+            add_scraping_log(f"ERROR: {error_msg}", "error", socketio)
+        return {}, time.time()
+    finally:
+        if should_close_driver and driver:
+            driver.quit()
+            if socketio:
+                add_scraping_log("Selenium driver closed", "info", socketio)
+
+
+def scrape_search_page_selenium(page_url, socketio=None, last_request_time=None):
+    """Scrape a TCGPlayer search page to extract card entries using Selenium."""
     driver = None
     try:
-        # Set up Chrome options for Selenium
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument(
-            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        chrome_options.add_argument("--disable-background-networking")
+        chrome_options.add_argument("--disable-default-apps")
+        chrome_options.add_argument("--disable-sync")
+        chrome_options.add_argument("--disable-translate")
+        chrome_options.add_argument("--disable-background-timer-throttling")
+        chrome_options.add_argument("--disable-renderer-backgrounding")
+        chrome_options.add_argument("--disable-backgrounding-occluded-windows")
+
+        driver = webdriver.Chrome(options=chrome_options)
+
+        # Dynamic sleep to ensure exactly 10 seconds between requests
+        if last_request_time is not None:
+            current_time = time.time()
+            time_since_last = current_time - last_request_time
+            if time_since_last < 10:
+                sleep_time = 10 - time_since_last
+                time.sleep(sleep_time)
+
+        # Update request_time before making the request
+        request_time = time.time()
+
+        # REQUEST IS MADE
+        driver.get(page_url)
+
+        # Wait for search results to load
+        WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "search-result"))
         )
 
-        # Initialize Chrome driver
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+        card_items = soup.find_all("div", class_="search-result")
 
-        print(f"Loading card page with Selenium: {card_url}")
-        driver.get(card_url)
+        card_entries = []
+        for item in card_items:
+            link_tag = item.find("a", href=True)
+            if link_tag:
+                card_url = link_tag["href"]
+                if not card_url.startswith("http"):
+                    card_url = "https://www.tcgplayer.com" + card_url
+                if "Language=English" not in card_url:
+                    separator = "&" if "?" in card_url else "?"
+                    card_url = f"{card_url}{separator}Language=English"
 
-        # Wait for Vue.js to render the content
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
+                img_tag = item.find("img")
+                card_name = img_tag.get("alt") if img_tag and img_tag.get("alt") else ""
+
+                if card_url and card_name:
+                    card_entries.append({"name": card_name, "url": card_url})
+
+        return card_entries, request_time
+
+    except Exception:
+        return [], time.time()
+    finally:
+        if driver:
+            driver.quit()
+
+
+def sequential_crawler(
+    game_name, start_page=1, should_stop_callback=None, socketio=None
+):
+    """Sequential crawler with dynamic timing for perfect 10-second intervals."""
+    scraping_status["is_running"] = True
+    scraping_status["current_page"] = start_page
+    scraping_status["total_cards"] = 0
+    scraping_status["logs"] = []
+
+    cards_processed = 0
+    current_page = start_page
+    last_request_time = time.time()
+
+    try:
+        add_scraping_log(
+            f"Starting sequential crawler for {game_name} from page {start_page}",
+            "info",
+            socketio,
         )
 
-        # Additional wait for Vue.js rendering
-        time.sleep(5)
-
-        # Get page source after JavaScript execution
-        page_source = driver.page_source
-        soup = BeautifulSoup(page_source, "html.parser")
-        metadata = {}
-
-        # Debug: Print page title to see if we're getting the right page
-        title = soup.find("title")
-        print(f"Scraping metadata from: {title.get_text() if title else 'No title'}")
-
-        # Debug: Check if we can find the TCGPlayer attributes list
-        ul_elements = soup.find_all(
-            "ul", class_=lambda x: x and "product__item-details__attributes" in x
-        )
-        print(
-            f"Found {len(ul_elements)} ul elements with product__item-details__attributes class"
-        )
-
-        if ul_elements:
-            print(f"First ul element classes: {ul_elements[0].get('class', [])}")
-            print(
-                f"First ul element text (first 200 chars): {ul_elements[0].get_text()[:200]}"
-            )
-
-        # Debug: Check for any ul elements
-        all_ul_elements = soup.find_all("ul")
-        print(f"Found {len(all_ul_elements)} total ul elements")
-
-        # Debug: Check what's in the ul elements
-        for i, ul in enumerate(all_ul_elements[:3]):  # Check first 3
-            classes = ul.get("class", [])
-            text = ul.get_text().strip()[:100]
-            print(f"  UL {i+1}: classes={classes}, text='{text}...'")
-
-        # Debug: Check for elements containing "Product Details"
-        product_details_elements = soup.find_all(
-            text=lambda text: text and "Product Details" in text
-        )
-        print(
-            f"Found {len(product_details_elements)} elements containing 'Product Details'"
-        )
-
-        # Debug: Check for elements containing "Rarity:"
-        rarity_elements = soup.find_all(text=lambda text: text and "Rarity:" in text)
-        print(f"Found {len(rarity_elements)} elements containing 'Rarity:'")
-
-        if rarity_elements:
-            print(f"First rarity element: {rarity_elements[0]}")
-
-        # Try multiple selectors for product details using the correct TCGPlayer structure
-        product_details = None
-
-        # Try to find the TCGPlayer attributes list directly
-        product_details = soup.select_one(
-            "ul[class*='product__item-details__attributes']"
-        )
-
-        if product_details:
-            print(f"Found TCGPlayer attributes list directly!")
-            print(f"Element name: {product_details.name}")
-            print(f"Element classes: {product_details.get('class', [])}")
-        else:
-            # Fallback to other selectors
-            tcgplayer_selectors = [
-                "div[class*='product__item-details__attributes']",
-                "div[class*='read_more_wrapper']",
-                "div[class*='product-details__details']",
-                "div[class*='product-details']",
-                "div[class*='product-info']",
-                "div[class*='specs']",
-                "div[class*='details']",
-            ]
-
-            for selector in tcgplayer_selectors:
-                product_details = soup.select_one(selector)
-                if product_details:
-                    print(f"Found product details with selector: {selector}")
-                    break
-
-        if product_details:
-            print(f"Product details element: {product_details.name}")
-            print(f"Product details classes: {product_details.get('class', [])}")
-
-            # Check if this is the TCGPlayer attributes list directly
-            if (
-                product_details.name == "ul"
-                and "product__item-details__attributes"
-                in str(product_details.get("class", []))
-            ):
-                print("Found TCGPlayer attributes list directly!")
-
-                # Parse structured HTML with <strong> and <span> elements
-                li_elements = product_details.find_all("li")
-                print(f"Found {len(li_elements)} attribute items")
-
-                # Debug: Check the first li element specifically
-                if li_elements:
-                    first_li = li_elements[0]
-                    print(f"First li element HTML: {first_li}")
-                    strong_elem = first_li.find("strong")
-                    span_elem = first_li.find("span")
-                    print(f"First li strong: {strong_elem}")
-                    print(f"First li span: {span_elem}")
-
-                for i, li in enumerate(li_elements):
-                    print(f"Processing li element {i+1}: {li}")
-                    strong_elem = li.find("strong")
-                    span_elem = li.find("span")
-
-                    print(f"  Strong element: {strong_elem}")
-                    print(f"  Span element: {span_elem}")
-
-                    if strong_elem and span_elem:
-                        label = strong_elem.get_text(strip=True).lower()
-                        value = span_elem.get_text(strip=True)
-
-                        print(f"Found attribute: {label} = {value}")
-
-                        # Map to our metadata fields
-                        if "rarity" in label:
-                            metadata["rarity"] = value
-                            print(f"✓ Set rarity to: {value}")
-                        elif "number" in label:
-                            metadata["card_number"] = value
-                        elif "series name" in label:
-                            metadata["series"] = value
-                        elif "card type" in label:
-                            metadata["card_type"] = value
-                        elif "activation energy" in label:
-                            metadata["color"] = value
-                        elif "required energy" in label:
-                            metadata["cost_2"] = value
-                        elif "action point cost" in label:
-                            metadata["cost_1"] = value
-                        elif "trigger" in label:
-                            metadata["special_ability"] = value
-                        elif "battle point" in label or "bp" in label:
-                            metadata["battle_points"] = value
-                        elif "affinities" in label:
-                            # Parse affinities - split by " / " and join with ", "
-                            affinities = [
-                                aff.strip() for aff in value.split(" / ") if aff.strip()
-                            ]
-                            metadata["affinities"] = ", ".join(affinities)
-                        elif "generated energy" in label:
-                            metadata["generated_energy"] = value
-
-            else:
-                # Try different row selectors based on TCGPlayer structure
-                row_selectors = [
-                    "ul[class*='product__item-details__attributes'] li",  # TCGPlayer attribute list
-                    "div.product-details__row",
-                    "div.product-info__row",
-                    "div.spec-row",
-                    "div[class*='row']",
-                    "tr",  # Sometimes it's a table
-                    "div[class*='detail']",
-                    "li",  # List items
-                ]
-
-                details_rows = []
-                for row_selector in row_selectors:
-                    details_rows = product_details.select(row_selector)
-                    if details_rows:
-                        print(
-                            f"Found {len(details_rows)} rows with selector: {row_selector}"
-                        )
-                        break
-
-                # Special handling for TCGPlayer's concatenated metadata format
-                if row_selector == "ul[class*='product__item-details__attributes'] li":
-                    # TCGPlayer stores all metadata in one concatenated string
-                    # We need to parse it from the parent ul element
-                    parent_ul = product_details.select_one(
-                        "ul[class*='product__item-details__attributes']"
-                    )
-                    if parent_ul:
-                        full_text = parent_ul.get_text()
-                        print(f"TCGPlayer concatenated metadata: {full_text}")
-
-                        # Parse the concatenated string
-                        # Format: "Rarity:CommonNumber:UE10BT/AOT-1-100Series Name:Attack on Titan..."
-                        import re
-
-                        if re.search(r"Rarity:", full_text):
-                            rarity_match = re.search(
-                                r"Rarity:([^N]+)Number:", full_text
-                            )
-                            if rarity_match:
-                                metadata["rarity"] = rarity_match.group(1).strip()
-                                print(f"Parsed rarity: {metadata['rarity']}")
-
-                        if re.search(r"Number:", full_text):
-                            number_match = re.search(
-                                r"Number:([^S]+)Series Name:", full_text
-                            )
-                            if number_match:
-                                metadata["card_number"] = number_match.group(1).strip()
-                                print(f"Parsed number: {metadata['card_number']}")
-
-                        if re.search(r"Series Name:", full_text):
-                            series_match = re.search(
-                                r"Series Name:([^C]+)Card Type:", full_text
-                            )
-                            if series_match:
-                                metadata["series"] = series_match.group(1).strip()
-                                print(f"Parsed series: {metadata['series']}")
-
-                        if re.search(r"Card Type:", full_text):
-                            type_match = re.search(
-                                r"Card Type:([^A]+)Activation Energy:", full_text
-                            )
-                            if type_match:
-                                metadata["card_type"] = type_match.group(1).strip()
-                                print(f"Parsed card type: {metadata['card_type']}")
-
-                        if re.search(r"Activation Energy:", full_text):
-                            energy_match = re.search(
-                                r"Activation Energy:([^R]+)Required Energy:", full_text
-                            )
-                            if energy_match:
-                                metadata["color"] = energy_match.group(1).strip()
-                                print(
-                                    f"Parsed activation energy (color): {metadata['color']}"
-                                )
-
-                        if re.search(r"Required Energy:", full_text):
-                            req_energy_match = re.search(
-                                r"Required Energy:([^A]+)Action Point Cost:", full_text
-                            )
-                            if req_energy_match:
-                                metadata["cost_2"] = req_energy_match.group(1).strip()
-                                print(f"Parsed required energy: {metadata['cost_2']}")
-
-                        if re.search(r"Action Point Cost:", full_text):
-                            ap_cost_match = re.search(
-                                r"Action Point Cost:([^T]+)Trigger:", full_text
-                            )
-                            if ap_cost_match:
-                                metadata["cost_1"] = ap_cost_match.group(1).strip()
-                                print(f"Parsed action point cost: {metadata['cost_1']}")
-
-                        if re.search(r"Trigger:", full_text):
-                            trigger_match = re.search(r"Trigger:([^N]+)", full_text)
-                            if trigger_match:
-                                metadata["special_ability"] = trigger_match.group(
-                                    1
-                                ).strip()
-                                print(f"Parsed trigger: {metadata['special_ability']}")
-
-                # Original logic for other selectors
-                for row in details_rows:
-                    # Try different label/value selectors
-                    label_selectors = [
-                        "div.product-details__label",
-                        "div.product-info__label",
-                        "span.label",
-                        "dt",
-                        "th",
-                        "div[class*='label']",
-                        "span[class*='label']",
-                    ]
-
-                    value_selectors = [
-                        "div.product-details__value",
-                        "div.product-info__value",
-                        "span.value",
-                        "dd",
-                        "td",
-                        "div[class*='value']",
-                        "span[class*='value']",
-                    ]
-
-                    label_elem = None
-                    value_elem = None
-
-                    for label_sel in label_selectors:
-                        label_elem = row.select_one(label_sel)
-                        if label_elem:
-                            break
-
-                    for value_sel in value_selectors:
-                        value_elem = row.select_one(value_sel)
-                        if value_elem:
-                            break
-
-                    # If no specific selectors work, try to find any text elements
-                    if not label_elem or not value_elem:
-                        text_elements = row.find_all(text=True, recursive=True)
-                        text_elements = [t.strip() for t in text_elements if t.strip()]
-                        if len(text_elements) >= 2:
-                            label_elem = type(
-                                "obj",
-                                (object,),
-                                {"get_text": lambda: text_elements[0]},
-                            )()
-                            value_elem = type(
-                                "obj",
-                                (object,),
-                                {"get_text": lambda: text_elements[1]},
-                            )()
-
-                    if label_elem and value_elem:
-                        label = label_elem.get_text(strip=True).lower()
-                        value = value_elem.get_text(strip=True)
-
-                        print(f"Found metadata: {label} = {value}")
-
-                        # Map common fields to our generic metadata structure
-                        if "rarity" in label:
-                            metadata["rarity"] = value
-                        elif "number" in label:
-                            metadata["card_number"] = value
-                        elif "series" in label or "set" in label:
-                            metadata["series"] = value
-                        elif "card type" in label or "type" in label:
-                            metadata["card_type"] = value
-                        elif "color" in label or "theme" in label:
-                            metadata["color"] = value
-                        elif (
-                            "activation energy" in label
-                            or "mana cost" in label
-                            or "energy cost" in label
-                        ):
-                            metadata["cost_1"] = value
-                        elif (
-                            "required energy" in label
-                            or "action point cost" in label
-                            or "casting cost" in label
-                        ):
-                            metadata["cost_2"] = value
-                        elif (
-                            "trigger" in label
-                            or "keyword" in label
-                            or "ability" in label
-                        ):
-                            metadata["special_ability"] = value
-                        elif "language" in label:
-                            metadata["language"] = value
-
-        # Try to extract series from URL or breadcrumbs
-        if not metadata.get("series"):
-            # Try to get series from breadcrumbs
-            breadcrumbs = soup.find("nav", {"aria-label": "Breadcrumb"})
-            if breadcrumbs:
-                breadcrumb_links = breadcrumbs.find_all("a")
-                for link in breadcrumb_links:
-                    text = link.get_text(strip=True)
-                    if text and text not in ["Home", "TCG", "Union Arena"]:
-                        metadata["series"] = text
-                        break
-
-        # Try different price selectors - TCGPlayer specific first
-        price_selectors = [
-            "span[class*='spotlight__price']",  # TCGPlayer specific
-            "span.price",
-            "div.price",
-            "span[class*='price']",
-            "div[class*='price']",
-            ".market-price",
-            ".low-price",
-        ]
-
-        for price_sel in price_selectors:
-            price_elem = soup.select_one(price_sel)
-            if price_elem:
-                price_text = price_elem.get_text(strip=True)
-                if price_text and "$" in price_text:
-                    # Extract just the price value (e.g., "$5.83" from longer text)
-                    import re
-
-                    price_match = re.search(r"\$[\d,]+\.?\d*", price_text)
-                    if price_match:
-                        metadata["price"] = price_match.group()
-                        print(f"Found price with {price_sel}: {metadata['price']}")
-                        break
-                    else:
-                        print(f"No clean price found in: {price_text}")
-                        # Don't set price if we can't extract a clean value
-                        break
-
-        # Try different image selectors
-        img_selectors = [
-            "img.product-image",
-            "img[class*='product']",
-            "img[class*='card']",
-            ".product-image img",
-            ".card-image img",
-        ]
-
-        for img_sel in img_selectors:
-            img_elem = soup.select_one(img_sel)
-            if img_elem and img_elem.get("src"):
-                metadata["high_res_image"] = img_elem["src"]
+        while True:
+            # Check if we should stop
+            if should_stop_callback and should_stop_callback():
+                add_scraping_log("Stop requested by user", "info", socketio)
                 break
 
-        # Try different text/description selectors
-        text_selectors = [
-            "div.product-description",
-            "div.card-text",
-            "div[class*='description']",
-            "div[class*='text']",
-            ".product-details p",
-            ".card-details p",
-        ]
+            # Process current search page
+            page_url = f"https://www.tcgplayer.com/search/{game_name}/product?productLineName={game_name}&view=grid&ProductTypeName=Cards&page={current_page}"
 
-        for text_sel in text_selectors:
-            card_text_elem = soup.select_one(text_sel)
-            if card_text_elem:
-                text_content = card_text_elem.get_text(strip=True)
-                if (
-                    text_content and len(text_content) > 10
-                ):  # Only if it's substantial text
-                    metadata["card_text"] = text_content
-                    break
+            add_scraping_log(
+                f"Processing search page {current_page}",
+                "info",
+                socketio,
+            )
+            scraping_status["current_page"] = current_page
 
-        # Only run text-based parsing if structured parsing didn't find the data
-        if not metadata.get("rarity") or not metadata.get("series"):
-            # Try to parse metadata from the main content area using TCGPlayer structure
-            # Look for the main content that contains the attributes
-            main_content = None
-
-            # Try TCGPlayer-specific selectors first
-            tcgplayer_selectors = [
-                "div[class*='product__item-details__attributes']",
-                "div[class*='read_more_wrapper']",
-                "div[class*='product-details__details']",
-                "div[class*='product-details']",
-                "div[class*='product-info']",
-            ]
-
-            for selector in tcgplayer_selectors:
-                main_content = soup.select_one(selector)
-                if main_content:
-                    print(f"Found main content with selector: {selector}")
-                    break
-
-            if not main_content:
-                # Fallback: Try to find any div that contains "Product Details" text
-                for div in soup.find_all("div"):
-                    if div.get_text() and "Product Details" in div.get_text():
-                        main_content = div
-                        break
-
-            if main_content:
-                # Get all text content and parse it
-                full_text = main_content.get_text()
-                print(
-                    f"Found main content text: {full_text[:500]}..."
-                )  # Print first 500 chars
-
-                # Parse the text to extract metadata
-                lines = full_text.split("\n")
-                for line in lines:
-                    line = line.strip()
-                    if ":" in line:
-                        parts = line.split(":", 1)
-                        if len(parts) == 2:
-                            label = parts[0].strip().lower()
-                            value = parts[1].strip()
-
-                            print(f"Parsed from text: {label} = {value}")
-
-                            # Map the labels to our metadata fields
-                            if "rarity" in label:
-                                metadata["rarity"] = value
-                            elif "number" in label:
-                                metadata["card_number"] = value
-                            elif "series name" in label or "series" in label:
-                                metadata["series"] = value
-                            elif "card type" in label or "type" in label:
-                                metadata["card_type"] = value
-                            elif "activation energy" in label:
-                                metadata["color"] = (
-                                    value  # Activation energy is often the color
-                                )
-                            elif "required energy" in label:
-                                metadata["cost_2"] = value
-                            elif "action point cost" in label:
-                                metadata["cost_1"] = value
-                            elif "trigger" in label:
-                                metadata["special_ability"] = value
-
-        print(f"Extracted metadata: {metadata}")
-        return metadata
-
-    except Exception as e:
-        print(f"Error scraping metadata for {card_url}: {str(e)}")
-        return {}
-    finally:
-        if driver:
-            driver.quit()
-
-
-def scrape_tcgplayer_page_selenium(
-    url, game_name, should_stop_callback=None, socketio=None
-):
-    """Scrape a TCGPlayer page using Selenium to handle JavaScript rendering"""
-    import re  # Move import to top of function
-
-    driver = None
-    try:
-        # Setup Chrome options
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")  # Run in background
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--window-size=1920,1080")
-        chrome_options.add_argument(
-            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-
-        # Setup Chrome driver
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service, options=chrome_options)
-
-        driver.get(url)
-
-        # Check for stop signal before waiting
-        if should_stop_callback and should_stop_callback():
-            print("Stop signal received before page processing")
-            return []
-
-        # Wait for content to load
-        wait = WebDriverWait(driver, 10)
-
-        # Be respectful - add delay to respect robots.txt
-        time.sleep(2)
-
-        # Check for stop signal after initial delay
-        if should_stop_callback and should_stop_callback():
-            print("Stop signal received after initial delay")
-            return []
-
-        # Wait for either search results or a "no results" message
-        try:
-            # Wait for search results to appear
-            wait.until(
-                EC.any_of(
-                    EC.presence_of_element_located(
-                        (By.CLASS_NAME, "search-result__product")
-                    ),
-                    EC.presence_of_element_located((By.CLASS_NAME, "no-results")),
-                    EC.presence_of_element_located((By.CLASS_NAME, "search-results")),
-                )
+            # Scrape the search page to get card entries
+            card_entries, last_request_time = scrape_search_page_selenium(
+                page_url, socketio, last_request_time
             )
 
-            # Wait for images to load (additional delay for lazy loading)
-            time.sleep(3)
-
-            # Check for stop signal after image loading delay
-            if should_stop_callback and should_stop_callback():
-                print("Stop signal received after image loading delay")
-                return []
-
-            # Try to wait for at least one real image to load
-            try:
-                wait.until(
-                    EC.presence_of_element_located(
-                        (By.CSS_SELECTOR, "img[src*='tcgplayer-cdn.tcgplayer.com']")
-                    )
+            if not card_entries:
+                add_scraping_log(
+                    f"No cards found on page {current_page}, stopping",
+                    "info",
+                    socketio,
                 )
-            except:
-                print("No real images loaded yet, proceeding with what we have")
+                break
 
-        except:
-            print("Timeout waiting for content to load")
+            # Process each card on this page
+            for card_entry in card_entries:
+                # Check if we should stop before processing each card
+                if should_stop_callback and should_stop_callback():
+                    add_scraping_log("Stop requested by user", "info", socketio)
+                    return cards_processed
 
-        # Get page source after JavaScript execution
-        page_source = driver.page_source
-        soup = BeautifulSoup(page_source, "html.parser")
+                card_name = card_entry["name"]
+                card_url = card_entry["url"]
 
-        # Debug: Check what we got
-        print(
-            f"Page title: {soup.find('title').get_text() if soup.find('title') else 'No title'}"
-        )
-        print(
-            f"Body content length: {len(soup.find('body').get_text()) if soup.find('body') else 0}"
-        )
+                add_scraping_log(
+                    f"Scraping card page: {card_name}",
+                    "info",
+                    socketio,
+                )
 
-        # Look for search results
-        card_items = soup.find_all("div", class_="search-result__product")
-        print(f"Found {len(card_items)} items with 'search-result__product' class")
+                # Scrape card metadata with dynamic sleep
+                metadata, last_request_time = scrape_card_page_selenium(
+                    card_url, socketio, None, last_request_time
+                )
 
-        # Debug: Check for alternative card container classes
-        if len(card_items) == 0:
-            print(
-                "No cards found with 'search-result__product' class, checking alternatives..."
-            )
-            alt_items = soup.find_all("div", class_=re.compile(r".*product.*"))
-            print(f"Found {len(alt_items)} items with 'product' in class name")
+                if metadata:
+                    # Create complete card data
+                    card_data = {
+                        "name": card_name,
+                        "image_url": metadata.get("image_url", ""),
+                        "card_url": card_url,
+                        "game": game_name,
+                    }
+                    card_data.update(metadata)
 
-            # Check for any divs that might contain product links
-            product_links = soup.find_all("a", href=re.compile(r"/product/\d+/"))
-            print(f"Found {len(product_links)} product links on page")
+                    # Save to database
+                    from database import save_cards_to_db
 
-            # Check page content for debugging
-            page_text = soup.get_text()[:500] if soup else "No soup content"
-            print(f"Page content preview: {page_text}")
-
-        cards = []
-
-        # If no cards found with primary selector, try alternative selectors
-        if len(card_items) == 0:
-            print("Trying alternative selectors...")
-            # Try different possible selectors
-            alternative_selectors = [
-                "div[class*='product']",
-                "div[class*='search-result']",
-                "div[class*='item']",
-                "div[class*='card']",
-            ]
-
-            for selector in alternative_selectors:
-                alt_items = soup.select(selector)
-                if len(alt_items) > 0:
-                    print(f"Found {len(alt_items)} items with selector: {selector}")
-                    card_items = alt_items
-                    break
-
-        for i, item in enumerate(card_items, 1):
-            try:
-                # Extract card URL
-                card_link = item.find("a", href=re.compile(r"/product/\d+/"))
-                if card_link:
-                    card_url = card_link["href"]
-                    if card_url.startswith("/"):
-                        card_url = "https://www.tcgplayer.com" + card_url
-
-                    # Ensure English language parameter is added
-                    if "Language=" not in card_url:
-                        separator = "&" if "?" in card_url else "?"
-                        card_url += f"{separator}Language=English"
-
-                    # Generate high-quality image URL from product ID
-                    image_url = None
-                    if card_url:
-                        product_id_match = re.search(r"/product/(\d+)/", card_url)
-                        if product_id_match:
-                            product_id = product_id_match.group(1)
-                            image_url = f"https://tcgplayer-cdn.tcgplayer.com/product/{product_id}_in_1000x1000.jpg"
-
-                    # Extract card name
-                    card_name = ""
-                    # Try to get name from img alt text
-                    img_tag = item.find("img")
-                    if img_tag and img_tag.get("alt"):
-                        card_name = img_tag.get("alt")
-                    else:
-                        # Extract from URL
-                        url_parts = card_url.split("/")
-                        if len(url_parts) > 2:
-                            last_part = url_parts[-1].split("?")[0]
-                            card_name = last_part.replace("-", " ").title()
-
-                    if card_url and card_name:
-                        # Check for stop signal before processing each card
-                        if should_stop_callback and should_stop_callback():
-                            print("Stop signal received during card processing")
-                            return cards
-
-                        page_num = url.split("page=")[-1] if "page=" in url else "?"
-                        add_scraping_log(
-                            f"[Page {page_num}] Discovered card: {card_name.strip()}",
-                            "info",
-                            socketio,
-                        )
-
-                        card_data = {
-                            "name": card_name.strip(),
-                            "image_url": image_url or "",
-                            "card_url": card_url,
-                            "game": game_name,
-                        }
-
-                        # Collect detailed metadata
-                        add_scraping_log(
-                            f"[Page {page_num}] Collecting metadata for: {card_name}",
-                            "info",
-                            socketio,
-                        )
-
-                        metadata = scrape_card_metadata(card_url)
-                        card_data.update(metadata)
-
-                        # Log metadata collection completion
-                        if metadata:
-                            add_scraping_log(
-                                f"[Page {page_num}] Metadata collected for {card_name}",
-                                "success",
-                                socketio,
-                            )
-                        else:
-                            add_scraping_log(
-                                f"[Page {page_num}] No metadata found for {card_name}",
-                                "warning",
-                                socketio,
-                            )
-
-                        # Check for stop signal after metadata collection
-                        if should_stop_callback and should_stop_callback():
-                            print("Stop signal received after metadata collection")
-                            return cards
-
-                        # Debug: Print what metadata we collected
-                        if metadata:
-                            print(
-                                f"[Page {url.split('page=')[-1] if 'page=' in url else '?'}] Metadata collected for {card_name}: {list(metadata.keys())}"
-                            )
-                        else:
-                            print(
-                                f"[Page {url.split('page=')[-1] if 'page=' in url else '?'}] No metadata collected for {card_name}"
-                            )
-
-                        cards.append(card_data)
-                        print(
-                            f"[Page {url.split('page=')[-1] if 'page=' in url else '?'}] Found card: {card_name}"
-                        )
-                        add_scraping_log(
-                            f"[Page {url.split('page=')[-1] if 'page=' in url else '?'}] Found card: {card_name}",
-                            "success",
-                        )
-
-                        # Save individual card to database immediately
-                        from database import save_cards_to_db
-
+                    try:
                         save_cards_to_db([card_data])
+                        cards_processed += 1
+                        scraping_status["total_cards"] = cards_processed
+                        scraping_status["cards_found"] = cards_processed
 
-            except Exception as e:
-                print(f"Error processing card item: {e}")
-                continue
+                        if socketio:
+                            socketio.emit(
+                                "stats_update",
+                                {
+                                    "current_page": scraping_status.get(
+                                        "current_page", 0
+                                    ),
+                                    "cards_found": cards_processed,
+                                },
+                            )
 
-        return cards
+                            # Emit game stats update
+                            from database import get_db_connection
 
-    except Exception as e:
-        print(f"Error with Selenium scraping: {e}")
-        return []
-    finally:
-        if driver:
-            driver.quit()
+                            conn = get_db_connection()
+                            cursor = conn.cursor()
 
+                            cursor.execute(
+                                "SELECT game, COUNT(*) as card_count FROM cards GROUP BY game"
+                            )
+                            card_counts = {
+                                row["game"]: row["card_count"]
+                                for row in cursor.fetchall()
+                            }
 
-def scrape_individual_card(card_url, game_name):
-    """Scrape individual card page for detailed information"""
-    try:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-        }
+                            cursor.execute(
+                                "SELECT game_name, max_pages_found FROM game_stats"
+                            )
+                            max_pages = {
+                                row["game_name"]: row["max_pages_found"]
+                                for row in cursor.fetchall()
+                            }
 
-        response = requests.get(card_url, headers=headers, timeout=30)
-        response.raise_for_status()
+                            conn.close()
 
-        soup = BeautifulSoup(response.content, "html.parser")
+                            game_stats = {}
+                            for game in set(
+                                list(card_counts.keys()) + list(max_pages.keys())
+                            ):
+                                game_stats[game] = {
+                                    "card_count": card_counts.get(game, 0),
+                                    "max_pages_found": max_pages.get(game, 0),
+                                }
 
-        # Try to find the card name in various locations
-        card_name = None
+                            socketio.emit(
+                                "game_stats_update", {"game_stats": game_stats}
+                            )
 
-        # Look for h1 with product name
-        h1_tag = soup.find("h1")
-        if h1_tag:
-            card_name = h1_tag.get_text(strip=True)
+                        add_scraping_log(
+                            f"SUCCESS: Saved card to database: {card_name} (Total: {cards_processed})",
+                            "success",
+                            socketio,
+                        )
+                    except Exception as e:
+                        add_scraping_log(
+                            f"ERROR: Failed to save card to database: {card_name} - {str(e)}",
+                            "error",
+                            socketio,
+                        )
+                else:
+                    add_scraping_log(
+                        f"FAILED: No metadata extracted for {card_name}",
+                        "error",
+                        socketio,
+                    )
 
-        # Look for product title in meta tags
-        if not card_name:
-            meta_title = soup.find("meta", property="og:title")
-            if meta_title:
-                card_name = meta_title.get("content", "").strip()
+            # Move to next page
+            current_page += 1
 
-        # Look for breadcrumb navigation
-        if not card_name:
-            breadcrumbs = soup.find("nav", {"aria-label": "Breadcrumb"})
-            if breadcrumbs:
-                last_breadcrumb = breadcrumbs.find_all("a")[-1]
-                if last_breadcrumb:
-                    card_name = last_breadcrumb.get_text(strip=True)
+            # Update max pages found for this game (use the page we just completed)
+            from database import update_max_pages_for_game
 
-        # Look for image with alt text
-        if not card_name:
-            img_tag = soup.find("img", alt=True)
-            if img_tag:
-                card_name = img_tag.get("alt", "").strip()
-
-        if card_name:
-            # Find the main product image
-            img_tag = soup.find("img", class_="product-image") or soup.find(
-                "img", {"data-testid": "product-image"}
+            update_max_pages_for_game(game_name, current_page - 1)
+            add_scraping_log(
+                f"Updated max pages for {game_name}: {current_page - 1}",
+                "info",
+                socketio,
             )
-            if not img_tag:
-                img_tag = soup.find(
-                    "img", src=re.compile(r"\.(jpg|jpeg|png|webp)", re.I)
-                )
 
-            image_url = None
-            if img_tag:
-                image_url = img_tag.get("src") or img_tag.get("data-src")
-                if image_url:
-                    if image_url.startswith("//"):
-                        image_url = "https:" + image_url
-                    elif image_url.startswith("/"):
-                        image_url = "https://www.tcgplayer.com" + image_url
+        add_scraping_log(
+            f"Sequential crawler completed. Processed {cards_processed} cards from {current_page - start_page} pages",
+            "info",
+            socketio,
+        )
+        scraping_status["is_running"] = False
+        return cards_processed
 
-            return {
-                "name": card_name,
-                "image_url": image_url,
-                "card_url": card_url,
-                "game": game_name,
-            }
-
-        return None
     except Exception as e:
-        print(f"Error scraping individual card {card_url}: {e}")
-        return None
+        logger.error(f"Error in sequential crawler: {e}")
+        add_scraping_log(f"Crawler error: {e}", "error", socketio)
+        scraping_status["is_running"] = False
+        return 0
