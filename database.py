@@ -1,6 +1,7 @@
 """
 Database operations for OutDecked card management system.
 """
+
 import sqlite3
 import os
 
@@ -156,25 +157,17 @@ def save_cards_to_db(cards):
 
             if existing:
                 card_id = existing[0]
-                # Update existing card with new image if it's better
+                # Update existing card with fresh data
                 cursor.execute(
-                    "SELECT image_url FROM cards WHERE card_url = ?",
-                    (card["card_url"],),
+                    "UPDATE cards SET name = ?, image_url = ?, game = ? WHERE card_url = ?",
+                    (
+                        card["name"],
+                        card["image_url"] or "",
+                        card["game"],
+                        card["card_url"],
+                    ),
                 )
-                current_image = cursor.fetchone()[0]
-
-                # If current image is placeholder and new image is real, update it
-                if (
-                    current_image
-                    == "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
-                    and card["image_url"]
-                    and card["image_url"].startswith("https://")
-                ):
-                    cursor.execute(
-                        "UPDATE cards SET image_url = ? WHERE card_url = ?",
-                        (card["image_url"], card["card_url"]),
-                    )
-                    print(f"Updated image for: {card['name']}")
+                print(f"Updated existing card: {card['name']}")
             else:
                 # Insert new card
                 cursor.execute(
@@ -202,7 +195,7 @@ def save_cards_to_db(cards):
 def save_card_metadata(cursor, card_id, game, card_data):
     """Save card metadata to the dynamic metadata table."""
     from models import METADATA_FIELDS_EXACT
-    
+
     # Define field mappings for display names
     field_display_names = {
         "rarity": "Rarity",

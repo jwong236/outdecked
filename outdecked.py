@@ -18,11 +18,7 @@ from database import (
     update_max_pages_for_game,
     save_cards_to_db,
 )
-from scraper import (
-    add_scraping_log,
-    scrape_tcgplayer_page_selenium,
-    scrape_individual_card,
-)
+from scraper import add_scraping_log
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -55,6 +51,11 @@ def proxy_printer():
     return render_template("proxy_printer.html")
 
 
+@app.route("/cart")
+def cart():
+    return render_template("cart.html")
+
+
 @app.route("/scrape", methods=["POST"])
 def start_scraping():
     # Check if scraping is already running
@@ -79,168 +80,52 @@ def start_scraping():
 
     def scrape_pages():
         global scraping_status
-        total_cards = 0
-        consecutive_empty_pages = 0
-        max_empty_pages = 3  # Stop if we hit 3 consecutive empty pages
-        actual_max_page = 0  # Track the actual highest page with cards
-        highest_page_reached = 0  # Track the highest page we actually reached
 
-        # Update scraping status
+        # Initialize scraping status
         scraping_status.update(
             {
                 "is_running": True,
                 "current_page": start_page,
-                "end_page": end_page if end_page else "∞",
+                "end_page": "∞",  # Always infinite with stack-based
                 "game_name": game_name,
                 "cards_found": 0,
                 "should_stop": False,
+                "logs": [],
             }
         )
 
-        page_num = start_page
-        while True:
-            # Track the highest page we've reached
-            highest_page_reached = page_num
+        def should_stop_callback():
+            return scraping_status["should_stop"]
 
-            # Update current page in status
-            scraping_status["current_page"] = page_num
+        try:
+            # Use the sequential crawler
+            from scraper import sequential_crawler
 
-            # Check if we should stop
-            if scraping_status["should_stop"]:
-                print("Scraping stopped by user request")
-                break
+            total_cards = sequential_crawler(
+                game_name=game_name,
+                start_page=start_page,
+                should_stop_callback=should_stop_callback,
+                socketio=socketio,
+            )
 
-            # Check if we've reached the end page (for finite scraping)
-            if end_page and page_num > end_page:
-                print(f"Reached end page {end_page}")
-                add_scraping_log(f"Reached end page {end_page}", "info", socketio)
-                break
-            try:
-                # Construct page URL
-                if "page=" in base_url:
-                    import re
+            add_scraping_log(
+                f"Scraping completed successfully. Total cards: {total_cards}",
+                "success",
+                socketio,
+            )
 
-                    page_url = base_url.replace(
-                        re.search(r"page=\d+", base_url).group(), f"page={page_num}"
-                    )
-                else:
-                    separator = "&" if "?" in base_url else "?"
-                    page_url = f"{base_url}{separator}page={page_num}"
+        except Exception as e:
+            add_scraping_log(
+                f"An unexpected error occurred during scraping: {e}", "error", socketio
+            )
+            import traceback
 
-                print(f"Scraping page {page_num}: {page_url}")
-                add_scraping_log(f"Scraping page {page_num}...", "info", socketio)
-
-                # Update current page status
-                scraping_status["current_page"] = page_num
-
-                # Scrape the page using Selenium to handle JavaScript
-                cards = scrape_tcgplayer_page_selenium(
-                    page_url,
-                    game_name,
-                    lambda: scraping_status["should_stop"],
-                    socketio,
-                )
-                if cards:
-                    # Save to database
-                    save_cards_to_db(cards)
-                    total_cards += len(cards)
-                    consecutive_empty_pages = 0  # Reset counter
-                    actual_max_page = page_num  # Update the actual max page found
-                    print(f"Found {len(cards)} cards on page {page_num}")
-                    add_scraping_log(
-                        f"Found {len(cards)} cards on page {page_num}",
-                        "success",
-                        socketio,
-                    )
-
-                    # Update scraping status with new card count
-                    scraping_status["cards_found"] = total_cards
-
-                    # Update max pages found in real-time
-                    current_max = get_max_pages_for_game(game_name)
-                    if page_num > current_max:
-                        update_max_pages_for_game(game_name, page_num)
-                        print(
-                            f"Updated max pages for {game_name}: {current_max} -> {page_num}"
-                        )
-                        add_scraping_log(
-                            f"Updated max pages for {game_name}: {current_max} -> {page_num}",
-                            "info",
-                            socketio,
-                        )
-
-                    # Emit real-time stats update
-                    try:
-                        # Get updated stats
-                        conn = get_db_connection()
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT COUNT(*) FROM cards")
-                        total_cards_db = cursor.fetchone()[0]
-
-                        cursor.execute("SELECT game, COUNT(*) FROM cards GROUP BY game")
-                        game_stats = dict(cursor.fetchall())
-
-                        conn.close()
-
-                        # Emit stats update via SocketIO
-                        socketio.emit(
-                            "stats_update",
-                            {"total_cards": total_cards_db, "game_stats": game_stats},
-                        )
-                    except Exception as e:
-                        print(f"Error updating stats: {e}")
-                else:
-                    consecutive_empty_pages += 1
-                    print(
-                        f"No cards found on page {page_num} (consecutive empty: {consecutive_empty_pages})"
-                    )
-
-                    # If we hit consecutive empty pages, stop
-                    if consecutive_empty_pages >= max_empty_pages:
-                        print(
-                            f"Stopping after {max_empty_pages} consecutive empty pages (reached page {page_num})"
-                        )
-                        add_scraping_log(
-                            f"Stopping after {max_empty_pages} consecutive empty pages (reached page {page_num})",
-                            "warning",
-                            socketio,
-                        )
-                        break
-
-                # Check for stop signal before delay
-                if scraping_status["should_stop"]:
-                    print("Scraping stopped by user request")
-                    break
-
-                # Be respectful with delays
-                import time
-
-                time.sleep(10)
-
-            except Exception as e:
-                print(f"Error scraping page {page_num}: {e}")
-                # Don't count errors as empty pages - just retry or continue
-                page_num += 1
-                continue
-
-            # Increment page number for next iteration
-            page_num += 1
-
-        print(f"Scraping completed. Total cards found: {total_cards}")
-        print(f"Highest page reached: {highest_page_reached}")
-        print(f"Actual max page with cards: {actual_max_page}")
-
-        # Reset scraping status
-        scraping_status.update(
-            {
-                "is_running": False,
-                "current_page": 0,
-                "end_page": "∞",
-                "game_name": "",
-                "cards_found": total_cards,
-                "should_stop": False,
-            }
-        )
+            traceback.print_exc()
+        finally:
+            scraping_status["is_running"] = False
+            scraping_status["should_stop"] = False
+            add_scraping_log("Scraping session ended.", "info", socketio)
+            socketio.emit("scraping_status_update", scraping_status)
 
     # Start scraping in background thread
     thread = threading.Thread(target=scrape_pages)
@@ -249,8 +134,10 @@ def start_scraping():
 
     return jsonify(
         {
-            "message": "Scraping started",
+            "message": "Stack-based scraping started successfully",
+            "game_name": game_name,
             "start_page": start_page,
+            "end_page": "∞",
         }
     )
 
@@ -572,7 +459,18 @@ def get_filter_values(field):
     conn.close()
 
     # Extract the values from the result tuples
-    return jsonify([row[0] for row in values])
+    raw_values = [row[0] for row in values]
+
+    # Special handling for affinities - split on " / " to get individual affinities
+    if field == "affinities":
+        individual_affinities = set()
+        for value in raw_values:
+            # Split on " / " and add each individual affinity
+            affinities = [affinity.strip() for affinity in value.split(" / ")]
+            individual_affinities.update(affinities)
+        return jsonify(sorted(list(individual_affinities)))
+
+    return jsonify(raw_values)
 
 
 @app.route("/api/metadata-fields/<game>")
