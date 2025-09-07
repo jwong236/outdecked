@@ -237,7 +237,15 @@
         
         // Listen for real-time stats updates
         socket.on('stats_update', function(data) {
-            updateStatsDisplay(data);
+            // Update cards found counter if provided
+            if (data.cards_found !== undefined) {
+                document.getElementById('cardsFound').textContent = data.cards_found;
+            }
+        });
+        
+        // Listen for game stats updates
+        socket.on('game_stats_update', function(data) {
+            updateGameStatsDisplay(data);
         });
         
         // Listen for connection events
@@ -361,7 +369,9 @@
     }
 
     function startStatusPolling() {
-        statusInterval = setInterval(pollScrapingStatus, 2000);
+        statusInterval = setInterval(pollScrapingStatus, 5000);
+        // Refresh total cards count every 10 seconds (game stats are updated in real-time via WebSocket)
+        setInterval(loadDatabaseStats, 10000);
     }
 
     function pollScrapingStatus() {
@@ -425,25 +435,6 @@
         }
     }
 
-    function updateStatsDisplay(data) {
-        // Update total cards count
-        if (data.total_cards !== undefined) {
-            const totalCardsElement = document.querySelector('[data-stat="total_cards"]');
-            if (totalCardsElement) {
-                totalCardsElement.textContent = data.total_cards.toLocaleString();
-            }
-        }
-        
-        // Update game-specific stats
-        if (data.game_stats) {
-            Object.entries(data.game_stats).forEach(([game, count]) => {
-                const gameStatElement = document.querySelector(`[data-stat="game_${game}"]`);
-                if (gameStatElement) {
-                    gameStatElement.textContent = count.toLocaleString();
-                }
-            });
-        }
-    }
 
     function getMaxPagesForProgress(gameName, currentPage, progressBar) {
         // Get max pages from game stats for progress calculation
@@ -537,7 +528,7 @@
                         `;
                     });
                 } else {
-                    html = '<p class="text-muted">No game data available</p>';
+                    html = '<p class="text-muted">No cards found yet. Start scraping to see game statistics.</p>';
                 }
                 
                 statsContent.innerHTML = html;
@@ -546,6 +537,29 @@
                 console.error('Error loading game stats:', error);
                 document.getElementById('gameStatsContent').innerHTML = '<p class="text-danger">Error loading stats</p>';
             });
+    }
+
+    function updateGameStatsDisplay(data) {
+        // Update game-specific stats
+        if (data.game_stats && Object.keys(data.game_stats).length > 0) {
+            const statsContent = document.getElementById('gameStatsContent');
+            let html = '';
+            
+            Object.entries(data.game_stats).forEach(([game, stats]) => {
+                const cardCount = stats.card_count || 0;
+                const maxPages = stats.max_pages_found || 0;
+                
+                html += `
+                    <div class="mb-3">
+                        <h6 class="text-success">${game}</h6>
+                        <p class="mb-1"><strong>Cards:</strong> <span data-stat="game_${game}">${cardCount.toLocaleString()}</span></p>
+                        <p class="mb-0"><strong>Max Pages:</strong> ${maxPages}</p>
+                    </div>
+                `;
+            });
+            
+            statsContent.innerHTML = html;
+        }
     }
 
     function setupConsoleLogs() {

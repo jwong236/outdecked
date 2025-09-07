@@ -258,15 +258,7 @@
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="cardModalLabel">Card Details</h5>
-                    <div class="d-flex gap-2">
-                        <button type="button" class="btn btn-outline-secondary btn-sm" id="prevCardBtn" onclick="navigateCard(-1)">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <button type="button" class="btn btn-outline-secondary btn-sm" id="nextCardBtn" onclick="navigateCard(1)">
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -304,6 +296,14 @@
             </div>
         </div>
     </div>
+    
+    <!-- Navigation Arrows (Left and Right of Screen) -->
+    <button type="button" class="btn btn-outline-primary position-fixed" id="prevCardBtn" onclick="navigateCard(-1)" style="display: none !important; left: 30px; top: 50%; transform: translateY(-50%); z-index: 1070; width: 50px; height: 80px; border-radius: 8px; background-color: rgba(255,255,255,0.9) !important; border: 2px solid #007bff; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+        <i class="fas fa-chevron-left" style="color: #007bff; font-size: 18px;"></i>
+    </button>
+    <button type="button" class="btn btn-outline-primary position-fixed" id="nextCardBtn" onclick="navigateCard(1)" style="display: none !important; right: 30px; top: 50%; transform: translateY(-50%); z-index: 1070; width: 50px; height: 80px; border-radius: 8px; background-color: rgba(255,255,255,0.9) !important; border: 2px solid #007bff; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+        <i class="fas fa-chevron-right" style="color: #007bff; font-size: 18px;"></i>
+    </button>
 {% endblock %}
 
 {% block scripts %}
@@ -314,6 +314,8 @@ let currentGame = 'Union Arena'; // Default to Union Arena
 let totalPages = 1;
 let currentSearchResults = []; // Store current search results for navigation
 let currentCardIndex = 0; // Track current card position in search results
+let allSearchResults = []; // Store ALL search results across pages for seamless navigation
+let isLoadingMoreResults = false; // Prevent multiple simultaneous requests
 let activeFilters = {
     or: [], // OR filters (purple pills) - any one must match
     and: [], // AND filters (blue pills) - all must match
@@ -336,7 +338,7 @@ document.addEventListener('DOMContentLoaded', function() {
         performSearch();
     });
     
-    // Handle filter changes
+    // Handle filter changes - FIXED: Only add to active filters, don't trigger search
     document.getElementById('gameFilter').addEventListener('change', function() {
         const selectedGame = this.value;
         
@@ -349,8 +351,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update main filters based on selected game
         updateMainFiltersForGame(selectedGame);
         
-        currentPage = 1;
-        performSearch();
+        // Don't trigger search here - let addFilter handle it
     });
     
     document.getElementById('animeFilter').addEventListener('change', function() {
@@ -365,8 +366,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update the filter display
         updateFilterDisplay();
         
-        currentPage = 1;
-        performSearch();
+        // Don't trigger search here - let addFilter handle it
     });
     
     document.getElementById('colorFilter').addEventListener('change', function() {
@@ -381,8 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
         // Update the filter display
         updateFilterDisplay();
         
-        currentPage = 1;
-        performSearch();
+        // Don't trigger search here - let addFilter handle it
     });
     
     document.getElementById('sortBy').addEventListener('change', function() {
@@ -423,24 +422,22 @@ function performSearch() {
     // Show loading state
     showLoadingState();
     
+    // Reset all search results for new search
+    allSearchResults = [];
+    isLoadingMoreResults = false;
+    
     // Build search URL
     const params = new URLSearchParams();
     if (currentQuery) params.append('q', currentQuery);
     
-    // Add filter values
-    const gameFilter = document.getElementById('gameFilter').value;
-    const animeFilter = document.getElementById('animeFilter').value;
-    const colorFilter = document.getElementById('colorFilter').value;
+    // FIXED: Only use active filters for filtering, not dropdown values
+    // Dropdowns are only for adding filters to active filters
     const sortBy = document.getElementById('sortBy').value;
-    
-    if (gameFilter) params.append('game', gameFilter);
-    if (animeFilter) params.append('anime', animeFilter);
-    if (colorFilter) params.append('color', colorFilter);
     if (sortBy) params.append('sort', sortBy);
     
     params.append('page', currentPage);
     
-    // Add filters to the request
+    // Add filters to the request - this is the ONLY source of filtering
     if (activeFilters.or.length > 0) {
         params.append('or_filters', JSON.stringify(activeFilters.or));
     }
@@ -516,6 +513,15 @@ function displayResults(data) {
     // Store current search results for navigation
     currentSearchResults = cards;
     
+    // Update all search results for seamless navigation
+    if (currentPage === 1) {
+        // First page - replace all results
+        allSearchResults = cards;
+    } else {
+        // Subsequent pages - append to existing results
+        allSearchResults = allSearchResults.concat(cards);
+    }
+    
     // Update pagination info
     currentPage = pagination.current_page;
     totalPages = pagination.total_pages;
@@ -555,14 +561,14 @@ function displayCards(cards) {
                     <h6 class="card-title" title="${card.name}" style="line-height: 1.2; min-height: 1.2em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${card.name}</h6>
                     <p class="card-text small text-muted mb-2">${card.game}</p>
                     <div class="d-flex gap-2">
-                        <a href="${card.card_url}" target="_blank" class="btn btn-outline-primary btn-sm flex-fill">
-                            <i class="fas fa-external-link-alt me-1"></i>TCGP
+                        <a href="${card.card_url}" target="_blank" class="btn btn-primary btn-sm d-flex align-items-center justify-content-center" style="width: 80px; height: 38px;">
+                            <img src="/static/tcg_icon.png" alt="TCG" style="width: 16px; height: 16px; margin-right: 4px;">
+                            <span style="font-size: 0.8rem;">${card.price || 'View'}</span>
                         </a>
-                        <button class="btn btn-success btn-sm flex-fill" onclick="downloadImage('${card.image_url}', '${card.name}')">
-                            <i class="fas fa-download me-1"></i>Download
+                        <button class="btn btn-success btn-sm flex-fill" onclick="addToHand(${JSON.stringify(card).replace(/"/g, '&quot;')})" style="height: 38px; white-space: nowrap;">
+                            <i class="fas fa-hand-paper me-1"></i>Add to Hand
                         </button>
                     </div>
-                    ${card.price ? `<div class="mt-2"><span class="badge bg-success">${card.price}</span></div>` : ''}
                 </div>
             </div>
         `;
@@ -686,6 +692,62 @@ function hideAllStates() {
     document.getElementById('initialState').style.display = 'none';
 }
 
+// Shopping cart functionality
+function addToHand(card) {
+    // Get current cart from session storage
+    let cart = JSON.parse(sessionStorage.getItem('shoppingCart') || '[]');
+    
+    // Check if card already exists in cart
+    const existingCardIndex = cart.findIndex(c => c.card_url === card.card_url);
+    
+    if (existingCardIndex !== -1) {
+        // Card already exists, increment quantity
+        cart[existingCardIndex].quantity = (cart[existingCardIndex].quantity || 1) + 1;
+    } else {
+        // Add new card to cart
+        card.quantity = 1;
+        cart.push(card);
+    }
+    
+    // Save back to session storage
+    sessionStorage.setItem('shoppingCart', JSON.stringify(cart));
+    
+    // Show success message
+    showCartNotification(`Added ${card.name} to hand!`);
+    
+    // Update cart count in navbar
+    updateCartCount();
+}
+
+function showCartNotification(message) {
+    // Create a temporary notification
+    const notification = document.createElement('div');
+    notification.className = 'alert alert-success position-fixed';
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.innerHTML = `
+        <i class="fas fa-check-circle me-2"></i>${message}
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
+}
+
+function updateCartCount() {
+    const cart = JSON.parse(sessionStorage.getItem('shoppingCart') || '[]');
+    const totalItems = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+    
+    // Update cart count in navbar
+    const cartCountElement = document.getElementById('cartCount');
+    if (cartCountElement) {
+        cartCountElement.textContent = totalItems;
+        cartCountElement.style.display = totalItems > 0 ? 'inline' : 'none';
+    }
+}
+
 function downloadImage(imageUrl, cardName) {
     // Create a temporary link element
     const link = document.createElement('a');
@@ -714,6 +776,16 @@ function addFilter(type, field, value, displayText) {
 
 function removeFilter(type, field, value) {
     activeFilters[type] = activeFilters[type].filter(f => !(f.field === field && f.value === value));
+    
+    // FIXED: Update dropdown state when filter is removed
+    if (field === 'game') {
+        document.getElementById('gameFilter').value = '';
+    } else if (field === 'series') {
+        document.getElementById('animeFilter').value = '';
+    } else if (field === 'color') {
+        document.getElementById('colorFilter').value = '';
+    }
+    
     updateFilterDisplay();
     performSearch();
 }
@@ -932,8 +1004,8 @@ function updateMainFiltersForGame(game) {
 
 // Card modal functions
 function showCardModal(card) {
-    // Find the index of this card in current search results
-    currentCardIndex = currentSearchResults.findIndex(c => c.card_url === card.card_url);
+    // Find the index of this card in all search results
+    currentCardIndex = allSearchResults.findIndex(c => c.card_url === card.card_url);
     
     // Populate modal with card data
     document.getElementById('modalCardName').textContent = card.name;
@@ -954,8 +1026,18 @@ function showCardModal(card) {
     const modal = new bootstrap.Modal(document.getElementById('cardModal'));
     modal.show();
     
+    // Show navigation arrows outside modal
+    console.log('Showing navigation arrows...');
+    document.getElementById('prevCardBtn').style.display = 'block';
+    document.getElementById('nextCardBtn').style.display = 'block';
+    console.log('Navigation arrows should be visible now');
+    
     // Clean up any extra backdrops when modal is hidden
     document.getElementById('cardModal').addEventListener('hidden.bs.modal', function() {
+        // Hide navigation arrows
+        document.getElementById('prevCardBtn').style.display = 'none';
+        document.getElementById('nextCardBtn').style.display = 'none';
+        
         // Remove any extra backdrop elements
         const backdrops = document.querySelectorAll('.modal-backdrop');
         backdrops.forEach(backdrop => backdrop.remove());
@@ -967,17 +1049,104 @@ function showCardModal(card) {
     });
 }
 
-// Navigate between cards in the modal
+// Navigate between cards in the modal with cross-page support (fixed)
 function navigateCard(direction) {
     const newIndex = currentCardIndex + direction;
     
-    if (newIndex >= 0 && newIndex < currentSearchResults.length) {
+    // Check if we need to load more results
+    if (newIndex >= allSearchResults.length && direction > 0 && currentPage < totalPages && !isLoadingMoreResults) {
+        // Set the target index for after loading
+        const targetIndex = newIndex;
+        // Load next page and navigate to the target index
+        loadNextPage(targetIndex);
+        return;
+    }
+    
+    // Check bounds for all search results
+    if (newIndex >= 0 && newIndex < allSearchResults.length) {
         currentCardIndex = newIndex;
-        const card = currentSearchResults[currentCardIndex];
+        const card = allSearchResults[currentCardIndex];
         
         // Update the modal content without reopening it
         updateModalContent(card);
+        
+        // Update navigation buttons
+        updateNavigationButtons();
     }
+}
+
+// Load next page of results for seamless navigation (fixed)
+function loadNextPage(targetIndex = null) {
+    if (isLoadingMoreResults || currentPage >= totalPages) {
+        return;
+    }
+    
+    isLoadingMoreResults = true;
+    
+    // Build search URL for next page
+    const params = new URLSearchParams();
+    if (currentQuery) params.append('q', currentQuery);
+    
+    const sortBy = document.getElementById('sortBy').value;
+    if (sortBy) params.append('sort', sortBy);
+    
+    params.append('page', currentPage + 1);
+    
+    // Add filters to the request
+    if (activeFilters.or.length > 0) {
+        params.append('or_filters', JSON.stringify(activeFilters.or));
+    }
+    if (activeFilters.and.length > 0) {
+        params.append('and_filters', JSON.stringify(activeFilters.and));
+    }
+    if (activeFilters.not.length > 0) {
+        params.append('not_filters', JSON.stringify(activeFilters.not));
+    }
+    
+    // Load next page with timeout
+    const timeoutId = setTimeout(() => {
+        console.error('Timeout loading next page');
+        isLoadingMoreResults = false;
+        updateNavigationButtons();
+    }, 10000); // 10 second timeout
+    
+    fetch(`/api/search?${params.toString()}`)
+        .then(response => {
+            clearTimeout(timeoutId);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const newCards = data.cards;
+            const pagination = data.pagination;
+            
+            
+            // Append new cards to all search results
+            allSearchResults = allSearchResults.concat(newCards);
+            
+            // Update pagination info
+            currentPage = pagination.current_page;
+            totalPages = pagination.total_pages;
+            
+            // Navigate to the target index if provided, otherwise stay at current position
+            if (targetIndex !== null && targetIndex < allSearchResults.length) {
+                currentCardIndex = targetIndex;
+            }
+            
+            const card = allSearchResults[currentCardIndex];
+            updateModalContent(card);
+            
+            isLoadingMoreResults = false;
+            updateNavigationButtons();
+        })
+        .catch(error => {
+            clearTimeout(timeoutId);
+            console.error('Error loading next page:', error);
+            isLoadingMoreResults = false;
+            updateNavigationButtons();
+        });
 }
 
 // Update modal content without reopening the modal
@@ -1003,8 +1172,9 @@ function updateNavigationButtons() {
     const prevBtn = document.getElementById('prevCardBtn');
     const nextBtn = document.getElementById('nextCardBtn');
     
+    
     // Hide buttons if there's only one card or no cards
-    if (currentSearchResults.length <= 1) {
+    if (allSearchResults.length <= 1) {
         prevBtn.style.display = 'none';
         nextBtn.style.display = 'none';
         return;
@@ -1016,7 +1186,22 @@ function updateNavigationButtons() {
     
     // Disable buttons at the edges
     prevBtn.disabled = currentCardIndex <= 0;
-    nextBtn.disabled = currentCardIndex >= currentSearchResults.length - 1;
+    
+    // For next button, check if we're at the end of all results OR if we can load more pages
+    const isAtEnd = currentCardIndex >= allSearchResults.length - 1;
+    const canLoadMore = currentPage < totalPages && !isLoadingMoreResults;
+    
+    // Show loading state on next button if loading more results
+    if (isLoadingMoreResults) {
+        nextBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        nextBtn.disabled = true;
+    } else {
+        nextBtn.innerHTML = '<i class="fas fa-chevron-right"></i>';
+        nextBtn.disabled = isAtEnd && !canLoadMore;
+    }
+    
+    // Reset prev button content
+    prevBtn.innerHTML = '<i class="fas fa-chevron-left"></i>';
 }
 
 // Populate dynamic metadata fields

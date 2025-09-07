@@ -228,6 +228,12 @@
                     </li>
                 </ul>
                 <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/cart" id="checkHandBtn">
+                            <i class="fas fa-hand-paper me-1"></i>Check Hand
+                            <span class="badge bg-danger ms-1" id="cartCount" style="display: none;">0</span>
+                        </a>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-cog me-1"></i>Admin
@@ -258,6 +264,22 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    
+    <!-- Initialize cart count on page load -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Update cart count on page load
+            const cart = JSON.parse(sessionStorage.getItem('shoppingCart') || '[]');
+            const totalItems = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+            
+            const cartCountElement = document.getElementById('cartCount');
+            if (cartCountElement) {
+                cartCountElement.textContent = totalItems;
+                cartCountElement.style.display = totalItems > 0 ? 'inline' : 'none';
+            }
+        });
+    </script>
+    
     {% block scripts %}{% endblock %}
 </body>
 </html>
