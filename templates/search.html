@@ -1005,7 +1005,7 @@ function createFilterPill(filter, type) {
     const pill = document.createElement('div');
     pill.className = `filter-pill ${type}-filter`;
     
-    // Add type indicator
+    // Add type indicator for all filter types
     const typeIndicator = type.toUpperCase();
     
     // Game filter should not be deletable
@@ -1085,7 +1085,7 @@ function addQuickNotFilter(field, value) {
         'color': 'Color'
     };
     
-    const displayText = `NOT ${fieldLabels[field]}: ${value}`;
+    const displayText = `${fieldLabels[field]}: ${value}`;
     
     // Add as NOT filter
     addFilter('not', field, value, displayText);
@@ -1142,12 +1142,7 @@ function addAdvancedFilter() {
         'affinities': 'Affinities'
     };
     
-    let displayText;
-    if (type === 'not') {
-        displayText = `NOT ${fieldLabels[field]}: ${value}`;
-    } else {
-        displayText = `${fieldLabels[field]}: ${value}`;
-    }
+    const displayText = `${fieldLabels[field]}: ${value}`;
     
     addFilter(type, field, value, displayText);
     
