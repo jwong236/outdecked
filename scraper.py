@@ -228,11 +228,24 @@ def scrape_card_page_selenium(
 
         # Wait for the actual content we need to load
         try:
-            WebDriverWait(driver, 10).until(
-                lambda driver: driver.find_elements(
-                    By.CSS_SELECTOR, ".product__item-details__attributes li"
+            WebDriverWait(driver, 15).until(
+                lambda driver: (
+                    driver.find_elements(
+                        By.CSS_SELECTOR, ".product__item-details__attributes li"
+                    )
+                    and (
+                        # Wait for price element to have actual content, not just be present
+                        any(
+                            elem.text.strip()
+                            for elem in driver.find_elements(
+                                By.CSS_SELECTOR, ".spotlight__price"
+                            )
+                        )
+                        or not driver.find_elements(
+                            By.CSS_SELECTOR, ".spotlight__price"
+                        )  # Or no price element at all
+                    )
                 )
-                or driver.find_elements(By.CSS_SELECTOR, ".spotlight__price")
             )
         except TimeoutException:
             pass  # Elements may still be present, proceed with extraction
@@ -314,9 +327,12 @@ def scrape_search_page_selenium(page_url, socketio=None, last_request_time=None)
         # REQUEST IS MADE
         driver.get(page_url)
 
-        # Wait for search results to load
+        # Wait for search results to actually load with content
         WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.CLASS_NAME, "search-result"))
+            lambda driver: any(
+                elem.find_elements(By.CSS_SELECTOR, "a[href*='/product/']")
+                for elem in driver.find_elements(By.CLASS_NAME, "search-result")
+            )
         )
 
         soup = BeautifulSoup(driver.page_source, "html.parser")

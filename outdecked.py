@@ -348,13 +348,39 @@ def api_search():
                 "'$', ''), ',', '') AS REAL) ASC"
             )
         elif sort_by == "rarity_desc":
-            order_clause = "ORDER BY (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') DESC"
+            order_clause = """ORDER BY CASE 
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Common' THEN 1
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Uncommon' THEN 2
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Rare' THEN 3
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Common 1-Star' THEN 4
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Uncommon 1-Star' THEN 5
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Rare 1-Star' THEN 6
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare' THEN 7
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 1-Star' THEN 8
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 2-Star' THEN 9
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 3-Star' THEN 10
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Union Rare' THEN 11
+                ELSE 12
+            END DESC"""
         elif sort_by == "rarity_asc":
-            order_clause = "ORDER BY (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') ASC"
+            order_clause = """ORDER BY CASE 
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Common' THEN 1
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Uncommon' THEN 2
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Rare' THEN 3
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Common 1-Star' THEN 4
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Uncommon 1-Star' THEN 5
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Rare 1-Star' THEN 6
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare' THEN 7
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 1-Star' THEN 8
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 2-Star' THEN 9
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 3-Star' THEN 10
+                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Union Rare' THEN 11
+                ELSE 12
+            END ASC"""
         elif sort_by == "number_desc":
-            order_clause = "ORDER BY CAST((SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'card_number') AS INTEGER) DESC"
+            order_clause = "ORDER BY CAST(SUBSTR((SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'card_number'), -3) AS INTEGER) DESC"
         elif sort_by == "number_asc":
-            order_clause = "ORDER BY CAST((SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'card_number') AS INTEGER) ASC"
+            order_clause = "ORDER BY CAST(SUBSTR((SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'card_number'), -3) AS INTEGER) ASC"
         elif sort_by == "cost_2_desc":
             order_clause = "ORDER BY CAST((SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'cost_2') AS INTEGER) DESC"
         elif sort_by == "cost_2_asc":
