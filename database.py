@@ -147,49 +147,88 @@ def save_cards_to_db(cards):
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    for card in cards:
-        if card["name"] and card["card_url"]:  # Only require name and card_url
-            # Check if card already exists
-            cursor.execute(
-                "SELECT id FROM cards WHERE card_url = ?", (card["card_url"],)
-            )
-            existing = cursor.fetchone()
+    saved_count = 0
+    failed_cards = []
+    updated_count = 0
+    inserted_count = 0
 
-            if existing:
-                card_id = existing[0]
-                # Update existing card with fresh data
-                cursor.execute(
-                    "UPDATE cards SET name = ?, image_url = ?, game = ? WHERE card_url = ?",
-                    (
-                        card["name"],
-                        card["image_url"] or "",
-                        card["game"],
-                        card["card_url"],
-                    ),
-                )
-                print(f"Updated existing card: {card['name']}")
-            else:
-                # Insert new card
-                cursor.execute(
-                    """
-                    INSERT INTO cards (name, image_url, card_url, game)
-                    VALUES (?, ?, ?, ?)
-                """,
-                    (
-                        card["name"],
-                        card["image_url"] or "",
-                        card["card_url"],
-                        card["game"],
-                    ),
-                )
-                card_id = cursor.lastrowid
-                print(f"Added new card: {card['name']}")
+    try:
+        for card in cards:
+            if card["name"] and card["card_url"]:  # Only require name and card_url
+                try:
+                    # Check if card already exists
+                    cursor.execute(
+                        "SELECT id FROM cards WHERE card_url = ?", (card["card_url"],)
+                    )
+                    existing = cursor.fetchone()
 
-            # Save all metadata to the dynamic metadata table
-            save_card_metadata(cursor, card_id, card["game"], card)
+                    if existing:
+                        card_id = existing[0]
+                        # Update existing card with fresh data
+                        cursor.execute(
+                            "UPDATE cards SET name = ?, image_url = ?, game = ? WHERE card_url = ?",
+                            (
+                                card["name"],
+                                card["image_url"] or "",
+                                card["game"],
+                                card["card_url"],
+                            ),
+                        )
+                        print(
+                            f"DB UPDATE: Updated existing card: {card['name']} (ID: {card_id})"
+                        )
+                        updated_count += 1
+                    else:
+                        # Insert new card
+                        cursor.execute(
+                            """
+                            INSERT INTO cards (name, image_url, card_url, game)
+                            VALUES (?, ?, ?, ?)
+                        """,
+                            (
+                                card["name"],
+                                card["image_url"] or "",
+                                card["card_url"],
+                                card["game"],
+                            ),
+                        )
+                        card_id = cursor.lastrowid
+                        print(
+                            f"DB INSERT: Added new card: {card['name']} (ID: {card_id})"
+                        )
+                        inserted_count += 1
 
-    conn.commit()
-    conn.close()
+                    # Save all metadata to the dynamic metadata table
+                    metadata_saved = save_card_metadata(
+                        cursor, card_id, card["game"], card
+                    )
+                    print(
+                        f"DB METADATA: Saved {metadata_saved} metadata fields for {card['name']}"
+                    )
+                    saved_count += 1
+
+                except Exception as e:
+                    print(f"ERROR: Failed to save card {card['name']}: {e}")
+                    failed_cards.append(card["name"])
+                    # Continue with next card instead of failing entire batch
+
+        # Commit all changes at once
+        conn.commit()
+        print(
+            f"DB COMMIT: Committed {saved_count} cards to database ({inserted_count} new, {updated_count} updated)"
+        )
+
+        if failed_cards:
+            print(f"WARNING: Failed to save {len(failed_cards)} cards: {failed_cards}")
+
+    except Exception as e:
+        print(f"ERROR: Database transaction failed: {e}")
+        conn.rollback()
+        raise e
+    finally:
+        conn.close()
+
+    return saved_count, failed_cards
 
 
 def save_card_metadata(cursor, card_id, game, card_data):
@@ -215,6 +254,7 @@ def save_card_metadata(cursor, card_id, game, card_data):
         "generated_energy": "Generated Energy",
     }
 
+    metadata_count = 0
     for field_name, field_value in card_data.items():
         if field_name in ["name", "image_url", "card_url", "game"]:
             continue  # Skip basic fields
@@ -234,6 +274,7 @@ def save_card_metadata(cursor, card_id, game, card_data):
                 """,
                 (card_id, field_name, standardized_value),
             )
+            metadata_count += 1
 
             # Register field for this game if not already registered
             display_name = field_display_names.get(
@@ -246,3 +287,5 @@ def save_card_metadata(cursor, card_id, game, card_data):
                 """,
                 (game, field_name, display_name),
             )
+
+    return metadata_count

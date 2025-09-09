@@ -8,9 +8,11 @@ from flask_socketio import SocketIO, emit
 import os
 import json
 import threading
+import time
 from datetime import datetime
 from config import Config
-from models import scraping_status, GAME_URLS, SUPPORTED_GAMES, METADATA_FIELDS_EXACT
+
+# from models import scraping_status, GAME_URLS, SUPPORTED_GAMES, METADATA_FIELDS_EXACT  # Moved to scraping_archive
 from database import (
     init_db,
     get_db_connection,
@@ -18,7 +20,8 @@ from database import (
     update_max_pages_for_game,
     save_cards_to_db,
 )
-from scraper import add_scraping_log
+
+# from scraper import add_scraping_log  # Moved to scraping_archive
 from search import (
     handle_api_search,
     handle_filter_values,
@@ -26,6 +29,17 @@ from search import (
     handle_metadata_values,
     handle_anime_values,
     handle_color_values,
+)
+from deck_builder import (
+    handle_get_decks,
+    handle_create_deck,
+    handle_update_deck,
+    handle_delete_deck,
+    handle_get_deck,
+    handle_add_card_to_deck,
+    handle_remove_card_from_deck,
+    handle_update_card_quantity,
+    handle_get_validation_rules,
 )
 
 app = Flask(__name__)
@@ -36,7 +50,7 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 # Routes
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("home.html")
 
 
 @app.route("/admin")
@@ -44,14 +58,60 @@ def admin():
     return render_template("admin.html")
 
 
-@app.route("/admin/scraping")
-def admin_scraping():
-    return render_template("admin_scraping.html")
+# @app.route("/admin/scraping")  # DISABLED - template moved to scraping_archive
+# def admin_scraping():
+#     return render_template("admin_scraping.html")
 
 
 @app.route("/deckbuilder")
 def deckbuilder():
     return render_template("deckbuilder.html")
+
+
+# Deck Builder API Routes
+@app.route("/api/decks", methods=["GET"])
+def get_decks():
+    return handle_get_decks()
+
+
+@app.route("/api/decks", methods=["POST"])
+def create_deck():
+    return handle_create_deck()
+
+
+@app.route("/api/decks/<deck_id>", methods=["GET"])
+def get_deck(deck_id):
+    return handle_get_deck(deck_id)
+
+
+@app.route("/api/decks/<deck_id>", methods=["PUT"])
+def update_deck(deck_id):
+    return handle_update_deck(deck_id)
+
+
+@app.route("/api/decks/<deck_id>", methods=["DELETE"])
+def delete_deck(deck_id):
+    return handle_delete_deck(deck_id)
+
+
+@app.route("/api/decks/<deck_id>/cards", methods=["POST"])
+def add_card_to_deck(deck_id):
+    return handle_add_card_to_deck(deck_id)
+
+
+@app.route("/api/decks/<deck_id>/cards/<card_id>", methods=["PUT"])
+def update_card_quantity(deck_id, card_id):
+    return handle_update_card_quantity(deck_id, card_id)
+
+
+@app.route("/api/decks/<deck_id>/cards/<card_id>", methods=["DELETE"])
+def remove_card_from_deck(deck_id, card_id):
+    return handle_remove_card_from_deck(deck_id, card_id)
+
+
+@app.route("/api/deck-validation-rules", methods=["GET"])
+def get_validation_rules():
+    return handle_get_validation_rules()
 
 
 @app.route("/proxy-printer")
@@ -62,92 +122,6 @@ def proxy_printer():
 @app.route("/cart")
 def cart():
     return render_template("cart.html")
-
-
-@app.route("/scrape", methods=["POST"])
-def start_scraping():
-    # Check if scraping is already running
-    if scraping_status["is_running"]:
-        return (
-            jsonify(
-                {
-                    "error": "Scraping is already in progress. Please wait for it to complete or stop it first."
-                }
-            ),
-            409,
-        )
-
-    data = request.get_json()
-    game_name = data.get("game_name", "Unknown Game")
-    start_page = int(data.get("start_page", 1))
-    end_page = data.get("end_page")  # Can be None for infinite
-
-    base_url = GAME_URLS.get(game_name)
-    if not base_url:
-        return jsonify({"error": "Invalid game selection"}), 400
-
-    def scrape_pages():
-        global scraping_status
-
-        # Initialize scraping status
-        scraping_status.update(
-            {
-                "is_running": True,
-                "current_page": start_page,
-                "end_page": "∞",  # Always infinite with stack-based
-                "game_name": game_name,
-                "cards_found": 0,
-                "should_stop": False,
-                "logs": [],
-            }
-        )
-
-        def should_stop_callback():
-            return scraping_status["should_stop"]
-
-        try:
-            # Use the sequential crawler
-            from scraper import sequential_crawler
-
-            total_cards = sequential_crawler(
-                game_name=game_name,
-                start_page=start_page,
-                should_stop_callback=should_stop_callback,
-                socketio=socketio,
-            )
-
-            add_scraping_log(
-                f"Scraping completed successfully. Total cards: {total_cards}",
-                "success",
-                socketio,
-            )
-
-        except Exception as e:
-            add_scraping_log(
-                f"An unexpected error occurred during scraping: {e}", "error", socketio
-            )
-            import traceback
-
-            traceback.print_exc()
-        finally:
-            scraping_status["is_running"] = False
-            scraping_status["should_stop"] = False
-            add_scraping_log("Scraping session ended.", "info", socketio)
-            socketio.emit("scraping_status_update", scraping_status)
-
-    # Start scraping in background thread
-    thread = threading.Thread(target=scrape_pages)
-    thread.daemon = True
-    thread.start()
-
-    return jsonify(
-        {
-            "message": "Stack-based scraping started successfully",
-            "game_name": game_name,
-            "start_page": start_page,
-            "end_page": "∞",
-        }
-    )
 
 
 @app.route("/search")
@@ -236,12 +210,6 @@ def get_color_values():
     return handle_color_values()
 
 
-@app.route("/api/games")
-def get_supported_games():
-    """Get list of supported games for scraping"""
-    return jsonify(SUPPORTED_GAMES)
-
-
 @app.route("/stats")
 def get_stats():
     conn = get_db_connection()
@@ -271,11 +239,6 @@ def get_stats():
 @app.route("/health")
 def health_check():
     return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
-
-
-@app.route("/api/scraping-status")
-def get_scraping_status():
-    return jsonify(scraping_status)
 
 
 @app.route("/api/game-stats")
@@ -310,13 +273,6 @@ def get_game_stats():
         )
 
     return jsonify(stats)
-
-
-@app.route("/api/stop-scraping", methods=["POST"])
-def stop_scraping():
-    global scraping_status
-    scraping_status["should_stop"] = True
-    return jsonify({"message": "Stop signal sent"})
 
 
 @app.route("/api/card/<int:card_id>")
@@ -405,12 +361,6 @@ def backup_database():
 def restore_database():
     """Upload and restore a database backup file"""
     try:
-        # Check if scraping is currently running
-        if scraping_status.get("is_running", False):
-            return (
-                jsonify({"error": "Cannot restore database while scraping is running"}),
-                400,
-            )
 
         # Check if file was uploaded
         if "database_file" not in request.files:
@@ -474,4 +424,4 @@ init_db()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, debug=False, host="0.0.0.0", port=port)
+    socketio.run(app, debug=True, use_reloader=True, host="0.0.0.0", port=port)

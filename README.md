@@ -109,7 +109,7 @@ outdecked/
 ├── .dockerignore            # Docker ignore file
 ├── templates/               # HTML templates
 │   ├── base.html           # Base template with styling
-│   ├── index.html          # Home page with scraping form
+│   ├── home.html           # Home page with scraping form
 │   └── search.html         # Search and results page
 ├── static/                  # Static assets directory
 ├── cards.db                 # SQLite database (created automatically)
