@@ -93,9 +93,9 @@
                             </select>
                         </div>
                         <div class="col-md-3">
-                            <label for="animeFilter" class="form-label">Anime</label>
+                            <label for="animeFilter" class="form-label">Series</label>
                             <select class="form-select" id="animeFilter" name="anime" style="height: 38px;">
-                                <option value="">All Anime</option>
+                                <option value="">All Series</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -114,8 +114,8 @@
                                 <option value="rarity_asc">Rarity (Low to High)</option>
                                 <option value="number_desc">Number (High to Low)</option>
                                 <option value="number_asc">Number (Low to High)</option>
-                                <option value="cost_2_desc">Required Energy (High to Low)</option>
-                                <option value="cost_2_asc">Required Energy (Low to High)</option>
+                                <option value="required_energy_desc">Required Energy (High to Low)</option>
+                                <option value="required_energy_asc">Required Energy (Low to High)</option>
                             </select>
                         </div>
                     </div>
@@ -215,8 +215,8 @@
                                 <option value="color">Color</option>
                                 <option value="rarity">Rarity</option>
                                 <option value="card_type">Card Type</option>
-                                <option value="cost_2">Required Energy</option>
-                                <option value="affinities">Affinities</option>
+                                <option value="required_energy">Required Energy</option>
+                                <option value="trigger">Trigger</option>
                             </select>
                         </div>
                         <div class="col-md-5">
@@ -336,7 +336,7 @@ document.addEventListener('DOMContentLoaded', function() {
     addFilter('and', 'game', 'Union Arena', 'Game: Union Arena');
     
     // Populate dropdowns
-    populateAnimeDropdown();
+    populateSeriesDropdown();
     populateColorDropdown();
     
     // Handle form submission
@@ -364,14 +364,14 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     document.getElementById('animeFilter').addEventListener('change', function() {
-        const selectedAnime = this.value;
+        const selectedSeries = this.value;
         
-        // Remove existing anime filter and add new one
+        // Remove existing series filter and add new one
         activeFilters.and = activeFilters.and.filter(f => f.field !== 'series');
-        if (selectedAnime) {
-            addFilter('and', 'series', selectedAnime, `Anime: ${selectedAnime}`);
+        if (selectedSeries) {
+            addFilter('and', 'series', selectedSeries, `Series: ${selectedSeries}`);
         } else {
-            // If no anime selected, trigger search to update results
+            // If no series selected, trigger search to update results
             updateFilterDisplay();
             performSearch();
         }
@@ -471,24 +471,24 @@ function performSearch() {
         });
 }
 
-// Populate anime dropdown
-function populateAnimeDropdown() {
+// Populate series dropdown
+function populateSeriesDropdown() {
     fetch('/api/anime-values')
         .then(response => response.json())
-        .then(animes => {
+        .then(series => {
             const dropdown = document.getElementById('animeFilter');
-            // Clear existing options except the first "All anime" option
-            dropdown.innerHTML = '<option value="">All anime</option>';
+            // Clear existing options except the first "All Series" option
+            dropdown.innerHTML = '<option value="">All Series</option>';
             
-            animes.forEach(anime => {
+            series.forEach(seriesName => {
                 const option = document.createElement('option');
-                option.value = anime;
-                option.textContent = anime;
+                option.value = seriesName;
+                option.textContent = seriesName;
                 dropdown.appendChild(option);
             });
         })
         .catch(error => {
-            console.error('Error loading anime values:', error);
+            console.error('Error loading series values:', error);
         });
 }
 
@@ -573,7 +573,7 @@ function displayCards(cards) {
             `;
         } else {
             addToHandButton = `
-                <button class="btn btn-success btn-sm flex-fill" onclick="addToHand(${JSON.stringify(card).replace(/"/g, '&quot;')})" style="height: 38px; white-space: nowrap;">
+                <button class="btn btn-success btn-sm flex-fill" onclick="addToHand(${card.id})" style="height: 38px; white-space: nowrap;">
                     <i class="fas fa-hand-paper me-1"></i>Add to Hand
                 </button>
             `;
@@ -583,12 +583,14 @@ function displayCards(cards) {
             <div class="card h-100">
                 <div class="card-body p-0">
                     <img src="${card.image_url}" alt="${card.name}" class="card-image" style="cursor: pointer;" 
-                         onclick="showCardModal(${JSON.stringify(card).replace(/"/g, '&quot;')})"
+                         onclick="showCardModal(${card.id})"
                          onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjMwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZjhmOGY4Ii8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxNCIgZmlsbD0iIzk5OTk5OSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zZW0iPkltYWdlIG5vdCBhdmFpbGFibGU8L3RleHQ+PC9zdmc+'">
                 </div>
                 <div class="card-body">
                     <h6 class="card-title" title="${card.name}" style="line-height: 1.2; min-height: 1.2em; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">${card.name}</h6>
-                    <p class="card-text small text-muted mb-2">${card.game}</p>
+                    <p class="card-text small text-muted mb-1">${card.game}</p>
+                    ${card.series ? `<p class="card-text small text-info mb-1">${card.series}</p>` : ''}
+                    ${card.rarity ? `<p class="card-text small text-warning mb-1"><strong>${card.rarity}</strong></p>` : ''}
                     <div class="d-flex gap-2">
                         <a href="${card.card_url}" target="_blank" class="btn btn-primary btn-sm d-flex align-items-center justify-content-center" style="width: 80px; height: 38px;">
                             <img src="/static/tcg_icon.png" alt="TCG" style="width: 16px; height: 16px; margin-right: 4px;">
@@ -720,7 +722,14 @@ function hideAllStates() {
 }
 
 // Shopping cart functionality
-function addToHand(card) {
+function addToHand(cardId) {
+    // Find the card by ID in all search results
+    const card = allSearchResults.find(c => c.id === cardId);
+    if (!card) {
+        console.error('Card not found with ID:', cardId);
+        return;
+    }
+    
     // Get current cart from session storage
     let cart = JSON.parse(sessionStorage.getItem('shoppingCart') || '[]');
     
@@ -1134,12 +1143,12 @@ function addAdvancedFilter() {
     }
     
     const fieldLabels = {
-        'series': 'Anime',
+        'series': 'Series',
         'color': 'Color',
         'rarity': 'Rarity', 
         'card_type': 'Card Type',
-        'cost_2': 'Required Energy',
-        'affinities': 'Affinities'
+        'required_energy': 'Required Energy',
+        'trigger': 'Trigger'
     };
     
     const displayText = `${fieldLabels[field]}: ${value}`;
@@ -1153,7 +1162,7 @@ function addAdvancedFilter() {
 // Update main filters based on selected game
 function updateMainFiltersForGame(game) {
     // Clear existing main filter dropdowns
-    document.getElementById('animeFilter').innerHTML = '<option value="">All Anime</option>';
+    document.getElementById('animeFilter').innerHTML = '<option value="">All Series</option>';
     document.getElementById('colorFilter').innerHTML = '<option value="">All Colors</option>';
     
     // Remove existing filters that are game-specific
@@ -1161,9 +1170,9 @@ function updateMainFiltersForGame(game) {
     
     // Update filter labels and populate dropdowns based on game
     if (game === 'Union Arena') {
-        document.querySelector('label[for="animeFilter"]').textContent = 'Anime';
+        document.querySelector('label[for="animeFilter"]').textContent = 'Series';
         document.querySelector('label[for="colorFilter"]').textContent = 'Color';
-        populateAnimeDropdown();
+        populateSeriesDropdown();
         populateColorDropdown();
     } else if (game === 'Pokemon') {
         document.querySelector('label[for="animeFilter"]').textContent = 'Type';
@@ -1181,14 +1190,22 @@ function updateMainFiltersForGame(game) {
 
 // Store current card in modal for Add to Hand functionality
 let currentModalCard = null;
+let cardModalInstance = null;
 
 // Card modal functions
-function showCardModal(card) {
+function showCardModal(cardId) {
+    // Find the card by ID in all search results
+    const card = allSearchResults.find(c => c.id === cardId);
+    if (!card) {
+        console.error('Card not found with ID:', cardId);
+        return;
+    }
+    
     // Store current card for modal operations
     currentModalCard = card;
     
     // Find the index of this card in all search results
-    currentCardIndex = allSearchResults.findIndex(c => c.card_url === card.card_url);
+    currentCardIndex = allSearchResults.findIndex(c => c.id === cardId);
     
     // Populate modal with card data
     document.getElementById('modalCardName').textContent = card.name;
@@ -1208,9 +1225,19 @@ function showCardModal(card) {
     // Update navigation buttons
     updateNavigationButtons();
     
-    // Show the modal
-    const modal = new bootstrap.Modal(document.getElementById('cardModal'));
-    modal.show();
+    // Show the modal with proper state management
+    const modalElement = document.getElementById('cardModal');
+    
+    // Use existing instance or create new one
+    if (!cardModalInstance) {
+        cardModalInstance = new bootstrap.Modal(modalElement);
+    }
+    
+    // Ensure clean modal state
+    modalElement.setAttribute('aria-hidden', 'false');
+    modalElement.removeAttribute('aria-hidden');
+    
+    cardModalInstance.show();
     
     // Show navigation arrows outside modal
     console.log('Showing navigation arrows...');
@@ -1223,6 +1250,9 @@ function showCardModal(card) {
         // Hide navigation arrows
         document.getElementById('prevCardBtn').style.display = 'none';
         document.getElementById('nextCardBtn').style.display = 'none';
+        
+        // Ensure proper modal state
+        modalElement.setAttribute('aria-hidden', 'true');
         
         // Remove any extra backdrop elements
         const backdrops = document.querySelectorAll('.modal-backdrop');
@@ -1401,30 +1431,32 @@ function populateDynamicMetadata(card) {
     const metadataContainer = document.getElementById('modalCardMetadata');
     metadataContainer.innerHTML = '';
     
-    // Define field mappings with display names
+    // Define field mappings with display names (matching TCGCSV field names)
     const fieldMappings = {
-        'rarity': 'Rarity',
-        'card_number': 'Number',
-        'series': 'Series Name',
-        'card_type': 'Card Type',
-        'color': 'Activation Energy',
-        'cost_2': 'Required Energy',
-        'cost_1': 'Action Point Cost',
-        'battle_points': 'Battle Point (BP)',
-        'special_ability': 'Trigger',
-        'affinities': 'Affinities',
-        'generated_energy': 'Generated Energy',
+        'Rarity': 'Rarity',
+        'Number': 'Number',
+        'SeriesName': 'Series Name',
+        'CardType': 'Card Type',
+        'ActivationEnergy': 'Activation Energy',
+        'RequiredEnergy': 'Required Energy',
+        'ActionPointCost': 'Action Point Cost',
+        'BattlePointBP': 'Battle Point (BP)',
+        'GeneratedEnergy': 'Generated Energy',
+        'Description': 'Card Text',
+        'Affinities': 'Affinities',
+        'Trigger': 'Trigger',
         'price': 'TCGP Price'
     };
     
     // Show fields that have values, or always show price field
     Object.entries(fieldMappings).forEach(([field, displayName]) => {
         const value = card[field];
-        const shouldShow = (value && value !== '-' && value.trim() !== '') || field === 'price';
+        const valueStr = value ? String(value) : '';
+        const shouldShow = (value && value !== '-' && valueStr.trim() !== '') || field === 'price';
         
         if (shouldShow) {
             // Special handling for price field - show "NP" if empty
-            const displayValue = field === 'price' && (!value || value.trim() === '') ? 'NP' : value;
+            const displayValue = field === 'price' && (!value || valueStr.trim() === '') ? 'NP' : value;
             const fieldHtml = `
                 <div class="col-md-6">
                     <div class="card border-0 bg-light">
