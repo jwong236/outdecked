@@ -8,6 +8,26 @@ from database import get_db_connection
 from models import METADATA_FIELDS_EXACT
 import json
 
+# Field name mapping from frontend to TCGCSV database names
+FIELD_NAME_MAPPING = {
+    "series": "SeriesName",  # TCGCSV attribute from extendedData
+    "color": "ActivationEnergy",  # TCGCSV attribute
+    "rarity": "Rarity",  # TCGCSV attribute
+    "card_type": "CardType",  # TCGCSV attribute
+    "required_energy": "RequiredEnergy",  # TCGCSV attribute
+    "trigger": "Trigger",  # TCGCSV attribute
+}
+
+
+def map_field_name(frontend_field):
+    """Map frontend field name to database field name"""
+    return FIELD_NAME_MAPPING.get(frontend_field, frontend_field)
+
+
+def is_direct_card_field(field):
+    """Check if field is a direct card table column"""
+    return field in ["name", "clean_name", "game"]
+
 
 def handle_api_search():
     """Handle the /api/search route with complex filtering and pagination logic."""
@@ -54,7 +74,7 @@ def handle_api_search():
     conn = get_db_connection()
 
     # Build the base query
-    base_query = "FROM cards"
+    base_query = "FROM cards c"
     where_conditions = []
     params = []
 
@@ -68,13 +88,13 @@ def handle_api_search():
 
     if anime_filter:
         where_conditions.append(
-            "c.id IN (SELECT card_id FROM card_metadata WHERE field_name = 'series' AND LOWER(field_value) = LOWER(?))"
+            "c.id IN (SELECT card_id FROM card_attributes WHERE name = 'SeriesName' AND LOWER(value) = LOWER(?))"
         )
         params.append(anime_filter)
 
     if color_filter:
         where_conditions.append(
-            "c.id IN (SELECT card_id FROM card_metadata WHERE field_name = 'color' AND LOWER(field_value) = LOWER(?))"
+            "c.id IN (SELECT card_id FROM card_attributes WHERE name = 'ActivationEnergy' AND LOWER(value) = LOWER(?))"
         )
         params.append(color_filter)
 
@@ -85,22 +105,19 @@ def handle_api_search():
             field = filter_item.get("field")
             value = filter_item.get("value")
             if field and value:
-                # Use case-insensitive comparison for text fields
-                if field in METADATA_FIELDS_EXACT:
-                    or_conditions.append(
-                        f"c.id IN (SELECT card_id FROM card_metadata WHERE field_name = ? AND LOWER(field_value) = LOWER(?))"
-                    )
-                    params.extend([field, value])
-                elif field == "affinities":
-                    # For affinities, check if the value is contained in the comma-separated list
-                    or_conditions.append(
-                        f"c.id IN (SELECT card_id FROM card_metadata WHERE field_name = ? AND LOWER(field_value) LIKE LOWER(?))"
-                    )
-                    value = f"%{value}%"
-                    params.extend([field, value])
-                else:
-                    or_conditions.append(f"c.{field} = ?")
+                # Map frontend field name to database field name
+                db_field = map_field_name(field)
+
+                if is_direct_card_field(db_field):
+                    # Direct card table column
+                    or_conditions.append(f"LOWER(c.{db_field}) = LOWER(?)")
                     params.append(value)
+                else:
+                    # TCGCSV attribute
+                    or_conditions.append(
+                        f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
+                    )
+                    params.extend([db_field, value])
 
         if or_conditions:
             where_conditions.append(f"({' OR '.join(or_conditions)})")
@@ -110,42 +127,38 @@ def handle_api_search():
         field = filter_item.get("field")
         value = filter_item.get("value")
         if field and value:
-            # Use case-insensitive comparison for text fields
-            if field in METADATA_FIELDS_EXACT:
-                where_conditions.append(
-                    f"c.id IN (SELECT card_id FROM card_metadata WHERE field_name = ? AND LOWER(field_value) = LOWER(?))"
-                )
-                params.extend([field, value])
-            elif field == "affinities":
-                # For affinities, check if the value is contained in the comma-separated list
-                where_conditions.append(
-                    f"c.id IN (SELECT card_id FROM card_metadata WHERE field_name = ? AND LOWER(field_value) LIKE LOWER(?))"
-                )
-                params.extend([field, f"%{value}%"])
-            else:
-                where_conditions.append(f"c.{field} = ?")
+            # Map frontend field name to database field name
+            db_field = map_field_name(field)
+
+            if is_direct_card_field(db_field):
+                # Direct card table column
+                where_conditions.append(f"LOWER(c.{db_field}) = LOWER(?)")
                 params.append(value)
+            else:
+                # TCGCSV attribute
+                where_conditions.append(
+                    f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
+                )
+                params.extend([db_field, value])
 
     # Handle NOT filters (must NOT match)
     for filter_item in not_filters:
         field = filter_item.get("field")
         value = filter_item.get("value")
         if field and value:
-            # Use case-insensitive comparison for text fields
-            if field in METADATA_FIELDS_EXACT:
-                where_conditions.append(
-                    f"c.id NOT IN (SELECT card_id FROM card_metadata WHERE field_name = ? AND LOWER(field_value) = LOWER(?))"
-                )
-                params.extend([field, value])
-            elif field == "affinities":
-                # For affinities, check if the value is NOT contained in the comma-separated list
-                where_conditions.append(
-                    f"c.id NOT IN (SELECT card_id FROM card_metadata WHERE field_name = ? AND LOWER(field_value) LIKE LOWER(?))"
-                )
-                params.extend([field, f"%{value}%"])
-            else:
-                where_conditions.append(f"c.{field} != ?")
+            # Map frontend field name to database field name
+            db_field = map_field_name(field)
+
+            if is_direct_card_field(db_field):
+                # Direct card table column
+                where_conditions.append(f"LOWER(c.{db_field}) != LOWER(?)")
                 params.append(value)
+            else:
+                # TCGCSV attribute
+                where_conditions.append(
+                    f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
+                )
+                params.extend([db_field, value])
 
     if where_conditions:
         where_clause = " WHERE " + " AND ".join(where_conditions)
@@ -158,65 +171,65 @@ def handle_api_search():
         if sort_by == "price_desc":
             order_clause = (
                 "ORDER BY CAST(REPLACE(REPLACE("
-                "(SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'price'), "
+                "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'price'), "
                 "'$', ''), ',', '') AS REAL) DESC"
             )
         elif sort_by == "price_asc":
             order_clause = (
                 "ORDER BY CAST(REPLACE(REPLACE("
-                "(SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'price'), "
+                "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'price'), "
                 "'$', ''), ',', '') AS REAL) ASC"
             )
         elif sort_by == "rarity_desc":
             order_clause = """ORDER BY CASE 
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Common' THEN 1
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Uncommon' THEN 2
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Rare' THEN 3
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Common 1-Star' THEN 4
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Uncommon 1-Star' THEN 5
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Rare 1-Star' THEN 6
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare' THEN 7
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 1-Star' THEN 8
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 2-Star' THEN 9
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 3-Star' THEN 10
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Union Rare' THEN 11
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common' THEN 1
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon' THEN 2
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare' THEN 3
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common 1-Star' THEN 4
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon 1-Star' THEN 5
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare 1-Star' THEN 6
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 7
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 1-Star' THEN 8
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 2-Star' THEN 9
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 3-Star' THEN 10
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Union Rare' THEN 11
                 ELSE 12
             END DESC"""
         elif sort_by == "rarity_asc":
             order_clause = """ORDER BY CASE 
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Common' THEN 1
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Uncommon' THEN 2
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Rare' THEN 3
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Common 1-Star' THEN 4
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Uncommon 1-Star' THEN 5
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Rare 1-Star' THEN 6
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare' THEN 7
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 1-Star' THEN 8
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 2-Star' THEN 9
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Super Rare 3-Star' THEN 10
-                WHEN (SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'rarity') = 'Union Rare' THEN 11
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common' THEN 1
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon' THEN 2
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare' THEN 3
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common 1-Star' THEN 4
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon 1-Star' THEN 5
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare 1-Star' THEN 6
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 7
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 1-Star' THEN 8
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 2-Star' THEN 9
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 3-Star' THEN 10
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Union Rare' THEN 11
                 ELSE 12
             END ASC"""
         elif sort_by == "number_desc":
-            order_clause = "ORDER BY CAST(SUBSTR((SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'card_number'), -3) AS INTEGER) DESC"
+            order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Number'), -3) AS INTEGER) DESC"
         elif sort_by == "number_asc":
-            order_clause = "ORDER BY CAST(SUBSTR((SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'card_number'), -3) AS INTEGER) ASC"
-        elif sort_by == "cost_2_desc":
-            order_clause = "ORDER BY CAST((SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'cost_2') AS INTEGER) DESC"
-        elif sort_by == "cost_2_asc":
-            order_clause = "ORDER BY CAST((SELECT field_value FROM card_metadata WHERE card_id = c.id AND field_name = 'cost_2') AS INTEGER) ASC"
+            order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Number'), -3) AS INTEGER) ASC"
+        elif sort_by == "required_energy_desc":
+            order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'RequiredEnergy') AS INTEGER) DESC"
+        elif sort_by == "required_energy_asc":
+            order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'RequiredEnergy') AS INTEGER) ASC"
 
     # Get total count
-    count_query = (
-        f"SELECT COUNT(*) as total FROM cards c{where_clause.replace('FROM cards', '')}"
-    )
+    count_query = f"SELECT COUNT(*) as total {base_query}{where_clause}"
     total_cards = conn.execute(count_query, params).fetchone()["total"]
 
-    # Get paginated results with metadata
+    # Get paginated results with metadata and prices (TCGCSV-aligned)
     search_query = (
-        f"SELECT c.*, GROUP_CONCAT(cm.field_name || ':' || cm.field_value, '|||') as metadata {base_query} c "
-        f"LEFT JOIN card_metadata cm ON c.id = cm.card_id "
-        f"{where_clause.replace('FROM cards', '')} "
+        f"SELECT c.*, GROUP_CONCAT(cm.name || ':' || cm.value, '|||') as metadata, "
+        f"cp.market_price as price {base_query} "
+        f"LEFT JOIN card_attributes cm ON c.id = cm.card_id "
+        f"LEFT JOIN card_prices cp ON c.id = cp.card_id "
+        f"{where_clause} "
         f"GROUP BY c.id {order_clause} LIMIT ? OFFSET ?"
     )
     search_params = params + [per_page, offset]
@@ -234,6 +247,7 @@ def handle_api_search():
             "image_url": card["image_url"],
             "card_url": card["card_url"],
             "game": card["game"],
+            "price": card.get("price", ""),  # Add price from card_prices table
         }
 
         # Parse metadata string and add as individual fields
@@ -241,8 +255,8 @@ def handle_api_search():
             metadata_pairs = card["metadata"].split("|||")
             for pair in metadata_pairs:
                 if ":" in pair:
-                    field_name, field_value = pair.split(":", 1)
-                    processed_card[field_name] = field_value
+                    name, field_value = pair.split(":", 1)
+                    processed_card[name] = field_value
 
         cards.append(processed_card)
 
@@ -289,8 +303,8 @@ def handle_filter_values(field):
     if field not in allowed_fields:
         return jsonify([])
 
-    # Get distinct values for the field from card_metadata table, excluding NULL and empty values
-    query = "SELECT DISTINCT field_value FROM card_metadata WHERE field_name = ? AND field_value IS NOT NULL AND field_value != '' ORDER BY field_value"
+    # Get distinct values for the field from card_attributes table, excluding NULL and empty values
+    query = "SELECT DISTINCT value FROM card_attributes WHERE name = ? AND value IS NOT NULL AND value != '' ORDER BY value"
     values = conn.execute(query, (field,)).fetchall()
     conn.close()
 
@@ -313,32 +327,51 @@ def handle_metadata_fields(game):
     """Get all available metadata fields for a specific game"""
     conn = get_db_connection()
     fields = conn.execute(
-        "SELECT field_name, field_display_name FROM metadata_fields WHERE game = ? ORDER BY field_display_name",
+        "SELECT name, field_display_name FROM attributes_fields WHERE game = ? ORDER BY field_display_name",
         (game,),
     ).fetchall()
     conn.close()
 
     return jsonify(
-        [{"name": f["field_name"], "display": f["field_display_name"]} for f in fields]
+        [{"name": f["name"], "display": f["field_display_name"]} for f in fields]
     )
 
 
 def handle_metadata_values(game, field):
     """Get all unique values for a specific metadata field in a game"""
     conn = get_db_connection()
-    values = conn.execute(
-        """
-        SELECT DISTINCT cm.field_value 
-        FROM card_metadata cm
-        JOIN cards c ON cm.card_id = c.id
-        WHERE c.game = ? AND cm.field_name = ? AND cm.field_value IS NOT NULL AND cm.field_value != ''
-        ORDER BY cm.field_value
-        """,
-        (game, field),
-    ).fetchall()
+
+    # Map frontend field name to database field name
+    db_field = map_field_name(field)
+
+    # Check if field is a direct card table column
+    if is_direct_card_field(db_field):
+        # Query directly from cards table
+        values = conn.execute(
+            f"""
+            SELECT DISTINCT {db_field} as value 
+            FROM cards
+            WHERE game = ? AND {db_field} IS NOT NULL AND {db_field} != ''
+            ORDER BY {db_field}
+            """,
+            (game,),
+        ).fetchall()
+    else:
+        # Query from card_attributes table
+        values = conn.execute(
+            """
+            SELECT DISTINCT cm.value 
+            FROM card_attributes cm
+            JOIN cards c ON cm.card_id = c.id
+            WHERE c.game = ? AND cm.name = ? AND cm.value IS NOT NULL AND cm.value != ''
+            ORDER BY cm.value
+            """,
+            (game, db_field),
+        ).fetchall()
+
     conn.close()
 
-    value_list = [v["field_value"] for v in values]
+    value_list = [v["value"] for v in values]
 
     # Return the values as-is since database is now standardized
     return jsonify(value_list)
