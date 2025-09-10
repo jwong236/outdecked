@@ -1,0 +1,656 @@
+{% extends "base.html" %}
+
+{% block title %}Union Arena Scraping - OutDecked Admin{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <!-- Header -->
+    <div class="text-center mb-4">
+        <h1 class="display-5 fw-bold text-primary mb-3">
+            <i class="fas fa-download me-3"></i>Union Arena Scraping
+        </h1>
+        <p class="lead text-muted">Scrape Union Arena cards from TCGPlayer with intelligent rate limiting</p>
+    </div>
+
+    <!-- Main Content Row -->
+    <div class="row">
+        <!-- Left Column: Scraping Form, Status, and Console -->
+        <div class="col-lg-6">
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cog me-2"></i>Scraping Configuration
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Game</label>
+                        <div class="form-control-plaintext fw-bold text-primary">Union Arena</div>
+                        <div class="form-text">Automatically scrapes all Union Arena groups with 10-second rate limiting</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Rate Limiting</label>
+                        <div class="form-control-plaintext fw-bold text-success">Dynamic 10-Second Delay</div>
+                        <div class="form-text">Calculates processing time and adjusts sleep duration to maintain exactly 10 seconds between requests</div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="button" class="btn btn-primary btn-lg w-100" id="startScrapingBtn">
+                            <i class="fas fa-play me-2"></i>Start Scraping
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Success Alert -->
+            <div class="alert alert-success alert-dismissible fade show" id="successAlert" style="display: none;">
+                <i class="fas fa-check-circle me-2"></i>
+                <span id="successMessage"></span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+
+            <!-- Scraping Status Panel -->
+            <div class="card mb-4" id="scrapingStatus" style="display: none;">
+                <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-sync-alt me-2"></i>
+                        Scraping Status
+                    </h6>
+                    <button class="btn btn-danger btn-sm" id="stopScrapingBtn">
+                        <i class="fas fa-stop me-2"></i>
+                        Stop Scraping
+                    </button>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-primary mb-1" id="groupsProcessed">-</h4>
+                                <small class="text-muted">Groups</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-success mb-1" id="cardsScraped">-</h4>
+                                <small class="text-muted">Cards Scraped</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-warning mb-1" id="cardsSaved">-</h4>
+                                <small class="text-muted">Cards Saved</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="text-center">
+                                <h4 class="text-info mb-1" id="errorCount">-</h4>
+                                <small class="text-muted">Errors</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 id="progressBar" role="progressbar" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Console Logs Panel -->
+            <div class="card mb-4" id="consoleLogsPanel" style="display: none;">
+                <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">
+                        <i class="fas fa-terminal me-2"></i>
+                        Console Logs
+                    </h6>
+                    <div>
+                        <button class="btn btn-outline-light btn-sm me-2" id="clearLogsBtn">
+                            <i class="fas fa-trash me-1"></i>Clear
+                        </button>
+                        <button class="btn btn-outline-light btn-sm" id="toggleLogsBtn">
+                            <i class="fas fa-chevron-up me-1"></i>Collapse
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body" id="consoleLogs" style="max-height: 300px; overflow-y: auto; background-color: #1e1e1e; color: #00ff00; font-family: 'Courier New', monospace;">
+                    <div class="console-line">Console ready...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Database Stats & Game Statistics -->
+        <div class="col-lg-6">
+            <!-- Database Stats Card -->
+            <div class="card mb-4" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                <div class="card-body text-center text-white" id="databaseStatsContent">
+                    <div class="spinner-border text-white" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2 mb-0">Loading database stats...</p>
+                </div>
+            </div>
+
+            <!-- Game Statistics Card -->
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>Game Statistics
+                    </h5>
+                </div>
+                <div class="card-body" id="gameStatsContent">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Loading game statistics...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Important Notes Card -->
+            <div class="card">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Important Notes
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0 small">
+                        <li><strong>Union Arena Focus</strong> - This scraper is specifically designed for Union Arena cards</li>
+                        <li><strong>10-Second Rate Limiting</strong> - Respects TCGPlayer's crawl delay with intelligent timing</li>
+                        <li><strong>Full Card Attributes</strong> - Extracts rarity, card number, type, energy, cost, trigger, and more</li>
+                        <li><strong>Automatic Database Saving</strong> - All scraped cards are automatically saved to your database</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Database Backup/Restore Card -->
+            <div class="card mt-4">
+                <div class="card-header bg-secondary text-white">
+                    <h6 class="mb-0">
+                        <i class="fas fa-database me-2"></i>
+                        Database Backup & Restore
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <p class="small text-muted mb-3">
+                        Download your database to keep a backup, or upload a previous backup to restore your data.
+                    </p>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-outline-primary btn-sm" id="downloadDbBtn">
+                            <i class="fas fa-download me-2"></i>Download Database Backup
+                        </button>
+                        <button class="btn btn-outline-success btn-sm" id="uploadDbBtn">
+                            <i class="fas fa-upload me-2"></i>Upload Database Backup
+                        </button>
+                    </div>
+                    <input type="file" id="databaseFileInput" accept=".db" style="display: none;">
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let statusInterval;
+    let isScraping = false;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        setupFormHandlers();
+        setupConsoleLogs();
+        loadGameStats();
+        loadDatabaseStats();
+        checkScrapingStatus(); // Check if scraping is already running
+    });
+
+    function setupFormHandlers() {
+        const startBtn = document.getElementById('startScrapingBtn');
+        if (startBtn) {
+            startBtn.addEventListener('click', startScraping);
+        }
+    }
+
+    function startScraping() {
+        if (isScraping) {
+            return;
+        }
+        
+        console.log('Starting Union Arena scraping process...');
+        addConsoleLog('Starting Union Arena scraping process...', 'info');
+
+        fetch('/api/start-scraping', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(result => {
+            if (result.status === 'success') {
+                console.log('Scraping started successfully');
+                addConsoleLog('Scraping started successfully!', 'success');
+                
+                // Show success message
+                const successAlert = document.getElementById('successAlert');
+                const successMessage = document.getElementById('successMessage');
+                successMessage.textContent = result.message;
+                successAlert.style.display = 'block';
+
+                // Start polling for status
+                startStatusPolling();
+            } else {
+                console.error('Failed to start scraping:', result.message);
+                addConsoleLog(`Error: ${result.message}`, 'error');
+                
+                // Show error message in the success alert (but styled as error)
+                const successAlert = document.getElementById('successAlert');
+                const successMessage = document.getElementById('successMessage');
+                successMessage.textContent = result.message;
+                successAlert.className = 'alert alert-danger alert-dismissible fade show';
+                successAlert.style.display = 'block';
+            }
+        })
+        .catch(error => {
+            console.error('Error starting scraping:', error);
+            addConsoleLog(`Error: ${error.message}`, 'error');
+        });
+    }
+
+    function checkScrapingStatus() {
+        // Check if scraping is already running when page loads
+        fetch('/api/scraping-status')
+            .then(response => response.json())
+            .then(status => {
+                if (status.is_running) {
+                    // Show status and console components
+                    document.getElementById('scrapingStatus').style.display = 'block';
+                    document.getElementById('consoleLogsPanel').style.display = 'block';
+                    
+                    // Update status display
+                    updateScrapingStatus(status);
+                    
+                    // Start polling for updates
+                    startStatusPolling();
+                    
+                    // Add a log message
+                    addConsoleLog('Resumed monitoring existing scraping process...', 'info');
+                }
+            })
+            .catch(error => {
+                console.error('Error checking scraping status:', error);
+            });
+    }
+
+    function startStatusPolling() {
+        isScraping = true;
+                statusInterval = setInterval(pollScrapingStatus, 10000); // Changed from 2000 to 10000 (10 seconds)
+        // Refresh total cards count every 10 seconds
+        setInterval(loadDatabaseStats, 10000);
+    }
+
+    function pollScrapingStatus() {
+        fetch('/api/scraping-status')
+            .then(response => response.json())
+            .then(status => {
+                updateScrapingStatus(status);
+                
+                // Update logs
+                if (status.logs) {
+                    status.logs.forEach(log => {
+                        if (!document.getElementById('consoleLogs').innerHTML.includes(log)) {
+                            const logType = log.includes('ERROR') ? 'error' : 
+                                          log.includes('WARNING') ? 'warning' : 
+                                          log.includes('✅') ? 'success' : 'info';
+                            addConsoleLog(log, logType);
+                        }
+                    });
+                }
+                
+                // Check if scraping is still running using the new statistics
+                const isRunning = status.statistics ? status.statistics.is_running : status.is_running;
+                if (!isRunning) {
+                    clearInterval(statusInterval);
+                    isScraping = false;
+                    addConsoleLog('Scraping completed or stopped.', 'info');
+                }
+            })
+            .catch(error => {
+                console.error('Error polling status:', error);
+                addConsoleLog(`Status polling error: ${error.message}`, 'error');
+            });
+    }
+
+    function updateScrapingStatus(status) {
+        const statusCard = document.getElementById('scrapingStatus');
+        const consoleLogsCard = document.getElementById('consoleLogsPanel');
+        
+        // Always keep status and console logs visible
+        statusCard.style.display = 'block';
+        consoleLogsCard.style.display = 'block';
+        
+        // Update statistics from the new API response
+        if (status.statistics) {
+            const stats = status.statistics;
+            
+            // Update the statistics display
+            document.getElementById('groupsProcessed').textContent = `${stats.groups_completed}/${stats.total_groups}`;
+            document.getElementById('cardsScraped').textContent = stats.cards_processed || '0';
+            document.getElementById('cardsSaved').textContent = stats.groups_completed * (stats.total_cards_in_group || 0);
+            document.getElementById('errorCount').textContent = '0'; // We'll track this separately if needed
+            
+            // Update progress bar
+            const progressBar = document.getElementById('progressBar');
+            if (stats.total_groups > 0) {
+                const groupProgress = (stats.groups_completed / stats.total_groups) * 100;
+                const cardProgress = stats.total_cards_in_group > 0 ? 
+                    (stats.cards_processed / stats.total_cards_in_group) * (100 / stats.total_groups) : 0;
+                const totalProgress = groupProgress + cardProgress;
+                progressBar.style.width = `${Math.min(totalProgress, 100)}%`;
+                progressBar.setAttribute('aria-valuenow', totalProgress);
+            }
+            
+            // Update status text
+            const statusText = document.getElementById('statusText') || createStatusText();
+            if (stats.is_running) {
+                if (stats.current_group) {
+                    statusText.innerHTML = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Current Group:</strong> ${stats.current_group}<br>
+                                <strong>Progress:</strong> ${stats.current_card}/${stats.total_cards_in_group} cards
+                            </div>
+                            <div class="col-md-6">
+                                <strong>ETA:</strong> ${stats.estimated_time_remaining}<br>
+                                <strong>Operation:</strong> ${stats.current_operation}
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    statusText.innerHTML = `<strong>Status:</strong> ${stats.current_operation}`;
+                }
+            } else {
+                statusText.innerHTML = '<strong>Status:</strong> Idle';
+            }
+        }
+        
+        // Fallback to old log-based parsing if new statistics aren't available
+        if (status.logs && !status.statistics) {
+            let groupsProcessed = 0;
+            let cardsScraped = 0;
+            let errors = 0;
+            
+            status.logs.forEach(log => {
+                if (log.includes('Processing group')) {
+                    const match = log.match(/Processing group (\d+)\//);
+                    if (match) {
+                        groupsProcessed = Math.max(groupsProcessed, parseInt(match[1]));
+                    }
+                }
+                if (log.includes('Successfully scraped:')) {
+                    cardsScraped++;
+                }
+                if (log.includes('ERROR')) {
+                    errors++;
+                }
+            });
+            
+            // Update UI
+            document.getElementById('groupsProcessed').textContent = groupsProcessed;
+            document.getElementById('cardsScraped').textContent = cardsScraped;
+            document.getElementById('cardsSaved').textContent = cardsScraped; // Assume all scraped cards are saved
+            document.getElementById('errorCount').textContent = errors;
+            
+            // Update progress bar
+            const progressBar = document.getElementById('progressBar');
+            const progress = (groupsProcessed / 47) * 100;
+            progressBar.style.width = Math.min(progress, 100) + '%';
+            progressBar.textContent = Math.round(Math.min(progress, 100)) + '%';
+        }
+    }
+
+    function stopScraping() {
+        if (confirm('Are you sure you want to stop the scraping process?')) {
+            const stopBtn = document.getElementById('stopScrapingBtn');
+            const originalText = stopBtn.innerHTML;
+            stopBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Stopping...';
+            stopBtn.disabled = true;
+
+            addConsoleLog('Stop signal sent...', 'warning');
+
+            fetch('/api/stop-scraping', {
+                method: 'POST'
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.message) {
+                    addConsoleLog('Scraping stopped successfully.', 'info');
+                } else {
+                    addConsoleLog(`Error stopping: ${result.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error stopping scraping:', error);
+                addConsoleLog(`Error: ${error.message}`, 'error');
+            })
+            .finally(() => {
+                setTimeout(() => {
+                    stopBtn.innerHTML = originalText;
+                    stopBtn.disabled = false;
+                }, 3000);
+            });
+        }
+    }
+
+    function loadDatabaseStats() {
+        fetch('/api/stats')
+            .then(response => response.json())
+            .then(data => {
+                const statsContent = document.getElementById('databaseStatsContent');
+                let html = `
+                    <h1 class="display-4 fw-bold mb-2" data-stat="total_cards">${data.total_cards || '0'}</h1>
+                    <h5 class="mb-0">Total Cards</h5>
+                `;
+                statsContent.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading database stats:', error);
+                document.getElementById('databaseStatsContent').innerHTML = '<p class="text-white">Error loading stats</p>';
+            });
+    }
+
+    function loadGameStats() {
+        fetch('/api/game-stats')
+            .then(response => response.json())
+            .then(data => {
+                const statsContent = document.getElementById('gameStatsContent');
+                let html = '';
+                
+                if (data && data.length > 0) {
+                    data.forEach(game => {
+                        html += `
+                            <div class="mb-3">
+                                <h6 class="text-success">${game.game_name}</h6>
+                                <p class="mb-1"><strong>Cards:</strong> <span data-stat="game_${game.game_name}">${game.card_count}</span></p>
+                                <p class="mb-0"><strong>Max Pages:</strong> ${game.max_pages_found}</p>
+                            </div>
+                        `;
+                    });
+                } else {
+                    html = '<p class="text-muted">No cards found yet. Start scraping to see game statistics.</p>';
+                }
+                
+                statsContent.innerHTML = html;
+            })
+            .catch(error => {
+                console.error('Error loading game stats:', error);
+                document.getElementById('gameStatsContent').innerHTML = '<p class="text-danger">Error loading stats</p>';
+            });
+    }
+
+    function setupConsoleLogs() {
+        const clearBtn = document.getElementById('clearLogsBtn');
+        const toggleBtn = document.getElementById('toggleLogsBtn');
+        const logsContainer = document.getElementById('consoleLogs');
+
+        clearBtn.addEventListener('click', function() {
+            logsContainer.innerHTML = '<div class="console-line">Console cleared...</div>';
+        });
+
+        toggleBtn.addEventListener('click', function() {
+            const isCollapsed = logsContainer.style.maxHeight === '0px';
+            if (isCollapsed) {
+                logsContainer.style.maxHeight = '300px';
+                toggleBtn.innerHTML = '<i class="fas fa-chevron-up me-1"></i>Collapse';
+            } else {
+                logsContainer.style.maxHeight = '0px';
+                toggleBtn.innerHTML = '<i class="fas fa-chevron-down me-1"></i>Expand';
+            }
+        });
+    }
+
+    function addConsoleLog(message, type = 'info') {
+        const logsContainer = document.getElementById('consoleLogs');
+        const timestamp = new Date().toLocaleTimeString();
+        const typeClass = type === 'error' ? 'text-danger' : 
+                         type === 'warning' ? 'text-warning' : 
+                         type === 'success' ? 'text-success' : 'text-light';
+        
+        const logLine = document.createElement('div');
+        logLine.className = `console-line ${typeClass}`;
+        logLine.textContent = `[${timestamp}] ${message}`;
+        
+        logsContainer.appendChild(logLine);
+        logsContainer.scrollTop = logsContainer.scrollHeight;
+    }
+
+    function createStatusText() {
+        // Create status text element if it doesn't exist
+        let statusText = document.getElementById('statusText');
+        if (!statusText) {
+            statusText = document.createElement('div');
+            statusText.id = 'statusText';
+            statusText.className = 'mt-3 p-3 bg-light rounded';
+            
+            // Insert after the progress bar
+            const progressBar = document.getElementById('progressBar');
+            const progressContainer = progressBar.closest('.progress').parentElement;
+            progressContainer.appendChild(statusText);
+        }
+        return statusText;
+    }
+
+    // Set up stop button
+    document.getElementById('stopScrapingBtn').addEventListener('click', stopScraping);
+
+    // Database backup/restore functionality
+    document.getElementById('downloadDbBtn').addEventListener('click', function() {
+        addConsoleLog('Starting database backup download...', 'info');
+        
+        fetch('/api/backup-database')
+            .then(response => {
+                if (response.ok) {
+                    return response.blob();
+                } else {
+                    return response.json().then(data => {
+                        throw new Error(data.error || 'Failed to download database');
+                    });
+                }
+            })
+            .then(blob => {
+                // Create download link
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `outdecked_backup_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.db`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                
+                addConsoleLog('Database backup downloaded successfully!', 'success');
+            })
+            .catch(error => {
+                console.error('Error downloading database:', error);
+                addConsoleLog(`Error: ${error.message}`, 'error');
+            });
+    });
+
+    document.getElementById('uploadDbBtn').addEventListener('click', function() {
+        document.getElementById('databaseFileInput').click();
+    });
+
+    document.getElementById('databaseFileInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        if (!file.name.endsWith('.db')) {
+            addConsoleLog('Error: Please select a .db file', 'error');
+            event.target.value = '';
+            return;
+        }
+
+        // Check if scraping is currently running
+        fetch('/api/scraping-status')
+        .then(response => response.json())
+        .then(status => {
+            if (status.is_running) {
+                addConsoleLog('Error: Cannot restore database while scraping is running. Please stop scraping first.', 'error');
+                event.target.value = '';
+                return;
+            }
+
+            // Show confirmation popup
+            const confirmed = confirm(
+                'WARNING: This will permanently delete the current database and replace it with the uploaded file.\n\n' +
+                'This action cannot be undone. Are you sure you want to continue?'
+            );
+            
+            if (!confirmed) {
+                // Reset the file input
+                event.target.value = '';
+                return;
+            }
+
+            addConsoleLog(`Uploading database backup: ${file.name}...`, 'info');
+
+            const formData = new FormData();
+            formData.append('database_file', file);
+
+            fetch('/api/restore-database', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.message) {
+                    addConsoleLog('Database restored successfully!', 'success');
+                    // Reload the page to refresh stats
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else if (result.error) {
+                    addConsoleLog(`Error: ${result.error}`, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error restoring database:', error);
+                addConsoleLog(`Error: ${error.message}`, 'error');
+            });
+
+            // Clear the file input
+            event.target.value = '';
+        })
+        .catch(error => {
+            console.error('Error checking scraping status:', error);
+            addConsoleLog('Error: Could not check scraping status', 'error');
+            event.target.value = '';
+        });
+    });
+</script>
+{% endblock %}
