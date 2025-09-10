@@ -9,6 +9,7 @@ import os
 import json
 import threading
 import time
+import logging
 from datetime import datetime
 from config import Config
 
@@ -16,8 +17,6 @@ from config import Config
 from database import (
     init_db,
     get_db_connection,
-    get_max_pages_for_game,
-    update_max_pages_for_game,
     save_cards_to_db,
 )
 
@@ -46,6 +45,17 @@ app = Flask(__name__)
 app.config.from_object(Config)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.FileHandler("outdecked.log", encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
+logger = logging.getLogger(__name__)
+
 
 # Routes
 @app.route("/")
@@ -56,6 +66,166 @@ def index():
 @app.route("/admin")
 def admin():
     return render_template("admin.html")
+
+
+@app.route("/scraping")
+def scraping():
+    return render_template("scraping.html")
+
+
+@app.route("/api/start-scraping", methods=["POST"])
+def start_scraping():
+    """Start the Union Arena card scraping process"""
+    try:
+        # Import here to avoid circular imports
+        from scraper import TCGCSVScraper
+        import threading
+
+        def run_scraping():
+            scraper = TCGCSVScraper()
+            try:
+                logger.info("🚀 Starting Union Arena card scraping...")
+                cards = scraper.scrape_all_union_arena_cards()
+                logger.info(f"🎉 Scraping completed! Total cards: {len(cards)}")
+            except Exception as e:
+                logger.error(f"❌ Scraping failed: {e}")
+
+        # Run scraping in background thread
+        scraping_thread = threading.Thread(target=run_scraping)
+        scraping_thread.daemon = True
+        scraping_thread.start()
+
+        return jsonify({"status": "success", "message": "Scraping started"})
+
+    except Exception as e:
+        logger.error(f"❌ Failed to start scraping: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/scraping-status", methods=["GET"])
+def get_scraping_status():
+    """Get current scraping status and logs with detailed statistics"""
+    try:
+        # Read the latest log entries from outdecked.log (where scraper actually logs)
+        log_file = "outdecked.log"
+        if os.path.exists(log_file):
+            with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
+                lines = f.readlines()
+                # Get last 100 lines for better statistics parsing
+                recent_lines = lines[-100:] if len(lines) > 100 else lines
+                logs = [line.strip() for line in recent_lines if line.strip()]
+        else:
+            logs = ["[INFO] No logs available yet"]
+
+        # Parse statistics from logs
+        stats = {
+            "is_running": False,
+            "current_group": None,
+            "current_group_number": 0,
+            "total_groups": 47,  # Union Arena has 47 groups
+            "current_card": 0,
+            "total_cards_in_group": 0,
+            "cards_processed": 0,
+            "groups_completed": 0,
+            "estimated_time_remaining": "Unknown",
+            "current_operation": "Idle",
+        }
+
+        # Check if scraping is running and parse statistics
+        if logs:
+            import time
+            import re
+
+            # Look for recent activity (within last 5 minutes)
+            current_time = time.time()
+            recent_activity = False
+
+            for log in logs[-20:]:  # Check last 20 log entries
+                if "Starting Union Arena card scraping" in log:
+                    stats["is_running"] = True
+                    stats["current_operation"] = "Starting"
+                    recent_activity = True
+                elif "Processing group" in log:
+                    stats["is_running"] = True
+                    stats["current_operation"] = "Processing Group"
+                    recent_activity = True
+                    # Extract group number: "Processing group 1/47: Attack on Titan"
+                    match = re.search(r"Processing group (\d+)/(\d+): (.+)", log)
+                    if match:
+                        stats["current_group_number"] = int(match.group(1))
+                        stats["total_groups"] = int(match.group(2))
+                        stats["current_group"] = match.group(3)
+                        stats["groups_completed"] = stats["current_group_number"] - 1
+                elif "Processing card" in log:
+                    stats["is_running"] = True
+                    stats["current_operation"] = "Scraping Cards"
+                    recent_activity = True
+                    # Extract card progress: "Processing card 18/134: Erwin Smith"
+                    match = re.search(r"Processing card (\d+)/(\d+):", log)
+                    if match:
+                        stats["current_card"] = int(match.group(1))
+                        stats["total_cards_in_group"] = int(match.group(2))
+                        stats["cards_processed"] = stats["current_card"] - 1
+                elif "Successfully scraped" in log:
+                    stats["is_running"] = True
+                    recent_activity = True
+                elif "Saved" in log and "cards from" in log and "to database" in log:
+                    # Group completed: "Saved 134 cards from Attack on Titan to database"
+                    match = re.search(r"Saved (\d+) cards from (.+) to database", log)
+                    if match:
+                        cards_saved = int(match.group(1))
+                        group_name = match.group(2)
+                        stats["groups_completed"] += 1
+                elif "Scraping completed" in log or "WebDriver closed" in log:
+                    stats["is_running"] = False
+                    stats["current_operation"] = "Completed"
+                    break
+
+            # Calculate estimated time remaining
+            if (
+                stats["is_running"]
+                and stats["current_card"] > 0
+                and stats["total_cards_in_group"] > 0
+            ):
+                # Estimate based on 10 seconds per card + processing time
+                cards_remaining_in_group = (
+                    stats["total_cards_in_group"] - stats["current_card"]
+                )
+                groups_remaining = stats["total_groups"] - stats["current_group_number"]
+
+                # Rough estimate: 10 seconds per card + 30 seconds per group completion
+                time_per_card = 10  # seconds
+                time_per_group_completion = 30  # seconds
+
+                time_remaining_seconds = (
+                    cards_remaining_in_group * time_per_card
+                    + groups_remaining
+                    * (
+                        stats["total_cards_in_group"] * time_per_card
+                        + time_per_group_completion
+                    )
+                )
+
+                if time_remaining_seconds < 3600:  # Less than 1 hour
+                    stats["estimated_time_remaining"] = (
+                        f"{time_remaining_seconds // 60} minutes"
+                    )
+                else:  # More than 1 hour
+                    hours = time_remaining_seconds // 3600
+                    minutes = (time_remaining_seconds % 3600) // 60
+                    stats["estimated_time_remaining"] = f"{hours}h {minutes}m"
+
+        return jsonify(
+            {
+                "status": "success",
+                "logs": logs[-20:],  # Return last 20 log entries
+                "statistics": stats,
+            }
+        )
+
+    except Exception as e:
+        logger.error(f"❌ Failed to get scraping status: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 # @app.route("/admin/scraping")  # DISABLED - template moved to scraping_archive
@@ -243,32 +413,24 @@ def health_check():
 
 @app.route("/api/game-stats")
 def get_game_stats():
-    """Get statistics for all games including max pages found"""
+    """Get statistics for all games"""
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Get max pages for each game
-    cursor.execute(
-        "SELECT game_name, max_pages_found, last_updated FROM game_stats ORDER BY game_name"
-    )
-    game_stats = cursor.fetchall()
-
     # Get card counts for each game
     cursor.execute("SELECT game, COUNT(*) as card_count FROM cards GROUP BY game")
-    card_counts = {row["game"]: row["card_count"] for row in cursor.fetchall()}
+    card_counts = cursor.fetchall()
 
     conn.close()
 
-    # Combine the data
+    # Format the data
     stats = []
-    for stat in game_stats:
-        game_name = stat["game_name"]
+    for row in card_counts:
         stats.append(
             {
-                "game_name": game_name,
-                "max_pages_found": stat["max_pages_found"],
-                "card_count": card_counts.get(game_name, 0),
-                "last_updated": stat["last_updated"],
+                "game_name": row["game"],
+                "card_count": row["card_count"],
+                "last_updated": None,  # Not tracked in new schema
             }
         )
 
