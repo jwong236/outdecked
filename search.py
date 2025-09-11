@@ -114,10 +114,35 @@ def handle_api_search():
                     params.append(value)
                 else:
                     # TCGCSV attribute
-                    or_conditions.append(
-                        f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
-                    )
-                    params.extend([db_field, value])
+                    if (
+                        db_field == "Trigger"
+                        and value.startswith("[")
+                        and value.endswith("]")
+                    ):
+                        # Special handling for trigger types - match cards that start with the trigger type
+                        or_conditions.append(
+                            f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND (LOWER(value) LIKE LOWER(?) OR LOWER(value) LIKE LOWER(?)))"
+                        )
+                        params.extend([db_field, f"{value}%", f"{value.upper()}%"])
+                    elif db_field == "BattlePointBP" and (">" in value or "<" in value):
+                        # Special handling for battle point ranges
+                        if value.startswith(">"):
+                            threshold = value.replace(">", "").strip()
+                            or_conditions.append(
+                                f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) > ?)"
+                            )
+                            params.extend([db_field, threshold])
+                        elif value.startswith("<"):
+                            threshold = value.replace("<", "").strip()
+                            or_conditions.append(
+                                f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) < ?)"
+                            )
+                            params.extend([db_field, threshold])
+                    else:
+                        or_conditions.append(
+                            f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
+                        )
+                        params.extend([db_field, value])
 
         if or_conditions:
             where_conditions.append(f"({' OR '.join(or_conditions)})")
@@ -136,10 +161,35 @@ def handle_api_search():
                 params.append(value)
             else:
                 # TCGCSV attribute
-                where_conditions.append(
-                    f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
-                )
-                params.extend([db_field, value])
+                if (
+                    db_field == "Trigger"
+                    and value.startswith("[")
+                    and value.endswith("]")
+                ):
+                    # Special handling for trigger types - match cards that start with the trigger type
+                    where_conditions.append(
+                        f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND (LOWER(value) LIKE LOWER(?) OR LOWER(value) LIKE LOWER(?)))"
+                    )
+                    params.extend([db_field, f"{value}%", f"{value.upper()}%"])
+                elif db_field == "BattlePointBP" and (">" in value or "<" in value):
+                    # Special handling for battle point ranges
+                    if value.startswith(">"):
+                        threshold = value.replace(">", "").strip()
+                        where_conditions.append(
+                            f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) > ?)"
+                        )
+                        params.extend([db_field, threshold])
+                    elif value.startswith("<"):
+                        threshold = value.replace("<", "").strip()
+                        where_conditions.append(
+                            f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) < ?)"
+                        )
+                        params.extend([db_field, threshold])
+                else:
+                    where_conditions.append(
+                        f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
+                    )
+                    params.extend([db_field, value])
 
     # Handle NOT filters (must NOT match)
     for filter_item in not_filters:
@@ -155,10 +205,35 @@ def handle_api_search():
                 params.append(value)
             else:
                 # TCGCSV attribute
-                where_conditions.append(
-                    f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
-                )
-                params.extend([db_field, value])
+                if (
+                    db_field == "Trigger"
+                    and value.startswith("[")
+                    and value.endswith("]")
+                ):
+                    # Special handling for trigger types - exclude cards that start with the trigger type
+                    where_conditions.append(
+                        f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND (LOWER(value) LIKE LOWER(?) OR LOWER(value) LIKE LOWER(?)))"
+                    )
+                    params.extend([db_field, f"{value}%", f"{value.upper()}%"])
+                elif db_field == "BattlePointBP" and (">" in value or "<" in value):
+                    # Special handling for battle point ranges
+                    if value.startswith(">"):
+                        threshold = value.replace(">", "").strip()
+                        where_conditions.append(
+                            f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) > ?)"
+                        )
+                        params.extend([db_field, threshold])
+                    elif value.startswith("<"):
+                        threshold = value.replace("<", "").strip()
+                        where_conditions.append(
+                            f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) < ?)"
+                        )
+                        params.extend([db_field, threshold])
+                else:
+                    where_conditions.append(
+                        f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
+                    )
+                    params.extend([db_field, value])
 
     if where_conditions:
         where_clause = " WHERE " + " AND ".join(where_conditions)
@@ -169,17 +244,9 @@ def handle_api_search():
     order_clause = "ORDER BY c.name"  # Default
     if sort_by:
         if sort_by == "price_desc":
-            order_clause = (
-                "ORDER BY CAST(REPLACE(REPLACE("
-                "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'price'), "
-                "'$', ''), ',', '') AS REAL) DESC"
-            )
+            order_clause = "ORDER BY cp.market_price DESC"
         elif sort_by == "price_asc":
-            order_clause = (
-                "ORDER BY CAST(REPLACE(REPLACE("
-                "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'price'), "
-                "'$', ''), ',', '') AS REAL) ASC"
-            )
+            order_clause = "ORDER BY cp.market_price ASC"
         elif sort_by == "rarity_desc":
             order_clause = """ORDER BY CASE 
                 WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common' THEN 1
@@ -219,8 +286,8 @@ def handle_api_search():
         elif sort_by == "required_energy_asc":
             order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'RequiredEnergy') AS INTEGER) ASC"
 
-    # Get total count
-    count_query = f"SELECT COUNT(*) as total {base_query}{where_clause}"
+    # Get total count - need to match the main query structure with JOINs
+    count_query = f"SELECT COUNT(DISTINCT c.id) as total {base_query} LEFT JOIN card_attributes cm ON c.id = cm.card_id LEFT JOIN card_prices cp ON c.id = cp.card_id {where_clause}"
     total_cards = conn.execute(count_query, params).fetchone()["total"]
 
     # Get paginated results with metadata and prices (TCGCSV-aligned)
@@ -284,24 +351,32 @@ def handle_api_search():
     )
 
 
+def handle_filter_fields():
+    """Get all available filter fields (excluding Description)"""
+    conn = get_db_connection()
+
+    # Get unique field names from card_attributes table, excluding Description
+    query = """
+        SELECT DISTINCT name, display_name 
+        FROM card_attributes 
+        WHERE name != 'Description' 
+        ORDER BY display_name
+    """
+    fields = conn.execute(query).fetchall()
+    conn.close()
+
+    # Return field names with display names
+    return jsonify(
+        [
+            {"name": field["name"], "display": field["display_name"] or field["name"]}
+            for field in fields
+        ]
+    )
+
+
 def handle_filter_values(field):
     """Get all unique values for a specific filter field"""
     conn = get_db_connection()
-
-    # Validate field name to prevent SQL injection
-    allowed_fields = [
-        "rarity",
-        "series",
-        "card_type",
-        "color",
-        "language",
-        "cost_1",
-        "cost_2",
-        "special_ability",
-        "affinities",
-    ]
-    if field not in allowed_fields:
-        return jsonify([])
 
     # Get distinct values for the field from card_attributes table, excluding NULL and empty values
     query = "SELECT DISTINCT value FROM card_attributes WHERE name = ? AND value IS NOT NULL AND value != '' ORDER BY value"
@@ -311,8 +386,8 @@ def handle_filter_values(field):
     # Extract the values from the result tuples
     raw_values = [row[0] for row in values]
 
-    # Special handling for affinities - split on " / " to get individual affinities
-    if field == "affinities":
+    # Special handling for Affinities - split on " / " to get individual affinities
+    if field == "Affinities":
         individual_affinities = set()
         for value in raw_values:
             # Split on " / " and add each individual affinity
@@ -320,68 +395,104 @@ def handle_filter_values(field):
             individual_affinities.update(affinities)
         return jsonify(sorted(list(individual_affinities)))
 
+    # Special handling for Trigger field - extract just the trigger type
+    elif field == "Trigger":
+        trigger_types = set()
+        for value in raw_values:
+            # Extract trigger type from [Type] format
+            if value.startswith("[") and "]" in value:
+                trigger_type = value.split("]")[0] + "]"
+                # Normalize FINAL to Final (TCGCSV has inconsistent casing)
+                if trigger_type.upper() == "[FINAL]":
+                    trigger_type = "[Final]"
+                trigger_types.add(trigger_type)
+        return jsonify(sorted(list(trigger_types)))
+
+    # Special handling for Rarity field - custom ordering
+    elif field == "Rarity":
+        # Define rarity order (least rare to most rare)
+        rarity_order = {
+            "Action Point": 0,
+            "Common": 1,
+            "Uncommon": 2,
+            "Rare": 3,
+            "Super Rare": 4,
+            "Union Rare": 5,
+        }
+
+        def get_rarity_rank(rarity):
+            # Handle star variations
+            base_rarity = rarity
+            stars = 0
+
+            if "1-Star" in rarity:
+                stars = 1
+                base_rarity = rarity.replace(" 1-Star", "")
+            elif "2-Star" in rarity:
+                stars = 2
+                base_rarity = rarity.replace(" 2-Star", "")
+            elif "3-Star" in rarity:
+                stars = 3
+                base_rarity = rarity.replace(" 3-Star", "")
+
+            # Get base rank
+            base_rank = rarity_order.get(base_rarity, 999)
+
+            # Add star bonus (more stars = higher rank)
+            return base_rank + (stars * 0.1)
+
+        # Sort by rarity rank
+        sorted_rarities = sorted(raw_values, key=get_rarity_rank)
+        return jsonify(sorted_rarities)
+
+    # Special handling for BattlePointBP field - create ranges
+    elif field == "BattlePointBP":
+        # Create predefined ranges for battle points
+        ranges = [
+            "< 1000",
+            "> 1000",
+            "< 2000",
+            "> 2000",
+            "< 3000",
+            "> 3000",
+            "< 4000",
+            "> 4000",
+            "< 5000",
+            "> 5000",
+            "< 10000",
+            "> 10000",
+        ]
+        return jsonify(ranges)
+
+    # Special handling for numeric fields - sort as integers
+    elif field in [
+        "RequiredEnergy",
+        "ActionPointCost",
+        "GeneratedEnergy",
+    ]:
+        try:
+            # Convert to integers and sort, then convert back to strings
+            numeric_values = []
+            for value in raw_values:
+                try:
+                    numeric_values.append(int(value))
+                except ValueError:
+                    # If conversion fails, keep as string and add to end
+                    numeric_values.append(float("inf"))
+
+            # Sort numerically
+            sorted_numeric = sorted(numeric_values)
+
+            # Convert back to strings, handling the infinity case
+            result = []
+            for val in sorted_numeric:
+                if val == float("inf"):
+                    continue  # Skip invalid numeric values
+                result.append(str(val))
+
+            return jsonify(result)
+        except:
+            # If anything fails, fall back to string sorting
+            return jsonify(raw_values)
+
     return jsonify(raw_values)
-
-
-def handle_metadata_fields(game):
-    """Get all available metadata fields for a specific game"""
-    conn = get_db_connection()
-    fields = conn.execute(
-        "SELECT name, field_display_name FROM attributes_fields WHERE game = ? ORDER BY field_display_name",
-        (game,),
-    ).fetchall()
-    conn.close()
-
-    return jsonify(
-        [{"name": f["name"], "display": f["field_display_name"]} for f in fields]
-    )
-
-
-def handle_metadata_values(game, field):
-    """Get all unique values for a specific metadata field in a game"""
-    conn = get_db_connection()
-
-    # Map frontend field name to database field name
-    db_field = map_field_name(field)
-
-    # Check if field is a direct card table column
-    if is_direct_card_field(db_field):
-        # Query directly from cards table
-        values = conn.execute(
-            f"""
-            SELECT DISTINCT {db_field} as value 
-            FROM cards
-            WHERE game = ? AND {db_field} IS NOT NULL AND {db_field} != ''
-            ORDER BY {db_field}
-            """,
-            (game,),
-        ).fetchall()
-    else:
-        # Query from card_attributes table
-        values = conn.execute(
-            """
-            SELECT DISTINCT cm.value 
-            FROM card_attributes cm
-            JOIN cards c ON cm.card_id = c.id
-            WHERE c.game = ? AND cm.name = ? AND cm.value IS NOT NULL AND cm.value != ''
-            ORDER BY cm.value
-            """,
-            (game, db_field),
-        ).fetchall()
-
-    conn.close()
-
-    value_list = [v["value"] for v in values]
-
-    # Return the values as-is since database is now standardized
-    return jsonify(value_list)
-
-
-def handle_anime_values():
-    """Get all unique anime/series values (legacy endpoint)"""
-    return handle_metadata_values("Union Arena", "series")
-
-
-def handle_color_values():
-    """Get all unique color values (legacy endpoint)"""
-    return handle_metadata_values("Union Arena", "color")
