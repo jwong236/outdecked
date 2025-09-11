@@ -89,27 +89,27 @@ export function ActiveFilters({
       <div className="flex flex-wrap gap-2">
         {hasActiveFilters ? (
           <>
-            {/* Priority Order: OR Filters → AND Filters → NOT Filters → Basic Filters */}
+            {/* Priority Order: OR Filters → AND Filters (including basic) → NOT Filters */}
             
             {/* 1. OR Filters (highest priority - any one must match) */}
             {filters.or_filters.map((filter, index) => 
-              renderFilterChip('or', `${filter.field}: ${filter.value}`, index)
+              renderFilterChip('or', filter.displayText, index)
             )}
             
             {/* 2. AND Filters (all must match) */}
             {filters.and_filters.map((filter, index) => 
-              renderFilterChip('and', `${filter.field}: ${filter.value}`, index)
+              renderFilterChip('and', filter.displayText, index)
             )}
             
-            {/* 3. NOT Filters (must NOT match) */}
-            {filters.not_filters.map((filter, index) => 
-              renderFilterChip('not', `${filter.field}: ${filter.value}`, index)
-            )}
-            
-            {/* 4. Basic Filters (lowest priority) */}
+            {/* Basic filters are also AND filters */}
             {filters.query && renderFilterChip('query', filters.query)}
             {filters.series && renderFilterChip('series', filters.series)}
             {filters.color && renderFilterChip('color', filters.color)}
+            
+            {/* 3. NOT Filters (must NOT match) */}
+            {filters.not_filters.map((filter, index) => 
+              renderFilterChip('not', filter.displayText, index)
+            )}
           </>
         ) : (
           <p className="text-sm text-gray-400 italic">No filters applied</p>

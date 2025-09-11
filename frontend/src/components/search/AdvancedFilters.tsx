@@ -103,7 +103,7 @@ export function AdvancedFilters({
         break;
     }
 
-    setNewFilter({ field: '', value: '', type: 'and' });
+    setNewFilter({ field: '', value: '', type: newFilter.type });
   };
 
 
@@ -211,7 +211,7 @@ export function AdvancedFilters({
                 }}
                 className="px-3 py-2 bg-red-100 text-red-800 rounded-lg hover:bg-red-200 transition-colors duration-150 text-sm"
               >
-                CardType: Action Point
+                NOT CardType: Action Point
               </button>
             </div>
           </div>
