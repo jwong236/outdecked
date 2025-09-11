@@ -5,6 +5,7 @@ Main Flask application with routes and business logic.
 
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for
 from flask_socketio import SocketIO, emit
+from flask_cors import CORS
 import os
 import json
 import threading
@@ -23,11 +24,8 @@ from database import (
 # from scraper import add_scraping_log  # Moved to scraping_archive
 from search import (
     handle_api_search,
+    handle_filter_fields,
     handle_filter_values,
-    handle_metadata_fields,
-    handle_metadata_values,
-    handle_anime_values,
-    handle_color_values,
 )
 from deck_builder import (
     handle_get_decks,
@@ -43,6 +41,10 @@ from deck_builder import (
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Enable CORS for all routes
+CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
+
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Set up logging
@@ -349,35 +351,25 @@ def api_search():
 @app.route("/games")
 def get_games():
     conn = get_db_connection()
-    cursor = conn.execute("SELECT DISTINCT game FROM cards ORDER BY game")
-    games = [row["game"] for row in cursor.fetchall()]
+    cursor = conn.execute("SELECT name, display_name FROM categories ORDER BY name")
+    games = [
+        {"name": row["name"], "display": row["display_name"]}
+        for row in cursor.fetchall()
+    ]
     conn.close()
     return jsonify(games)
 
 
+@app.route("/api/filter-fields")
+def api_filter_fields():
+    return handle_filter_fields()
+
+
 @app.route("/api/filter-values/<field>")
-def get_filter_values(field):
+def api_filter_values(field):
     return handle_filter_values(field)
 
 
-@app.route("/api/metadata-fields/<game>")
-def get_metadata_fields(game):
-    return handle_metadata_fields(game)
-
-
-@app.route("/api/metadata-values/<game>/<field>")
-def get_metadata_values(game, field):
-    return handle_metadata_values(game, field)
-
-
-@app.route("/api/anime-values")
-def get_anime_values():
-    return handle_anime_values()
-
-
-@app.route("/api/color-values")
-def get_color_values():
-    return handle_color_values()
 
 
 @app.route("/stats")
