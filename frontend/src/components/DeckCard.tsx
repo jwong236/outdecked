@@ -2,74 +2,62 @@
 
 import Image from 'next/image';
 import { Card } from '@/types/card';
-import { QuantityControl } from '@/components/QuantityControl';
+import { QuantityControl } from './QuantityControl';
 
-export interface SearchCardProps {
+export interface DeckCardProps {
   card: Card;
-  onClick: (card: Card) => void;
+  onClick?: (card: Card) => void;
+  onQuantityChange?: (card: Card, change: number) => void;
+  onRemoveFromDeck?: (card: Card) => void;
+  onAddToDeck?: (card: Card) => void;
+  deckCards?: Card[];
+  showDeckActions?: boolean;
   className?: string;
   showPrices?: boolean;
   showRarity?: boolean;
-  variant?: 'default' | 'compact' | 'detailed';
   priority?: boolean;
 }
 
-export function SearchCard({ 
+export function DeckCard({ 
   card, 
   onClick, 
+  onQuantityChange,
+  onRemoveFromDeck,
+  onAddToDeck,
+  deckCards = [],
+  showDeckActions = false,
   className = '',
   showPrices = true,
   showRarity = true,
-  variant = 'default',
   priority = false
-}: SearchCardProps) {
-  const formatPrice = (price: number | undefined | null) => {
-    if (price === undefined || price === null || price === 0) return 'N/A';
-    return `$${price.toFixed(2)}`;
-  };
-
-  const getRarityColor = (rarity?: string) => {
-    switch (rarity?.toLowerCase()) {
-      case 'common': return 'text-gray-400';
-      case 'uncommon': return 'text-green-400';
-      case 'rare': return 'text-blue-400';
-      case 'super rare': return 'text-purple-400';
-      case 'ultra rare': return 'text-yellow-400';
-      case 'secret rare': return 'text-red-400';
-      default: return 'text-gray-400';
-    }
-  };
-
-  const baseClasses = `
-    group relative bg-white/10 backdrop-blur-sm rounded-lg shadow-md overflow-hidden
-    hover:bg-white/20 hover:shadow-lg transition-all duration-300 cursor-pointer
-    border border-white/20 hover:border-white/30
-  `;
-
-  const variantClasses = {
-    default: 'p-4',
-    compact: 'p-3',
-    detailed: 'p-6',
-  };
-
+}: DeckCardProps) {
   const handleCardClick = (e: React.MouseEvent) => {
-    // Don't trigger card click if clicking on the Add to Hand button
-    if ((e.target as HTMLElement).closest('.add-to-hand-btn')) {
+    // Don't trigger card click if clicking on interactive elements
+    if ((e.target as HTMLElement).closest('button, a')) {
       return;
     }
-    onClick(card);
+    onClick?.(card);
   };
+
+  const isInDeck = deckCards.some(deckCard => deckCard.card_url === card.card_url);
+  const deckQuantity = deckCards.find(deckCard => deckCard.card_url === card.card_url)?.quantity || 0;
 
   return (
     <div 
-      className={`${baseClasses} ${variantClasses[variant]} ${className}`}
+      className={`
+        group relative bg-white/10 backdrop-blur-sm rounded-lg shadow-md overflow-hidden
+        hover:bg-white/20 hover:shadow-lg transition-all duration-300 cursor-pointer
+        border border-white/20 hover:border-white/30
+        ${isInDeck ? 'ring-2 ring-green-500' : ''}
+        ${className}
+      `}
       onClick={handleCardClick}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onClick(card);
+          onClick?.(card);
         }
       }}
       aria-label={`View details for ${card.name}`}
@@ -106,10 +94,17 @@ export function SearchCard({
         
         {/* Hover Overlay */}
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+        
+        {/* Deck Status Indicator */}
+        {isInDeck && (
+          <div className="absolute top-2 left-2 bg-green-600 text-white text-xs px-2 py-1 rounded-full font-medium">
+            In Deck ({deckQuantity})
+          </div>
+        )}
       </div>
 
       {/* Card Info */}
-      <div className="space-y-2">
+      <div className="p-4 space-y-2">
         {/* Card Name */}
         <h3 className="font-semibold text-white text-sm leading-tight h-8 flex items-center group-hover:text-blue-300 transition-colors duration-200">
           <span className="line-clamp-2">{card.name}</span>
@@ -121,9 +116,9 @@ export function SearchCard({
             <p className="line-clamp-1">{card.clean_name}</p>
           )}
           
-          {showRarity && (
-            <p className={`font-medium ${getRarityColor()}`}>
-              {/* Rarity would come from card attributes */}
+          {showRarity && card.Rarity && (
+            <p className="font-medium text-blue-400">
+              {card.Rarity}
             </p>
           )}
         </div>
@@ -134,18 +129,62 @@ export function SearchCard({
             <div className="text-xs">
               <span className="text-gray-400">Price:</span>
               <span className="ml-1 text-white font-medium">
-                {formatPrice(card.price)}
+                {card.price ? `$${card.price.toFixed(2)}` : 'N/A'}
               </span>
             </div>
           </div>
         )}
 
-        {/* Quantity Control */}
-        <div className="pt-2">
+        {/* Action Buttons */}
+        <div className="flex gap-2 items-center pt-2">
+          {card.card_url && (
+            <a 
+              href={card.card_url} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center gap-1 px-2 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors duration-150"
+            >
+              <Image
+                src="/tcg_icon.png"
+                alt="TCGPlayer"
+                width={12}
+                height={12}
+                className="w-3 h-3"
+              />
+              <span>{card.price ? `$${card.price.toFixed(2)}` : 'View'}</span>
+            </a>
+          )}
+          
+          {showDeckActions && (
+            <div className="flex gap-1">
+              {isInDeck ? (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemoveFromDeck?.(card);
+                  }}
+                  className="px-2 py-1.5 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors duration-150"
+                >
+                  Remove
+                </button>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAddToDeck?.(card);
+                  }}
+                  className="px-2 py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors duration-150"
+                >
+                  Add to Deck
+                </button>
+              )}
+            </div>
+          )}
+          
           <QuantityControl 
             card={card} 
             size="sm" 
-            className="w-full justify-center"
+            className="flex-shrink-0"
           />
         </div>
       </div>

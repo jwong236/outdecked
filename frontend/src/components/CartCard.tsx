@@ -2,42 +2,33 @@
 
 import Image from 'next/image';
 import { Card } from '@/types/card';
-import { QuantityControl } from '@/components/QuantityControl';
+import { QuantityControl } from './QuantityControl';
 
-export interface SearchCardProps {
+export interface CartCardProps {
   card: Card;
-  onClick: (card: Card) => void;
+  onClick?: (card: Card) => void;
+  onQuantityChange?: (card: Card, change: number) => void;
   className?: string;
   showPrices?: boolean;
   showRarity?: boolean;
-  variant?: 'default' | 'compact' | 'detailed';
   priority?: boolean;
 }
 
-export function SearchCard({ 
+export function CartCard({ 
   card, 
   onClick, 
+  onQuantityChange,
   className = '',
   showPrices = true,
   showRarity = true,
-  variant = 'default',
   priority = false
-}: SearchCardProps) {
-  const formatPrice = (price: number | undefined | null) => {
-    if (price === undefined || price === null || price === 0) return 'N/A';
-    return `$${price.toFixed(2)}`;
-  };
-
-  const getRarityColor = (rarity?: string) => {
-    switch (rarity?.toLowerCase()) {
-      case 'common': return 'text-gray-400';
-      case 'uncommon': return 'text-green-400';
-      case 'rare': return 'text-blue-400';
-      case 'super rare': return 'text-purple-400';
-      case 'ultra rare': return 'text-yellow-400';
-      case 'secret rare': return 'text-red-400';
-      default: return 'text-gray-400';
+}: CartCardProps) {
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't trigger card click if clicking on interactive elements
+    if ((e.target as HTMLElement).closest('button, a')) {
+      return;
     }
+    onClick?.(card);
   };
 
   const baseClasses = `
@@ -52,24 +43,16 @@ export function SearchCard({
     detailed: 'p-6',
   };
 
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Don't trigger card click if clicking on the Add to Hand button
-    if ((e.target as HTMLElement).closest('.add-to-hand-btn')) {
-      return;
-    }
-    onClick(card);
-  };
-
   return (
     <div 
-      className={`${baseClasses} ${variantClasses[variant]} ${className}`}
+      className={`${baseClasses} ${variantClasses.default} ${className}`}
       onClick={handleCardClick}
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
-          onClick(card);
+          onClick?.(card);
         }
       }}
       aria-label={`View details for ${card.name}`}
@@ -121,31 +104,49 @@ export function SearchCard({
             <p className="line-clamp-1">{card.clean_name}</p>
           )}
           
-          {showRarity && (
-            <p className={`font-medium ${getRarityColor()}`}>
-              {/* Rarity would come from card attributes */}
+          {showRarity && card.Rarity && (
+            <p className="font-medium text-blue-400">
+              {card.Rarity}
             </p>
           )}
         </div>
 
-        {/* Price */}
-        {showPrices && (
-          <div className="pt-2 border-t border-white/10">
-            <div className="text-xs">
-              <span className="text-gray-400">Price:</span>
-              <span className="ml-1 text-white font-medium">
-                {formatPrice(card.price)}
-              </span>
-            </div>
+        {/* Price and TCGP Button Row */}
+        <div className="pt-2 border-t border-white/10">
+          <div className="flex items-center justify-between">
+            {showPrices && (
+              <div className="text-xs">
+                <span className="text-gray-400">Price:</span>
+                <span className="ml-1 text-white font-medium">
+                  {card.price ? `$${card.price.toFixed(2)}` : 'N/A'}
+                </span>
+              </div>
+            )}
+            {card.card_url && (
+              <a 
+                href={card.card_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center w-8 h-8 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors duration-150"
+                title={card.price ? `$${card.price.toFixed(2)}` : 'View on TCGPlayer'}
+              >
+                <Image
+                  src="/tcg_icon.png"
+                  alt="TCGPlayer"
+                  width={16}
+                  height={16}
+                  className="w-4 h-4"
+                />
+              </a>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Quantity Control */}
         <div className="pt-2">
           <QuantityControl 
             card={card} 
             size="sm" 
-            className="w-full justify-center"
           />
         </div>
       </div>

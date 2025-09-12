@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { Card } from '@/types/card';
+import { QuantityControl } from '@/components/QuantityControl';
 
 export interface CardDetailModalProps {
   card: Card | null;
@@ -46,6 +47,25 @@ export function CardDetailModal({
   const handleNext = () => {
     if (currentIndex < allCards.length - 1) {
       onNavigate(currentIndex + 1);
+    }
+  };
+
+  const handleDownloadImage = async () => {
+    if (!card?.image_url) return;
+    
+    try {
+      const response = await fetch(card.image_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${card.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Failed to download image:', error);
     }
   };
 
@@ -148,6 +168,7 @@ export function CardDetailModal({
                           </div>
                         )}
                       </div>
+                      
 
                     </div>
 
@@ -212,23 +233,16 @@ export function CardDetailModal({
                         )}
                       </div>
 
-                      {/* Pricing */}
-                      <div className="space-y-4">
-                        <div className="p-4 bg-green-50 rounded-lg">
-                          <div className="text-sm text-green-600 font-medium">Market Price</div>
-                          <div className="text-2xl font-bold text-green-700">{formatPrice(card.price)}</div>
-                        </div>
-                      </div>
 
                       {/* External Links */}
                       <div className="space-y-4">
-                        <div className="space-y-2">
+                        <div className="flex gap-2">
                           {card.card_url && (
                             <a
                               href={card.card_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-150"
+                              className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-150"
                             >
                               <span className="font-semibold">{formatPrice(card.price)}</span>
                               <span className="text-sm">TCGP</span>
@@ -241,6 +255,13 @@ export function CardDetailModal({
                               />
                             </a>
                           )}
+                          <div className="flex-1">
+                            <QuantityControl 
+                              card={card} 
+                              size="md" 
+                              className="w-full justify-center"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>

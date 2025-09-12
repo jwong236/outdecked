@@ -9,7 +9,7 @@ import { SearchResponse } from '@/lib/api';
 import { FilterDropdown } from './FilterDropdown';
 import { ActiveFilters } from './ActiveFilters';
 import { AdvancedFilters } from './AdvancedFilters';
-import { SearchResults } from './SearchResults';
+import { CardGrid } from '../CardGrid';
 import { Pagination } from '../Pagination';
 import { CardDetailModal } from './CardDetailModal';
 
@@ -30,6 +30,7 @@ export function SearchLayout({
     setSeries, 
     setColor, 
     setSort,
+    setPage,
     addAndFilter,
     addOrFilter,
     addNotFilter,
@@ -93,6 +94,7 @@ export function SearchLayout({
     setSelectedCard(card);
     setSelectedCardIndex(index);
   };
+
 
   const handleCloseModal = () => {
     setSelectedCard(null);
@@ -283,8 +285,9 @@ export function SearchLayout({
 
       {/* Search Results */}
       <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8">
-        <SearchResults
+        <CardGrid
           cards={searchResponse?.cards || []}
+          variant="search"
           isLoading={isLoading}
           error={error}
           onCardClick={handleCardClick}

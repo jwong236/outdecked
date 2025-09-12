@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -16,9 +16,35 @@ import {
 
 export function Navigation() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
   const pathname = usePathname();
 
   const isActive = (path: string) => pathname === path;
+
+  useEffect(() => {
+    const updateCartCount = () => {
+      const cart = JSON.parse(sessionStorage.getItem('shoppingCart') || '[]');
+      const totalItems = cart.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+      setCartCount(totalItems);
+    };
+
+    updateCartCount();
+    
+    // Listen for storage changes
+    const handleStorageChange = () => {
+      updateCartCount();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also listen for custom events from the same tab
+    window.addEventListener('cartUpdated', updateCartCount);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('cartUpdated', updateCartCount);
+    };
+  }, []);
 
   return (
     <nav className="bg-slate-800/95 backdrop-blur-md shadow-lg z-50">
@@ -94,9 +120,11 @@ export function Navigation() {
             >
               <HandRaisedIcon className="h-4 w-4 mr-1.5" />
               Check Hand
-              <span className="ml-1.5 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                0
-              </span>
+              {cartCount > 0 && (
+                <span className="ml-1.5 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
+                  {cartCount}
+                </span>
+              )}
             </Link>
             <div className="relative">
               <button
