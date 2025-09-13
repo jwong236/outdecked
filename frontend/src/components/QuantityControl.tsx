@@ -2,72 +2,87 @@
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/types/card';
+import { dataManager } from '@/lib/dataManager';
 
 interface QuantityControlProps {
   card: Card;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
+  context?: 'hand' | 'printList';
 }
 
 export function QuantityControl({ 
   card, 
   className = '',
-  size = 'md'
+  size = 'md',
+  context = 'hand'
 }: QuantityControlProps) {
   const [quantity, setQuantity] = useState(0);
 
   // Get current quantity for this specific card
   const getCurrentQuantity = () => {
-    const hand = JSON.parse(sessionStorage.getItem('shoppingCart') || '[]');
-    const existingItem = hand.find((item: any) => item.card_url === card.card_url);
-    return existingItem ? (existingItem.quantity || 1) : 0;
+    if (context === 'printList') {
+      const printList = dataManager.getPrintList();
+      const existingItem = printList.find(item => item.card_url === card.card_url);
+      return existingItem ? existingItem.quantity : 0;
+    } else {
+      const hand = dataManager.getHand();
+      const existingItem = hand.find(item => item.card_url === card.card_url);
+      return existingItem ? existingItem.quantity : 0;
+    }
   };
 
-  // Update quantity in session storage
+  // Update quantity using DataManager
   const updateQuantity = (change: number) => {
-    const hand = JSON.parse(sessionStorage.getItem('shoppingCart') || '[]');
-    const existingItemIndex = hand.findIndex((item: any) => item.card_url === card.card_url);
-    
-    if (existingItemIndex >= 0) {
-      const newQuantity = hand[existingItemIndex].quantity + change;
-      
-      if (newQuantity <= 0) {
-        // Remove item if quantity becomes 0 or negative
-        hand.splice(existingItemIndex, 1);
-        setQuantity(0);
+    if (context === 'printList') {
+      if (quantity === 0 && change > 0) {
+        // Adding new card to print list
+        dataManager.addToPrintList([{ ...card, quantity: change }]);
       } else {
-        // Update quantity
-        hand[existingItemIndex].quantity = newQuantity;
-        setQuantity(newQuantity);
+        // Update print list quantity
+        const printList = dataManager.getPrintList();
+        const existingIndex = printList.findIndex(item => item.card_url === card.card_url);
+        
+        if (existingIndex >= 0) {
+          const newQuantity = printList[existingIndex].quantity + change;
+          if (newQuantity <= 0) {
+            // Remove from print list
+            const updatedList = printList.filter(item => item.card_url !== card.card_url);
+            dataManager.setPrintList(updatedList);
+          } else {
+            // Update quantity
+            printList[existingIndex].quantity = newQuantity;
+            dataManager.setPrintList(printList);
+          }
+        }
       }
-    } else if (change > 0) {
-      // Add new item
-      hand.push({
-        ...card,
-        quantity: change
-      });
-      setQuantity(change);
+    } else {
+      if (quantity === 0 && change > 0) {
+        // Adding new card to hand
+        dataManager.addToHand(card, change);
+      } else {
+        // Updating existing card quantity
+        dataManager.updateHandQuantity(card.card_url!, change);
+      }
     }
     
-    sessionStorage.setItem('shoppingCart', JSON.stringify(hand));
-    window.dispatchEvent(new CustomEvent('cartUpdated'));
+    const newQuantity = getCurrentQuantity();
+    setQuantity(newQuantity);
   };
 
   // Load initial quantity
   useEffect(() => {
     setQuantity(getCurrentQuantity());
     
-    // Listen for storage changes
-    const handleStorageChange = () => {
+    // Listen for cart updates
+    const handleCartUpdate = () => {
       setQuantity(getCurrentQuantity());
     };
     
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('cartUpdated', handleStorageChange);
+    window.addEventListener('cartUpdated', handleCartUpdate);
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('cartUpdated', handleStorageChange);
+      window.removeEventListener('cartUpdated', handleCartUpdate);
     };
   }, [card.card_url]);
 

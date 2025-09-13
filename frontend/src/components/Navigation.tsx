@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { dataManager } from '@/lib/dataManager';
 import { 
   HomeIcon, 
   MagnifyingGlassIcon, 
@@ -23,25 +24,16 @@ export function Navigation() {
 
   useEffect(() => {
     const updateCartCount = () => {
-      const cart = JSON.parse(sessionStorage.getItem('shoppingCart') || '[]');
-      const totalItems = cart.reduce((sum: number, item: any) => sum + (item.quantity || 1), 0);
+      const totalItems = dataManager.getHandTotalItems();
       setCartCount(totalItems);
     };
 
     updateCartCount();
     
-    // Listen for storage changes
-    const handleStorageChange = () => {
-      updateCartCount();
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also listen for custom events from the same tab
+    // Listen for cart updates
     window.addEventListener('cartUpdated', updateCartCount);
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('cartUpdated', updateCartCount);
     };
   }, []);

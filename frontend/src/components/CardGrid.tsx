@@ -156,11 +156,14 @@ export function CardGrid({
           priority: priority && index === 0,
         };
 
+        // Use a more reliable key - card_url is more likely to be unique
+        const cardKey = card.card_url || card.id || `card-${index}`;
+
         switch (variant) {
           case 'search':
             return (
               <SearchCard
-                key={card.id}
+                key={cardKey}
                 {...commonProps}
                 variant="default"
               />
@@ -169,7 +172,7 @@ export function CardGrid({
           case 'cart':
             return (
               <CartCard
-                key={card.id}
+                key={cardKey}
                 {...commonProps}
                 onQuantityChange={onQuantityChange}
               />
@@ -178,7 +181,7 @@ export function CardGrid({
           case 'deck':
             return (
               <DeckCard
-                key={card.id}
+                key={cardKey}
                 {...commonProps}
                 onQuantityChange={onQuantityChange}
                 onRemoveFromDeck={onRemoveFromDeck}
@@ -191,16 +194,15 @@ export function CardGrid({
           case 'proxy':
             return (
               <ProxyCard
-                key={card.id}
+                key={cardKey}
                 {...commonProps}
-                onQuantityChange={onQuantityChange}
               />
             );
 
           default:
             return (
               <SearchCard
-                key={card.id}
+                key={cardKey}
                 {...commonProps}
                 variant="default"
               />
