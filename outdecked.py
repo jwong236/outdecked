@@ -367,9 +367,8 @@ def api_filter_fields():
 
 @app.route("/api/filter-values/<field>")
 def api_filter_values(field):
-    return handle_filter_values(field)
-
-
+    game = request.args.get("game")
+    return handle_filter_values(field, game)
 
 
 @app.route("/stats")
@@ -441,6 +440,24 @@ def get_card(card_id):
         return jsonify(dict(card))
     else:
         return jsonify({"error": "Card not found"}), 404
+
+
+@app.route("/api/card-by-url")
+def get_card_by_url():
+    """Get a specific card by URL"""
+    card_url = request.args.get("url")
+    if not card_url:
+        return jsonify({"error": "URL parameter is required"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT * FROM cards WHERE card_url = ?", (card_url,))
+    card = cursor.fetchone()
+    conn.close()
+
+    if card:
+        return jsonify({"success": True, "card": dict(card)})
+    else:
+        return jsonify({"success": False, "error": "Card not found"}), 404
 
 
 @app.route("/api/generate-pdf", methods=["POST"])

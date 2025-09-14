@@ -1,282 +1,89 @@
 """
-Search functionality for OutDecked
-Handles all search, filtering, and pagination logic.
+Search API handlers for the Flask backend
 """
 
 from flask import request, jsonify
 from database import get_db_connection
-from models import METADATA_FIELDS_EXACT
-import json
-
-# Field name mapping from frontend to TCGCSV database names
-FIELD_NAME_MAPPING = {
-    "series": "SeriesName",  # TCGCSV attribute from extendedData
-    "color": "ActivationEnergy",  # TCGCSV attribute
-    "rarity": "Rarity",  # TCGCSV attribute
-    "card_type": "CardType",  # TCGCSV attribute
-    "required_energy": "RequiredEnergy",  # TCGCSV attribute
-    "trigger": "Trigger",  # TCGCSV attribute
-}
-
-
-def map_field_name(frontend_field):
-    """Map frontend field name to database field name"""
-    return FIELD_NAME_MAPPING.get(frontend_field, frontend_field)
-
-
-def is_direct_card_field(field):
-    """Check if field is a direct card table column"""
-    return field in ["name", "clean_name", "game"]
 
 
 def handle_api_search():
     """Handle the /api/search route with complex filtering and pagination logic."""
-    query = request.args.get("q", "").strip()
-    game_filter = request.args.get("game", "")
-    anime_filter = request.args.get("anime", "")
-    color_filter = request.args.get("color", "")
-    sort_by = request.args.get("sort", "")
-    page = int(request.args.get("page", 1))
-    per_page = int(
-        request.args.get("per_page", 24)
-    )  # 24 cards per page (good for grid layout)
-
-    # Get filter parameters
-    or_filters_json = request.args.get("or_filters", "")
-    and_filters_json = request.args.get("and_filters", "")
-    not_filters_json = request.args.get("not_filters", "")
-
-    or_filters = []
-    and_filters = []
-    not_filters = []
-
-    if or_filters_json:
-        try:
-            or_filters = json.loads(or_filters_json)
-        except json.JSONDecodeError:
-            pass
-
-    if and_filters_json:
-        try:
-            and_filters = json.loads(and_filters_json)
-        except json.JSONDecodeError:
-            pass
-
-    if not_filters_json:
-        try:
-            not_filters = json.loads(not_filters_json)
-        except json.JSONDecodeError:
-            pass
-
-    # Calculate offset
-    offset = (page - 1) * per_page
-
     conn = get_db_connection()
 
-    # Build the base query
+    # Get query parameters
+    game = request.args.get("game", "Union Arena")
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 20))
+    search_query = request.args.get("q", "").strip()
+    sort_by = request.args.get("sort", "")
+
+    # Build base query
     base_query = "FROM cards c"
-    where_conditions = []
-    params = []
 
-    if query:
-        where_conditions.append("c.name LIKE ?")
-        params.append(f"%{query}%")
+    # Build WHERE clause
+    where_conditions = ["c.game = ?"]
+    params = [game]
 
-    if game_filter:
-        where_conditions.append("c.game = ?")
-        params.append(game_filter)
+    if search_query:
+        where_conditions.append("(c.name LIKE ? OR c.clean_name LIKE ?)")
+        search_param = f"%{search_query}%"
+        params.extend([search_param, search_param])
 
-    if anime_filter:
-        where_conditions.append(
-            "c.id IN (SELECT card_id FROM card_attributes WHERE name = 'SeriesName' AND LOWER(value) = LOWER(?))"
-        )
-        params.append(anime_filter)
+    # Handle filters
+    filter_fields = [
+        "SeriesName",
+        "Rarity",
+        "CardType",
+        "ActivationEnergy",
+        "RequiredEnergy",
+        "ActionPointCost",
+        "Trigger",
+        "Affinities",
+    ]
 
-    if color_filter:
-        where_conditions.append(
-            "c.id IN (SELECT card_id FROM card_attributes WHERE name = 'ActivationEnergy' AND LOWER(value) = LOWER(?))"
-        )
-        params.append(color_filter)
+    for field in filter_fields:
+        values = request.args.getlist(field)
+        if values:
+            # Create placeholders for the IN clause
+            placeholders = ",".join(["?" for _ in values])
+            where_conditions.append(
+                f"(SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') IN ({placeholders})"
+            )
+            params.extend(values)
 
-    # Handle OR filters (any one must match)
-    if or_filters:
-        or_conditions = []
-        for filter_item in or_filters:
-            field = filter_item.get("field")
-            value = filter_item.get("value")
-            if field and value:
-                # Map frontend field name to database field name
-                db_field = map_field_name(field)
-
-                if is_direct_card_field(db_field):
-                    # Direct card table column
-                    or_conditions.append(f"LOWER(c.{db_field}) = LOWER(?)")
-                    params.append(value)
-                else:
-                    # TCGCSV attribute
-                    if (
-                        db_field == "Trigger"
-                        and value.startswith("[")
-                        and value.endswith("]")
-                    ):
-                        # Special handling for trigger types - match cards that start with the trigger type
-                        or_conditions.append(
-                            f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND (LOWER(value) LIKE LOWER(?) OR LOWER(value) LIKE LOWER(?)))"
-                        )
-                        params.extend([db_field, f"{value}%", f"{value.upper()}%"])
-                    elif db_field == "BattlePointBP" and (">" in value or "<" in value):
-                        # Special handling for battle point ranges
-                        if value.startswith(">"):
-                            threshold = value.replace(">", "").strip()
-                            or_conditions.append(
-                                f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) > ?)"
-                            )
-                            params.extend([db_field, threshold])
-                        elif value.startswith("<"):
-                            threshold = value.replace("<", "").strip()
-                            or_conditions.append(
-                                f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) < ?)"
-                            )
-                            params.extend([db_field, threshold])
-                    else:
-                        or_conditions.append(
-                            f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
-                        )
-                        params.extend([db_field, value])
-
-        if or_conditions:
-            where_conditions.append(f"({' OR '.join(or_conditions)})")
-
-    # Handle AND filters (all must match)
-    for filter_item in and_filters:
-        field = filter_item.get("field")
-        value = filter_item.get("value")
-        if field and value:
-            # Map frontend field name to database field name
-            db_field = map_field_name(field)
-
-            if is_direct_card_field(db_field):
-                # Direct card table column
-                where_conditions.append(f"LOWER(c.{db_field}) = LOWER(?)")
-                params.append(value)
-            else:
-                # TCGCSV attribute
-                if (
-                    db_field == "Trigger"
-                    and value.startswith("[")
-                    and value.endswith("]")
-                ):
-                    # Special handling for trigger types - match cards that start with the trigger type
-                    where_conditions.append(
-                        f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND (LOWER(value) LIKE LOWER(?) OR LOWER(value) LIKE LOWER(?)))"
-                    )
-                    params.extend([db_field, f"{value}%", f"{value.upper()}%"])
-                elif db_field == "BattlePointBP" and (">" in value or "<" in value):
-                    # Special handling for battle point ranges
-                    if value.startswith(">"):
-                        threshold = value.replace(">", "").strip()
-                        where_conditions.append(
-                            f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) > ?)"
-                        )
-                        params.extend([db_field, threshold])
-                    elif value.startswith("<"):
-                        threshold = value.replace("<", "").strip()
-                        where_conditions.append(
-                            f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) < ?)"
-                        )
-                        params.extend([db_field, threshold])
-                else:
-                    where_conditions.append(
-                        f"c.id IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
-                    )
-                    params.extend([db_field, value])
-
-    # Handle NOT filters (must NOT match)
-    for filter_item in not_filters:
-        field = filter_item.get("field")
-        value = filter_item.get("value")
-        if field and value:
-            # Map frontend field name to database field name
-            db_field = map_field_name(field)
-
-            if is_direct_card_field(db_field):
-                # Direct card table column
-                where_conditions.append(f"LOWER(c.{db_field}) != LOWER(?)")
-                params.append(value)
-            else:
-                # TCGCSV attribute
-                if (
-                    db_field == "Trigger"
-                    and value.startswith("[")
-                    and value.endswith("]")
-                ):
-                    # Special handling for trigger types - exclude cards that start with the trigger type
-                    where_conditions.append(
-                        f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND (LOWER(value) LIKE LOWER(?) OR LOWER(value) LIKE LOWER(?)))"
-                    )
-                    params.extend([db_field, f"{value}%", f"{value.upper()}%"])
-                elif db_field == "BattlePointBP" and (">" in value or "<" in value):
-                    # Special handling for battle point ranges
-                    if value.startswith(">"):
-                        threshold = value.replace(">", "").strip()
-                        where_conditions.append(
-                            f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) > ?)"
-                        )
-                        params.extend([db_field, threshold])
-                    elif value.startswith("<"):
-                        threshold = value.replace("<", "").strip()
-                        where_conditions.append(
-                            f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND CAST(value AS INTEGER) < ?)"
-                        )
-                        params.extend([db_field, threshold])
-                else:
-                    where_conditions.append(
-                        f"c.id NOT IN (SELECT card_id FROM card_attributes WHERE name = ? AND LOWER(value) = LOWER(?))"
-                    )
-                    params.extend([db_field, value])
-
-    if where_conditions:
-        where_clause = " WHERE " + " AND ".join(where_conditions)
-    else:
-        where_clause = ""
+    where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
     # Build ORDER BY clause
     order_clause = "ORDER BY c.name"  # Default
     if sort_by:
         if sort_by == "price_desc":
-            order_clause = "ORDER BY cp.market_price DESC"
+            order_clause = "ORDER BY COALESCE(cp.market_price, cp.mid_price) DESC"
         elif sort_by == "price_asc":
-            order_clause = "ORDER BY cp.market_price ASC"
+            order_clause = "ORDER BY COALESCE(cp.market_price, cp.mid_price) ASC"
         elif sort_by == "rarity_desc":
             order_clause = """ORDER BY CASE 
                 WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common' THEN 1
                 WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon' THEN 2
                 WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare' THEN 3
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common 1-Star' THEN 4
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon 1-Star' THEN 5
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare 1-Star' THEN 6
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 7
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 1-Star' THEN 8
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 2-Star' THEN 9
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 3-Star' THEN 10
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Union Rare' THEN 11
-                ELSE 12
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 4
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Ultra Rare' THEN 5
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Secret Rare' THEN 6
+                ELSE 7
             END DESC"""
         elif sort_by == "rarity_asc":
             order_clause = """ORDER BY CASE 
                 WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common' THEN 1
                 WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon' THEN 2
                 WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare' THEN 3
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common 1-Star' THEN 4
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon 1-Star' THEN 5
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare 1-Star' THEN 6
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 7
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 1-Star' THEN 8
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 2-Star' THEN 9
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare 3-Star' THEN 10
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Union Rare' THEN 11
-                ELSE 12
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 4
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Ultra Rare' THEN 5
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Secret Rare' THEN 6
+                ELSE 7
             END ASC"""
+        elif sort_by == "name_asc":
+            order_clause = "ORDER BY c.name ASC"
+        elif sort_by == "name_desc":
+            order_clause = "ORDER BY c.name DESC"
         elif sort_by == "number_desc":
             order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Number'), -3) AS INTEGER) DESC"
         elif sort_by == "number_asc":
@@ -290,10 +97,14 @@ def handle_api_search():
     count_query = f"SELECT COUNT(DISTINCT c.id) as total {base_query} LEFT JOIN card_attributes cm ON c.id = cm.card_id LEFT JOIN card_prices cp ON c.id = cp.card_id {where_clause}"
     total_cards = conn.execute(count_query, params).fetchone()["total"]
 
+    # Calculate offset for pagination
+    offset = (page - 1) * per_page
+
     # Get paginated results with metadata and prices (TCGCSV-aligned)
+    # Use market_price if available, otherwise fall back to mid_price
     search_query = (
         f"SELECT c.*, GROUP_CONCAT(cm.name || ':' || cm.value, '|||') as metadata, "
-        f"cp.market_price as price {base_query} "
+        f"COALESCE(cp.market_price, cp.mid_price) as price {base_query} "
         f"LEFT JOIN card_attributes cm ON c.id = cm.card_id "
         f"LEFT JOIN card_prices cp ON c.id = cp.card_id "
         f"{where_clause} "
@@ -374,13 +185,25 @@ def handle_filter_fields():
     )
 
 
-def handle_filter_values(field):
-    """Get all unique values for a specific filter field"""
+def handle_filter_values(field, game=None):
+    """Get all unique values for a specific filter field, optionally filtered by game"""
     conn = get_db_connection()
 
-    # Get distinct values for the field from card_attributes table, excluding NULL and empty values
-    query = "SELECT DISTINCT value FROM card_attributes WHERE name = ? AND value IS NOT NULL AND value != '' ORDER BY value"
-    values = conn.execute(query, (field,)).fetchall()
+    if game:
+        # Get distinct values for the field from card_attributes table, filtered by game
+        query = """
+            SELECT DISTINCT ca.value 
+            FROM card_attributes ca
+            INNER JOIN cards c ON ca.card_id = c.id
+            WHERE ca.name = ? AND c.game = ? AND ca.value IS NOT NULL AND ca.value != ''
+            ORDER BY ca.value
+        """
+        values = conn.execute(query, (field, game)).fetchall()
+    else:
+        # Get distinct values for the field from card_attributes table, excluding NULL and empty values
+        query = "SELECT DISTINCT value FROM card_attributes WHERE name = ? AND value IS NOT NULL AND value != '' ORDER BY value"
+        values = conn.execute(query, (field,)).fetchall()
+
     conn.close()
 
     # Extract the values from the result tuples
@@ -395,97 +218,28 @@ def handle_filter_values(field):
             individual_affinities.update(affinities)
         return jsonify(sorted(list(individual_affinities)))
 
-    # Special handling for Trigger field - extract just the trigger type
-    elif field == "Trigger":
-        trigger_types = set()
-        for value in raw_values:
-            # Extract trigger type from [Type] format
-            if value.startswith("[") and "]" in value:
-                trigger_type = value.split("]")[0] + "]"
-                # Normalize FINAL to Final (TCGCSV has inconsistent casing)
-                if trigger_type.upper() == "[FINAL]":
-                    trigger_type = "[Final]"
-                trigger_types.add(trigger_type)
-        return jsonify(sorted(list(trigger_types)))
-
-    # Special handling for Rarity field - custom ordering
-    elif field == "Rarity":
-        # Define rarity order (least rare to most rare)
-        rarity_order = {
-            "Action Point": 0,
-            "Common": 1,
-            "Uncommon": 2,
-            "Rare": 3,
-            "Super Rare": 4,
-            "Union Rare": 5,
-        }
-
-        def get_rarity_rank(rarity):
-            # Handle star variations
-            base_rarity = rarity
-            stars = 0
-
-            if "1-Star" in rarity:
-                stars = 1
-                base_rarity = rarity.replace(" 1-Star", "")
-            elif "2-Star" in rarity:
-                stars = 2
-                base_rarity = rarity.replace(" 2-Star", "")
-            elif "3-Star" in rarity:
-                stars = 3
-                base_rarity = rarity.replace(" 3-Star", "")
-
-            # Get base rank
-            base_rank = rarity_order.get(base_rarity, 999)
-
-            # Add star bonus (more stars = higher rank)
-            return base_rank + (stars * 0.1)
-
-        # Sort by rarity rank
-        sorted_rarities = sorted(raw_values, key=get_rarity_rank)
-        return jsonify(sorted_rarities)
-
-    # Special handling for BattlePointBP field - create ranges
-    elif field == "BattlePointBP":
-        # Create predefined ranges for battle points
-        ranges = [
-            "< 1000",
-            "> 1000",
-            "< 2000",
-            "> 2000",
-            "< 3000",
-            "> 3000",
-            "< 4000",
-            "> 4000",
-            "< 5000",
-            "> 5000",
-            "< 10000",
-            "> 10000",
-        ]
-        return jsonify(ranges)
-
-    # Special handling for numeric fields - sort as integers
-    elif field in [
+    # Special handling for numeric fields - sort numerically instead of alphabetically
+    numeric_fields = [
         "RequiredEnergy",
         "ActionPointCost",
+        "BattlePointBP",
         "GeneratedEnergy",
-    ]:
+    ]
+
+    if field in numeric_fields:
         try:
-            # Convert to integers and sort, then convert back to strings
+            # Convert to float, sort numerically, then back to string
             numeric_values = []
-            for value in raw_values:
+            for val in raw_values:
                 try:
-                    numeric_values.append(int(value))
+                    numeric_values.append(float(val))
                 except ValueError:
-                    # If conversion fails, keep as string and add to end
-                    numeric_values.append(float("inf"))
+                    # Skip non-numeric values
+                    continue
 
-            # Sort numerically
-            sorted_numeric = sorted(numeric_values)
-
-            # Convert back to strings, handling the infinity case
+            numeric_values.sort()
             result = []
-            for val in sorted_numeric:
+            for val in numeric_values:
                 if val == float("inf"):
                     continue  # Skip invalid numeric values
                 result.append(str(val))
