@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/types/card';
-import { CardGrid } from '@/components/CardGrid';
-import { CardDetailModal } from '@/components/search/CardDetailModal';
+import { ProxyGrid } from '@/components/features/proxy-printer/ProxyGrid';
+import { CardDetailModal } from '@/components/features/search/CardDetailModal';
 import { dataManager, PrintListItem } from '@/lib/dataManager';
 import jsPDF from 'jspdf';
 
@@ -79,7 +79,29 @@ export default function ProxyPrinterPage() {
 
   const handleNavigate = (index: number) => {
     if (printList[index]) {
-      setSelectedCard(printList[index] as Card);
+      const printItem = printList[index];
+      const card: Card = {
+        id: 0,
+        product_id: 0,
+        name: printItem.name || '',
+        clean_name: null,
+        image_url: printItem.image_url || null,
+        card_url: printItem.card_url,
+        game: 'Union Arena',
+        category_id: 0,
+        group_id: 0,
+        image_count: 0,
+        is_presale: false,
+        released_on: '',
+        presale_note: '',
+        modified_on: '',
+        price: printItem.price ?? null,
+        low_price: null,
+        mid_price: null,
+        high_price: null,
+        created_at: '',
+      };
+      setSelectedCard(card);
       setSelectedCardIndex(index);
     }
   };
@@ -252,7 +274,7 @@ export default function ProxyPrinterPage() {
                 // Add card name as text
                 pdf.setFontSize(8);
                 pdf.setTextColor(0, 0, 0);
-                pdf.text(card.name, x + 0.1, y + cardHeight / 2);
+                pdf.text(card.name || 'Unknown Card', x + 0.1, y + cardHeight / 2);
               }
             } else {
               // Add placeholder rectangle if no image
@@ -262,7 +284,7 @@ export default function ProxyPrinterPage() {
               // Add card name as text
               pdf.setFontSize(8);
               pdf.setTextColor(0, 0, 0);
-              pdf.text(card.name, x + 0.1, y + cardHeight / 2);
+              pdf.text(card.name || 'Unknown Card', x + 0.1, y + cardHeight / 2);
             }
             
             cardIndex++;
@@ -337,9 +359,28 @@ export default function ProxyPrinterPage() {
         <>
           {/* Print List */}
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8">
-            <CardGrid
-              cards={printList as Card[]}
-              variant="proxy"
+            <ProxyGrid
+              cards={printList.map(item => ({
+                id: 0,
+                product_id: 0,
+                name: item.name || '',
+                clean_name: null,
+                image_url: item.image_url || null,
+                card_url: item.card_url,
+                game: 'Union Arena',
+                category_id: 0,
+                group_id: 0,
+                image_count: 0,
+                is_presale: false,
+                released_on: '',
+                presale_note: '',
+                modified_on: '',
+                price: item.price ?? null,
+                low_price: null,
+                mid_price: null,
+                high_price: null,
+                created_at: '',
+              }))}
               onCardClick={handleCardClick}
             />
           </div>
@@ -630,7 +671,27 @@ export default function ProxyPrinterPage() {
         card={selectedCard}
         isOpen={!!selectedCard}
         onClose={handleCloseModal}
-        allCards={printList as Card[]}
+        allCards={printList.map(item => ({
+          id: 0,
+          product_id: 0,
+          name: item.name || '',
+          clean_name: null,
+          image_url: item.image_url || null,
+          card_url: item.card_url,
+          game: 'Union Arena',
+          category_id: 0,
+          group_id: 0,
+          image_count: 0,
+          is_presale: false,
+          released_on: '',
+          presale_note: '',
+          modified_on: '',
+          price: item.price ?? null,
+          low_price: null,
+          mid_price: null,
+          high_price: null,
+          created_at: '',
+        }))}
         currentIndex={selectedCardIndex}
         onNavigate={handleNavigate}
         hasNextPage={false}

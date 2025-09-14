@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/types/card';
-import { CardGrid } from '@/components/CardGrid';
-import { CardDetailModal } from '@/components/search/CardDetailModal';
+import { CartGrid } from '@/components/features/cart/CartGrid';
+import { CardDetailModal } from '@/components/features/search/CardDetailModal';
 import { dataManager, HandItem } from '@/lib/dataManager';
 
 
@@ -122,9 +122,8 @@ export default function CartPage() {
         <>
           {/* Hand Items */}
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8">
-            <CardGrid
+            <CartGrid
               cards={hand}
-              variant="cart"
               onCardClick={handleCardClick}
             />
           </div>
