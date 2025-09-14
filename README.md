@@ -1,16 +1,17 @@
 # OutDecked
 
-A powerful web application that extracts card data from TCGPlayer and provides a searchable interface for trading cards. Built with Flask, OutDecked allows you to scrape multiple pages of cards from any supported TCG game and build a local database for easy searching and image downloading.
+A modern web application for trading card game enthusiasts. OutDecked combines a Flask backend for data scraping and management with a Next.js frontend for a beautiful, responsive user experience. Build decks, search cards, manage your collection, and print proxies.
 
 ## Features
 
-- **Web Scraping**: Extract card data from TCGPlayer search pages
-- **Database Storage**: SQLite database for storing card information
-- **Search Interface**: Find cards by name with real-time search
-- **Image Management**: View and download card images directly
-- **Multi-Game Support**: Works with any TCG game supported by TCGPlayer
-- **Responsive Design**: Modern, mobile-friendly web interface
-- **Background Processing**: Non-blocking scraping operations
+- **Modern Frontend**: Next.js 14 with TypeScript, Tailwind CSS, and React Query
+- **Deck Building**: Create and manage trading card decks with validation
+- **Card Search**: Advanced search with filters for series, rarity, color, and more
+- **Proxy Printing**: Generate printable proxy cards for playtesting
+- **Collection Management**: Track cards in your hand/collection
+- **Background Switching**: Multiple beautiful anime-themed backgrounds
+- **Responsive Design**: Works perfectly on desktop, tablet, and mobile
+- **Data Scraping**: Extract card data from TCGPlayer (backend feature)
 
 ## Screenshots
 
@@ -24,30 +25,45 @@ The application features a clean, modern interface with:
 
 ### Prerequisites
 
-- Python 3.7 or higher
-- pip (Python package installer)
+- **Node.js 18+** and npm
+- **Python 3.7+** and pip
+- **Git** (for cloning the repository)
 
 ### Local Development Setup
 
-1. **Clone or download the project files**
+1. **Clone the repository**
    ```bash
-   # If you have git installed
    git clone <repository-url>
-   cd tcgplayer-scraper
+   cd outdecked
    ```
 
-2. **Install Python dependencies**
+2. **Install Python dependencies (Backend)**
    ```bash
    pip install -r requirements.txt
    ```
 
-3. **Run the application**
+3. **Install Node.js dependencies (Frontend)**
+   ```bash
+   cd frontend
+   npm install
+   cd ..
+   ```
+
+4. **Start the backend server**
    ```bash
    python outdecked.py
    ```
+   The Flask server will run on `http://localhost:5000`
 
-4. **Open your browser**
-   Navigate to `http://localhost:5000`
+5. **Start the frontend development server** (in a new terminal)
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+   The Next.js app will run on `http://localhost:3000`
+
+6. **Open your browser**
+   Navigate to `http://localhost:3000` to use the application
 
 ### Deployment
 
@@ -99,38 +115,55 @@ Here are some example TCGPlayer URLs you can use:
 
 ```
 outdecked/
-├── outdecked.py                # Main Flask application
-├── config.py                 # Configuration settings
-├── requirements.txt          # Python dependencies
-├── Dockerfile               # Container configuration
-├── cloudbuild.yaml          # Google Cloud Build config
-├── deploy.sh                # Linux/Mac deployment script
-├── deploy.ps1               # Windows PowerShell script
-├── .dockerignore            # Docker ignore file
-├── templates/               # HTML templates
-│   ├── base.html           # Base template with styling
-│   ├── home.html           # Home page with scraping form
-│   └── search.html         # Search and results page
-├── static/                  # Static assets directory
-├── cards.db                 # SQLite database (created automatically)
-├── README.md                # This file
-└── GOOGLE_CLOUD_DEPLOYMENT.md # Cloud Run deployment guide
+├── outdecked.py                    # Flask backend server
+├── config.py                      # Backend configuration
+├── database.py                    # Database models and operations
+├── scraper.py                     # TCGPlayer scraping logic
+├── search.py                      # Search API endpoints
+├── requirements.txt               # Python dependencies
+├── cards.db                       # SQLite database (auto-created)
+├── frontend/                      # Next.js frontend application
+│   ├── src/
+│   │   ├── app/                   # Next.js App Router pages
+│   │   │   ├── page.tsx          # Home page
+│   │   │   ├── search/           # Search page
+│   │   │   ├── deckbuilder/      # Deck builder pages
+│   │   │   ├── cart/             # Hand/collection page
+│   │   │   ├── proxy-printer/    # Proxy printing page
+│   │   │   └── api/              # Frontend API routes
+│   │   ├── components/            # React components
+│   │   │   ├── app/              # App-level components
+│   │   │   ├── shared/           # Shared components
+│   │   │   └── features/         # Feature-specific components
+│   │   ├── lib/                  # Utilities and hooks
+│   │   ├── stores/               # Zustand state management
+│   │   └── types/                # TypeScript type definitions
+│   ├── public/                   # Static assets
+│   ├── package.json              # Node.js dependencies
+│   └── next.config.js            # Next.js configuration
+├── templates/                     # Legacy HTML templates (backend)
+├── static/                       # Legacy static assets (backend)
+├── README.md                     # This file
+└── GOOGLE_CLOUD_DEPLOYMENT.md    # Cloud deployment guide
 ```
 
 ## Technical Details
 
 ### Backend (Flask)
-- **Web Framework**: Flask for the web application
-- **Database**: SQLite for storing card data
-- **Scraping**: BeautifulSoup4 for HTML parsing
+- **Web Framework**: Flask for API endpoints and data management
+- **Database**: SQLite for storing card data and metadata
+- **Scraping**: BeautifulSoup4 for HTML parsing from TCGPlayer
 - **Requests**: HTTP library for fetching web pages
 - **Threading**: Background processing for scraping operations
 
-### Frontend
-- **Bootstrap 5**: Modern, responsive CSS framework
-- **Font Awesome**: Icon library for better UX
-- **Vanilla JavaScript**: No heavy frameworks, fast and lightweight
-- **Responsive Design**: Works on desktop, tablet, and mobile
+### Frontend (Next.js)
+- **Framework**: Next.js 14 with App Router
+- **Language**: TypeScript for type safety
+- **Styling**: Tailwind CSS for utility-first styling
+- **State Management**: Zustand for client-side state
+- **Data Fetching**: React Query for server state management
+- **Icons**: Heroicons for consistent iconography
+- **Responsive Design**: Mobile-first approach with Tailwind
 
 ### Database Schema
 ```sql
@@ -146,12 +179,22 @@ CREATE TABLE cards (
 
 ## API Endpoints
 
-- `GET /` - Home page with scraping form
+### Backend (Flask - Port 5000)
+- `GET /api/search` - Search cards with filters and pagination
+- `GET /api/filter-values/<field>` - Get filter values for dropdowns
+- `GET /api/card-by-url` - Get card data by URL
 - `POST /scrape` - Start scraping operation
-- `GET /search` - Search page with results
-- `GET /api/search` - JSON API for search results
 - `GET /games` - List of available games
 - `GET /stats` - Database statistics
+
+### Frontend (Next.js - Port 3000)
+- `GET /` - Home page
+- `GET /search` - Card search page
+- `GET /deckbuilder` - Deck list page
+- `GET /deckbuilder/[id]` - Individual deck builder
+- `GET /cart` - Hand/collection management
+- `GET /proxy-printer` - Proxy printing page
+- `GET /api/*` - Frontend API routes (proxies to backend)
 
 ## Configuration
 

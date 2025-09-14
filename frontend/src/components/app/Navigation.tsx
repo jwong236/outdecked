@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import { dataManager } from '@/lib/dataManager';
 import { 
   HomeIcon, 
@@ -19,9 +20,20 @@ import {
 export function Navigation() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
+  const [buttonPosition, setButtonPosition] = useState({ top: 0, right: 0 });
   const pathname = usePathname();
 
   const isActive = (path: string) => pathname === path;
+
+  const updateButtonPosition = useCallback((el: HTMLButtonElement | null) => {
+    if (el && isProfileOpen) {
+      const rect = el.getBoundingClientRect();
+      setButtonPosition({
+        top: rect.bottom + window.scrollY + 4,
+        right: window.innerWidth - rect.right - window.scrollX
+      });
+    }
+  }, [isProfileOpen]);
 
   useEffect(() => {
     const updateCartCount = () => {
@@ -40,7 +52,7 @@ export function Navigation() {
   }, []);
 
   return (
-    <nav className="bg-slate-800/95 backdrop-blur-md shadow-lg z-50">
+    <nav className="bg-slate-800/95 backdrop-blur-md shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-14">
           {/* Left Side Navigation */}
@@ -125,6 +137,7 @@ export function Navigation() {
             </Link>
             <div className="relative">
               <button
+                ref={updateButtonPosition}
                 onClick={() => setIsProfileOpen(!isProfileOpen)}
                 className="flex items-center px-2 py-1.5 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
               >
@@ -135,11 +148,17 @@ export function Navigation() {
                 </svg>
               </button>
 
-              {isProfileOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+              {isProfileOpen && typeof window !== 'undefined' && createPortal(
+                <div 
+                  className="fixed w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50"
+                  style={{
+                    top: `${buttonPosition.top}px`,
+                    right: `${buttonPosition.right}px`
+                  }}
+                >
                   <Link 
                     href="/deckbuilder" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                     onClick={() => setIsProfileOpen(false)}
                   >
                     <Squares2X2Icon className="h-4 w-4 mr-3" />
@@ -147,7 +166,7 @@ export function Navigation() {
                   </Link>
                   <Link 
                     href="/admin" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                     onClick={() => setIsProfileOpen(false)}
                   >
                     <CogIcon className="h-4 w-4 mr-3" />
@@ -155,13 +174,14 @@ export function Navigation() {
                   </Link>
                   <Link 
                     href="/scraping" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                     onClick={() => setIsProfileOpen(false)}
                   >
                     <ArrowDownTrayIcon className="h-4 w-4 mr-3" />
                     Card Scraping
                   </Link>
-                </div>
+                </div>,
+                document.body
               )}
             </div>
           </div>

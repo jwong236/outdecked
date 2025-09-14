@@ -568,7 +568,7 @@ export default function DeckBuilderPage() {
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       {/* Hide background switcher on this page */}
       <style jsx global>{`
-        .fixed.top-20.right-4.z-40 {
+        .fixed.top-20.right-4 {
           display: none !important;
         }
       `}</style>

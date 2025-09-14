@@ -27,21 +27,19 @@ export function Layout({ children }: LayoutProps) {
       {/* Optional overlay for better text readability */}
       <div className="fixed inset-0 bg-black/5 -z-10" />
       
-      <div className="relative z-10">
-        <Navigation />
-        
-        {/* Background Switcher - positioned below navbar */}
-        <div className="fixed top-20 right-4 z-40">
-          <BackgroundSwitcher 
-            currentBackground={background}
-            onBackgroundChange={setBackground}
-          />
-        </div>
-        
-        <main className="relative">
-          {children}
-        </main>
+      <Navigation />
+      
+      {/* Background Switcher - positioned below navbar */}
+      <div className="fixed top-20 right-4">
+        <BackgroundSwitcher 
+          currentBackground={background}
+          onBackgroundChange={setBackground}
+        />
       </div>
+      
+      <main className="relative">
+        {children}
+      </main>
     </>
   );
 }
