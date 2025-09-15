@@ -92,6 +92,10 @@ def init_db():
             group_id INTEGER UNIQUE NOT NULL,
             category_id INTEGER NOT NULL,
             name TEXT NOT NULL,
+            abbreviation TEXT,
+            is_supplemental BOOLEAN DEFAULT FALSE,
+            published_on TEXT,
+            modified_on TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (category_id) REFERENCES categories (category_id)
         )
@@ -165,10 +169,18 @@ def populate_categories_and_groups():
             for group in groups:
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO groups (group_id, category_id, name)
-                    VALUES (?, ?, ?)
+                    INSERT OR REPLACE INTO groups (group_id, category_id, name, abbreviation, is_supplemental, published_on, modified_on)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (group["groupId"], 81, group["name"]),
+                    (
+                        group["groupId"],
+                        81,
+                        group["name"],
+                        group.get("abbreviation"),
+                        group.get("isSupplemental", False),
+                        group.get("publishedOn"),
+                        group.get("modifiedOn"),
+                    ),
                 )
 
             print(f"✅ Populated {len(groups)} Union Arena groups")
