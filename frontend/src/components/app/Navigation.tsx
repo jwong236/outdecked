@@ -3,9 +3,10 @@
 import React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { dataManager } from '@/lib/dataManager';
+import { useAuth } from '@/contexts/AuthContext';
 import { 
   HomeIcon, 
   MagnifyingGlassIcon, 
@@ -14,14 +15,18 @@ import {
   HandRaisedIcon,
   UserIcon,
   CogIcon,
-  ArrowDownTrayIcon
+  ArrowDownTrayIcon,
+  ArrowRightOnRectangleIcon
 } from '@heroicons/react/24/outline';
 
 export function Navigation() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [cartCount, setCartCount] = useState(0);
   const [buttonPosition, setButtonPosition] = useState({ top: 0, right: 0 });
+  const [isHydrated, setIsHydrated] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout, isLoading } = useAuth();
 
   const isActive = (path: string) => pathname === path;
 
@@ -34,6 +39,17 @@ export function Navigation() {
       });
     }
   }, [isProfileOpen]);
+
+  const handleLogout = async () => {
+    await logout();
+    setIsProfileOpen(false);
+    // Redirect to homepage after logout
+    router.push('/');
+  };
+
+  useEffect(() => {
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
     const updateCartCount = () => {
@@ -135,55 +151,94 @@ export function Navigation() {
                 </span>
               )}
             </Link>
-            <div className="relative">
-              <button
-                ref={updateButtonPosition}
-                onClick={() => setIsProfileOpen(!isProfileOpen)}
-                className="flex items-center px-2 py-1.5 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
-              >
-                <UserIcon className="h-4 w-4 mr-1.5" />
-                Profile
-                <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {isProfileOpen && typeof window !== 'undefined' && createPortal(
-                <div 
-                  className="fixed w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50"
-                  style={{
-                    top: `${buttonPosition.top}px`,
-                    right: `${buttonPosition.right}px`
-                  }}
+            {!isHydrated || isLoading ? (
+              // Show loading state during hydration
+              <div className="flex items-center space-x-2">
+                <div className="px-3 py-1.5 text-sm font-medium text-gray-400">
+                  Loading...
+                </div>
+              </div>
+            ) : user ? (
+              // Authenticated user - show profile dropdown
+              <div className="relative">
+                <button
+                  ref={updateButtonPosition}
+                  onClick={() => setIsProfileOpen(!isProfileOpen)}
+                  className="flex items-center px-2 py-1.5 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
                 >
-                  <Link 
-                    href="/deckbuilder" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                    onClick={() => setIsProfileOpen(false)}
+                  <UserIcon className="h-4 w-4 mr-1.5" />
+                  {user.display_name || user.username}
+                  <svg className="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isProfileOpen && typeof window !== 'undefined' && createPortal(
+                  <div 
+                    className="fixed w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50"
+                    style={{
+                      top: `${buttonPosition.top}px`,
+                      right: `${buttonPosition.right}px`
+                    }}
                   >
-                    <Squares2X2Icon className="h-4 w-4 mr-3" />
-                    My Decks
-                  </Link>
-                  <Link 
-                    href="/admin" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                    onClick={() => setIsProfileOpen(false)}
-                  >
-                    <CogIcon className="h-4 w-4 mr-3" />
-                    Admin Page
-                  </Link>
-                  <Link 
-                    href="/scraping" 
-                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
-                    onClick={() => setIsProfileOpen(false)}
-                  >
-                    <ArrowDownTrayIcon className="h-4 w-4 mr-3" />
-                    Card Scraping
-                  </Link>
-                </div>,
-                document.body
-              )}
-            </div>
+                    <div className="px-4 py-2 border-b border-gray-200">
+                      <p className="text-sm font-medium text-gray-900">{user.display_name || user.username}</p>
+                      <p className="text-xs text-gray-500 capitalize">{user.role}</p>
+                    </div>
+                    <Link 
+                      href="/deckbuilder" 
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      <Squares2X2Icon className="h-4 w-4 mr-3" />
+                      My Decks
+                    </Link>
+                    <Link 
+                      href="/settings" 
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                      onClick={() => setIsProfileOpen(false)}
+                    >
+                      <CogIcon className="h-4 w-4 mr-3" />
+                      Settings
+                    </Link>
+                    {(user.role === 'admin' || user.role === 'owner') && (
+                      <Link 
+                        href="/admin" 
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                        onClick={() => setIsProfileOpen(false)}
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4 mr-3" />
+                        Admin Panel
+                      </Link>
+                    )}
+                    <button
+                      onClick={handleLogout}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors"
+                    >
+                      <ArrowRightOnRectangleIcon className="h-4 w-4 mr-3" />
+                      Sign Out
+                    </button>
+                  </div>,
+                  document.body
+                )}
+              </div>
+            ) : (
+              // Not authenticated - show sign in/register buttons
+              <div className="flex items-center space-x-2">
+                <Link 
+                  href="/auth?mode=login" 
+                  className="px-3 py-1.5 text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link 
+                  href="/auth?mode=register" 
+                  className="px-3 py-1.5 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                >
+                  Register
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
