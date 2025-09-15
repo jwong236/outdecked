@@ -10,6 +10,9 @@ export interface Card {
   game: string;
   category_id: number;
   group_id: number;
+  group_name?: string;
+  group_abbreviation?: string;
+  print_type?: string;
   image_count: number;
   is_presale: boolean;
   released_on: string;

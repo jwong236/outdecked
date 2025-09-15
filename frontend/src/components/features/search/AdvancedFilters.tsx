@@ -209,9 +209,12 @@ export function AdvancedFilters({
                   };
                   onAddNotFilter(filter);
                 }}
-                className="px-3 py-2 bg-red-100 text-red-800 rounded-lg hover:bg-red-200 transition-colors duration-150 text-sm"
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm border bg-red-100 text-red-800 border-red-200 hover:bg-red-200 transition-colors duration-150"
               >
-                NOT CardType: Action Point
+                <span className="text-[10px] font-normal leading-none" style={{ transform: 'translateY(-1px)' }}>
+                  NOT
+                </span>
+                <span>CardType: Action Point</span>
               </button>
             </div>
           </div>

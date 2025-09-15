@@ -76,6 +76,7 @@ export const useSearchStore = create<SearchState>((set) => ({
       filters: { ...state.filters, color, page: 1 } 
     })),
 
+
   setSort: (sort: string) => 
     set((state) => ({ 
       filters: { ...state.filters, sort, page: 1 } 

@@ -185,7 +185,7 @@ export function CardDetailModal({
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
                             <span className="font-medium text-gray-300">Product ID:</span>
-                            <span className="ml-2 text-white">{card.product_id}</span>
+                            <span className="ml-2 text-white">{card.product_id || 'N/A'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Game:</span>

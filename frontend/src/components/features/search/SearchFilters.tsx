@@ -10,7 +10,9 @@ export function SearchFilters() {
     setQuery, 
     setSeries, 
     setColor, 
-    setSort 
+    setSort,
+    addAndFilter,
+    removeAndFilter
   } = useSearchStore();
 
   const { data: seriesData } = useSeriesValues();
@@ -37,11 +39,44 @@ export function SearchFilters() {
     ...(colorData || []).map(color => ({ value: color, label: color }))
   ];
 
+  const printTypeOptions = [
+    { value: '', label: 'All Prints' },
+    { value: 'Base', label: 'Base' },
+    { value: 'Pre-Release', label: 'Pre-Release' },
+    { value: 'Starter Deck', label: 'Starter Deck' },
+    { value: 'Pre-Release Starter', label: 'Pre-Release Starter' },
+    { value: 'Promotion', label: 'Promotion' },
+  ];
+
+  // Check if Base Print filter is active
+  const basePrintFilter = filters.and_filters.find(f => f.field === 'PrintType' && f.value === 'Base');
+  const currentPrintType = basePrintFilter ? 'Base' : '';
+
+  const handlePrintTypeChange = (value: string) => {
+    // Remove existing Base Print filter if it exists
+    if (basePrintFilter) {
+      const index = filters.and_filters.findIndex(f => f.field === 'PrintType' && f.value === 'Base');
+      if (index !== -1) {
+        removeAndFilter(index);
+      }
+    }
+    
+    // Add new filter if a value is selected
+    if (value) {
+      addAndFilter({
+        type: 'and',
+        field: 'PrintType',
+        value: value,
+        displayText: `Print Type: ${value}`
+      });
+    }
+  };
+
   return (
     <div className="bg-white/10 backdrop-blur-sm p-6 rounded-lg shadow-md mb-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         {/* Search Query */}
-        <div>
+        <div className="w-full">
           <label htmlFor="search" className="block text-sm font-medium text-white mb-2">
             Search Cards
           </label>
@@ -56,31 +91,48 @@ export function SearchFilters() {
         </div>
 
         {/* Series Filter */}
-        <FilterDropdown
-          label="Series"
-          value={filters.series || ''}
-          options={seriesOptions}
-          onChange={setSeries}
-          placeholder="All Series"
-        />
+        <div className="w-full">
+          <FilterDropdown
+            label="Series"
+            value={filters.series || ''}
+            options={seriesOptions}
+            onChange={setSeries}
+            placeholder="All Series"
+          />
+        </div>
 
         {/* Color Filter */}
-        <FilterDropdown
-          label="Color"
-          value={filters.color || ''}
-          options={colorOptions}
-          onChange={setColor}
-          placeholder="All Colors"
-        />
+        <div className="w-full">
+          <FilterDropdown
+            label="Color"
+            value={filters.color || ''}
+            options={colorOptions}
+            onChange={setColor}
+            placeholder="All Colors"
+          />
+        </div>
 
         {/* Sort Filter */}
-        <FilterDropdown
-          label="Sort By"
-          value={filters.sort || ''}
-          options={sortOptions}
-          onChange={setSort}
-          placeholder="Default"
-        />
+        <div className="w-full">
+          <FilterDropdown
+            label="Sort By"
+            value={filters.sort || ''}
+            options={sortOptions}
+            onChange={setSort}
+            placeholder="Default"
+          />
+        </div>
+
+        {/* Print Type Filter */}
+        <div className="w-full">
+          <FilterDropdown
+            label="Print Type"
+            value={currentPrintType}
+            options={printTypeOptions}
+            onChange={handlePrintTypeChange}
+            placeholder="All Prints"
+          />
+        </div>
       </div>
     </div>
   );

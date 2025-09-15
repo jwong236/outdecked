@@ -133,24 +133,11 @@ export function SearchCard({
           <span className="line-clamp-2">{card.name}</span>
         </h3>
 
-        {/* Card Details */}
-        <div className="space-y-1 text-xs text-gray-300">
-          {card.clean_name && card.clean_name !== card.name && (
-            <p className="line-clamp-1">{card.clean_name}</p>
-          )}
-          
-          {showRarity && (
-            <p className={`font-medium ${getRarityColor()}`}>
-              {/* Rarity would come from card attributes */}
-            </p>
-          )}
-        </div>
-
         {/* Price */}
         {showPrices && (
           <div className="pt-2 border-t border-white/10">
             <div className="text-xs">
-              <span className="text-gray-400">Price:</span>
+              <span className="text-white">Price:</span>
               <span className="ml-1 text-white font-medium">
                 {formatPrice(card.price)}
               </span>

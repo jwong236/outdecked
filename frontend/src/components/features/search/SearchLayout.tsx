@@ -184,6 +184,7 @@ export function SearchLayout({
   ];
 
 
+
   return (
     <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${className}`}>
       {/* Header */}
@@ -198,7 +199,7 @@ export function SearchLayout({
 
       {/* Search Filters */}
       <div className="bg-white/10 backdrop-blur-sm p-6 rounded-lg shadow-md mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Search Query */}
           <div>
             <label htmlFor="search" className="block text-sm font-medium text-white mb-2">
@@ -231,6 +232,7 @@ export function SearchLayout({
             onChange={setColor}
             placeholder="All Colors"
           />
+
 
           {/* Sort Filter */}
           <FilterDropdown
