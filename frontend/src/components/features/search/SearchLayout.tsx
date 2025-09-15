@@ -46,6 +46,7 @@ export function SearchLayout({
 
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
+  const [isNavigatingPages, setIsNavigatingPages] = useState<boolean>(false);
 
   // Initialize filters from URL on mount
   useEffect(() => {
@@ -74,20 +75,27 @@ export function SearchLayout({
 
   // Handle cross-page navigation - select appropriate card when page changes
   useEffect(() => {
-    if (selectedCard && searchResponse?.cards) {
+    if (searchResponse?.cards && searchResponse.cards.length > 0 && isNavigatingPages) {
       // If we're navigating to next page, select first card
       if (selectedCardIndex >= searchResponse.cards.length) {
         setSelectedCard(searchResponse.cards[0]);
         setSelectedCardIndex(0);
+        setIsNavigatingPages(false);
       }
       // If we're navigating to previous page, select last card
       else if (selectedCardIndex < 0) {
         const lastIndex = searchResponse.cards.length - 1;
         setSelectedCard(searchResponse.cards[lastIndex]);
         setSelectedCardIndex(lastIndex);
+        setIsNavigatingPages(false);
+      }
+      // If we're navigating to next page and selectedCardIndex is 0, select first card
+      else if (selectedCardIndex === 0) {
+        setSelectedCard(searchResponse.cards[0]);
+        setIsNavigatingPages(false);
       }
     }
-  }, [searchResponse, selectedCard, selectedCardIndex]);
+  }, [searchResponse, selectedCardIndex, isNavigatingPages]);
 
   const handleCardClick = (card: Card) => {
     const index = searchResponse?.cards.findIndex(c => c.id === card.id) || 0;
@@ -99,20 +107,24 @@ export function SearchLayout({
   const handleCloseModal = () => {
     setSelectedCard(null);
     setSelectedCardIndex(0);
+    setIsNavigatingPages(false);
   };
 
   const handleNavigate = (index: number) => {
     if (searchResponse?.cards[index]) {
       setSelectedCard(searchResponse.cards[index]);
       setSelectedCardIndex(index);
+      setIsNavigatingPages(false);
     } else if (index >= searchResponse?.cards.length && searchResponse?.pagination.has_next) {
-      // Navigate to next page
+      // Navigate to next page - will show first card of next page
+      setIsNavigatingPages(true);
       setPage(filters.page + 1);
-      // The selected card will be updated when the new data loads
+      setSelectedCardIndex(0); // Will be first card of next page
     } else if (index < 0 && searchResponse?.pagination.has_prev) {
-      // Navigate to previous page
+      // Navigate to previous page - will show last card of previous page
+      setIsNavigatingPages(true);
       setPage(filters.page - 1);
-      // The selected card will be updated when the new data loads
+      setSelectedCardIndex(-1); // Will be set to last card when data loads
     }
   };
 
