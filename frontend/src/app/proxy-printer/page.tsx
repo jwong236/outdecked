@@ -4,15 +4,19 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/types/card';
 import { ProxyGrid } from '@/components/features/proxy-printer/ProxyGrid';
 import { CardDetailModal } from '@/components/features/search/CardDetailModal';
+import { SignInModal } from '@/components/shared/modals/SignInModal';
 import { dataManager, PrintListItem } from '@/lib/dataManager';
+import { useAuth } from '@/contexts/AuthContext';
 import jsPDF from 'jspdf';
 
 export default function ProxyPrinterPage() {
+  const { user } = useAuth();
   const [printList, setPrintList] = useState<PrintListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showCopyFromDeckModal, setShowCopyFromDeckModal] = useState(false);
   
   // PDF generation settings
   const [marginTop, setMarginTop] = useState(0.5); // inches
@@ -343,16 +347,34 @@ export default function ProxyPrinterPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
             </svg>
             <h3 className="text-lg font-medium text-white mb-2">No cards to print</h3>
-            <p className="text-gray-300 mb-4">Add cards from your hand to create proxy cards.</p>
-            <a 
-              href="/cart" 
-              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-150"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m8 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
-              </svg>
-              Check Hand
-            </a>
+            <p className="text-gray-300 mb-6">Add cards from your hand or copy from your decks to create proxy cards.</p>
+            <div className="flex gap-3 justify-center">
+              <a 
+                href="/cart" 
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-150"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m8 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
+                </svg>
+                Check Hand
+              </a>
+              <button
+                onClick={() => {
+                  if (!user) {
+                    setShowCopyFromDeckModal(true);
+                  } else {
+                    // TODO: Implement copy from deck functionality
+                    alert('Copy from deck functionality coming soon!');
+                  }
+                }}
+                className="inline-flex items-center px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-150"
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                Copy from Deck
+              </button>
+            </div>
           </div>
         </div>
       ) : (
@@ -732,6 +754,14 @@ export default function ProxyPrinterPage() {
         </div>
       </div>
       )}
+
+      {/* Sign In Modal for Copy from Deck */}
+      <SignInModal
+        isOpen={showCopyFromDeckModal}
+        onClose={() => setShowCopyFromDeckModal(false)}
+        title="Sign In Required"
+        message="You need to be signed in to copy cards from your decks. Sign in to access your personal deck collection and create proxy cards."
+      />
     </div>
   );
 }

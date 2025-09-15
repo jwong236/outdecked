@@ -1,16 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { dataManager, Deck } from '@/lib/dataManager';
 import { analyzeDeck } from '@/lib/deckValidation';
+import { useAuth } from '@/contexts/AuthContext';
+import { SignInModal } from '@/components/shared/modals/SignInModal';
 import Link from 'next/link';
 
 export default function DeckListPage() {
+  const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deckToDelete, setDeckToDelete] = useState<Deck | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showSignInModal, setShowSignInModal] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
   const [newDeckGame, setNewDeckGame] = useState('Union Arena');
   const [newDeckVisibility, setNewDeckVisibility] = useState<'private' | 'public' | 'unlisted'>('private');
@@ -19,6 +25,12 @@ export default function DeckListPage() {
   const [deckForCoverChange, setDeckForCoverChange] = useState<Deck | null>(null);
 
   useEffect(() => {
+    // Check authentication first
+    if (!authLoading && !user) {
+      setShowSignInModal(true);
+      return;
+    }
+    
     // Check if there's a current deck being worked on
     const currentDeck = dataManager.getCurrentDeck();
     if (currentDeck) {
@@ -29,7 +41,7 @@ export default function DeckListPage() {
     
     loadDecks();
     loadAvailableGames();
-  }, []);
+  }, [authLoading, user, router]);
 
   // Click-away listener for dropdown menus
   useEffect(() => {
@@ -153,6 +165,15 @@ export default function DeckListPage() {
       minute: '2-digit'
     }).format(dateObj);
   };
+
+  // Show loading state while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">Checking authentication...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
@@ -591,6 +612,18 @@ export default function DeckListPage() {
           </div>
         </div>
       )}
+
+      {/* Sign In Modal */}
+      <SignInModal
+        isOpen={showSignInModal}
+        onClose={() => {
+          setShowSignInModal(false);
+          // Redirect to homepage if user closes modal without signing in
+          router.push('/');
+        }}
+        title="Sign In Required"
+        message="You need to be signed in to access the deck builder. Sign in to create, edit, and manage your personal deck collection."
+      />
     </div>
   );
 }

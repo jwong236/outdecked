@@ -4,10 +4,13 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/types/card';
 import { CartGrid } from '@/components/features/cart/CartGrid';
 import { CardDetailModal } from '@/components/features/search/CardDetailModal';
+import { SignInModal } from '@/components/shared/modals/SignInModal';
 import { dataManager, Deck, HandItem } from '@/lib/dataManager';
+import { useAuth } from '@/contexts/AuthContext';
 
 
 export default function CartPage() {
+  const { user, isLoading: authLoading } = useAuth();
   const [hand, setHand] = useState<HandItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
@@ -69,6 +72,11 @@ export default function CartPage() {
   };
 
   const handleCopyToDeckClick = () => {
+    if (!user) {
+      // Show sign-in prompt instead of deck modal
+      setShowCopyToDeckModal(true);
+      return;
+    }
     setShowCopyToDeckModal(true);
   };
 
@@ -292,7 +300,9 @@ export default function CartPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
                 </div>
-                <h3 className="text-lg font-semibold text-white">Copy to Deck ({totalItems} items)</h3>
+                <h3 className="text-lg font-semibold text-white">
+                  {user ? `Copy to Deck (${totalItems} items)` : 'Sign In Required'}
+                </h3>
               </div>
               <button
                 onClick={() => setShowCopyToDeckModal(false)}
@@ -304,50 +314,51 @@ export default function CartPage() {
               </button>
             </div>
             
+            {/* Deck selection for authenticated users */}
             <div className="p-6">
-              {/* Decks Grid */}
-              <div>
-                <h4 className="text-white font-semibold mb-4">Select Deck</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
-                  {/* Create New Deck Option */}
-                  <button
-                    onClick={() => setSelectedDeckId('new')}
-                    className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
-                      selectedDeckId === 'new'
-                        ? 'border-green-500 bg-green-500/20'
-                        : 'border-white/20 bg-white/5 hover:bg-white/10'
-                    }`}
-                  >
-                    <div className="flex gap-4">
-                      {/* Create New Deck Icon */}
-                      <div className="flex-shrink-0">
-                        <div className="w-32 h-44 rounded-lg border border-white/20 bg-white/10 flex items-center justify-center">
-                          <svg className="w-12 h-12 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                          </svg>
+                {/* Decks Grid */}
+                <div>
+                  <h4 className="text-white font-semibold mb-4">Select Deck</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
+                    {/* Create New Deck Option */}
+                    <button
+                      onClick={() => setSelectedDeckId('new')}
+                      className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                        selectedDeckId === 'new'
+                          ? 'border-green-500 bg-green-500/20'
+                          : 'border-white/20 bg-white/5 hover:bg-white/10'
+                      }`}
+                    >
+                      <div className="flex gap-4">
+                        {/* Create New Deck Icon */}
+                        <div className="flex-shrink-0">
+                          <div className="w-32 h-44 rounded-lg border border-white/20 bg-white/10 flex items-center justify-center">
+                            <svg className="w-12 h-12 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                          </div>
                         </div>
-                      </div>
-                      
-                      {/* Create New Deck Info */}
-                      <div className="flex-1 min-w-0">
-                        <h5 className="text-white font-semibold truncate">Create New Deck</h5>
-                        <p className="text-gray-300 text-sm">Start with a fresh deck</p>
-                        <p className="text-gray-400 text-xs">New deck</p>
-                      </div>
-                      
-                      {/* Selection Indicator */}
-                      {selectedDeckId === 'new' && (
-                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
-                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
+                        
+                        {/* Create New Deck Info */}
+                        <div className="flex-1 min-w-0">
+                          <h5 className="text-white font-semibold truncate">Create New Deck</h5>
+                          <p className="text-gray-300 text-sm">Start with a fresh deck</p>
+                          <p className="text-gray-400 text-xs">New deck</p>
                         </div>
-                      )}
-                    </div>
-                  </button>
-                  
-                  {/* Existing Decks */}
-                  {decks.filter(deck => deck && deck.id && deck.name).map((deck) => (
+                        
+                        {/* Selection Indicator */}
+                        {selectedDeckId === 'new' && (
+                          <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                    
+                    {/* Existing Decks */}
+                    {decks.filter(deck => deck && deck.id && deck.name).map((deck) => (
                       <button
                         key={deck.id}
                         onClick={() => setSelectedDeckId(deck.id)}
@@ -402,42 +413,50 @@ export default function CartPage() {
                     ))}
                   </div>
                 </div>
-              
-              {/* New Deck Name Input */}
-              {selectedDeckId === 'new' && (
-                <div className="mt-6">
-                  <label className="block text-sm font-medium text-white mb-2">
-                    New Deck Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newDeckName}
-                    onChange={(e) => setNewDeckName(e.target.value)}
-                    placeholder="Enter deck name..."
-                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
+                
+                {/* New Deck Name Input */}
+                {selectedDeckId === 'new' && (
+                  <div className="mt-6">
+                    <label className="block text-sm font-medium text-white mb-2">
+                      New Deck Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newDeckName}
+                      onChange={(e) => setNewDeckName(e.target.value)}
+                      placeholder="Enter deck name..."
+                      className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                    />
+                  </div>
+                )}
+                
+                <div className="flex gap-3 justify-end mt-6 pt-6 border-t border-white/20">
+                  <button
+                    onClick={() => setShowCopyToDeckModal(false)}
+                    className="px-4 py-2 text-gray-300 hover:text-white transition-colors duration-150"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={copyToDeck}
+                    disabled={!selectedDeckId || (selectedDeckId === 'new' && !newDeckName.trim())}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-150 disabled:bg-gray-500 disabled:cursor-not-allowed"
+                  >
+                    Copy Cards
+                  </button>
                 </div>
-              )}
-            </div>
-            
-            <div className="flex gap-3 justify-end p-6 border-t border-white/20">
-              <button
-                onClick={() => setShowCopyToDeckModal(false)}
-                className="px-4 py-2 text-gray-300 hover:text-white transition-colors duration-150"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={copyToDeck}
-                disabled={!selectedDeckId || (selectedDeckId === 'new' && !newDeckName.trim())}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-150 disabled:bg-gray-500 disabled:cursor-not-allowed"
-              >
-                Copy Cards
-              </button>
-            </div>
+              </div>
           </div>
         </div>
       )}
+
+      {/* Sign In Modal */}
+      <SignInModal
+        isOpen={showCopyToDeckModal && !user}
+        onClose={() => setShowCopyToDeckModal(false)}
+        title="Sign In Required"
+        message="You need to be signed in to copy cards to your decks. Sign in to save your hand contents and access your personal deck collection."
+      />
     </div>
   );
 }
