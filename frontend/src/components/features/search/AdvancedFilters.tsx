@@ -216,6 +216,24 @@ export function AdvancedFilters({
                 </span>
                 <span>CardType: Action Point</span>
               </button>
+              
+              <button
+                onClick={() => {
+                  const filter: FilterOption = {
+                    type: 'and',
+                    field: 'PrintType',
+                    value: 'Base',
+                    displayText: 'Print Type: Base',
+                  };
+                  onAddAndFilter(filter);
+                }}
+                className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm border bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200 transition-colors duration-150"
+              >
+                <span className="text-[10px] font-normal leading-none" style={{ transform: 'translateY(-1px)' }}>
+                  AND
+                </span>
+                <span>Base Print Only</span>
+              </button>
             </div>
           </div>
         </div>
