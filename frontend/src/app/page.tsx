@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useState, useEffect } from 'react';
 import { 
   MagnifyingGlassIcon, 
   Squares2X2Icon, 
@@ -8,7 +11,37 @@ import {
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 
+interface Stats {
+  cards: number;
+  series: number;
+  attributes: number;
+}
+
 export default function HomePage() {
+  const [stats, setStats] = useState<Stats>({ cards: 0, series: 0, attributes: 0 });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/stats');
+        if (response.ok) {
+          const data = await response.json();
+          setStats({
+            cards: data.cards || 0,
+            series: data.series || 0,
+            attributes: data.attributes || 0
+          });
+        }
+      } catch (error) {
+        console.error('Failed to fetch stats:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchStats();
+  }, []);
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       {/* Hero Section */}
@@ -94,15 +127,21 @@ export default function HomePage() {
       <div className="mt-16 text-center">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
-            <div className="text-4xl font-bold text-white">3,065</div>
+            <div className="text-4xl font-bold text-white">
+              {isLoading ? '...' : stats.cards.toLocaleString()}
+            </div>
             <div className="text-gray-200">Union Arena Cards</div>
           </div>
           <div>
-            <div className="text-4xl font-bold text-white">14</div>
+            <div className="text-4xl font-bold text-white">
+              {isLoading ? '...' : stats.series.toLocaleString()}
+            </div>
             <div className="text-gray-200">Series Available</div>
           </div>
           <div>
-            <div className="text-4xl font-bold text-white">29,354</div>
+            <div className="text-4xl font-bold text-white">
+              {isLoading ? '...' : stats.attributes.toLocaleString()}
+            </div>
             <div className="text-gray-200">Card Attributes</div>
           </div>
         </div>
