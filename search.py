@@ -6,6 +6,22 @@ from flask import request, jsonify
 from database import get_db_connection
 
 
+def detect_print_type(abbreviation):
+    """Automatically detect print type from group abbreviation"""
+    if not abbreviation:
+        return "Unknown"
+    elif abbreviation.endswith("_PRE"):
+        return "Pre-Release Starter"
+    elif abbreviation.endswith("_RE"):
+        return "Pre-Release"
+    elif abbreviation.endswith("ST"):
+        return "Starter Deck"
+    elif abbreviation == "UEPR":
+        return "Promotion"
+    else:
+        return "Base"
+
+
 def handle_api_search():
     """Handle the /api/search route with complex filtering and pagination logic."""
     conn = get_db_connection()
@@ -16,9 +32,11 @@ def handle_api_search():
     per_page = int(request.args.get("per_page", 20))
     search_query = request.args.get("q", "").strip()
     sort_by = request.args.get("sort", "")
+    anime = request.args.get("anime", "").strip()  # For series filtering
+    color = request.args.get("color", "").strip()  # For color filtering
 
-    # Build base query
-    base_query = "FROM cards c"
+    # Build base query with group name
+    base_query = "FROM cards c LEFT JOIN groups g ON c.group_id = g.group_id"
 
     # Build WHERE clause
     where_conditions = ["c.game = ?"]
@@ -28,6 +46,40 @@ def handle_api_search():
         where_conditions.append("(c.name LIKE ? OR c.clean_name LIKE ?)")
         search_param = f"%{search_query}%"
         params.extend([search_param, search_param])
+
+    # Handle anime (series) filter
+    if anime:
+        where_conditions.append(
+            "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'SeriesName') = ?"
+        )
+        params.append(anime)
+
+    # Handle color filter
+    if color:
+        where_conditions.append(
+            "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'ActivationEnergy') = ?"
+        )
+        params.append(color)
+
+    # Handle print type filter
+    print_type = request.args.get("print_type", "")
+    if print_type and print_type != "all":
+        if print_type == "Base":
+            # Base cards are everything that doesn't match special patterns
+            where_conditions.append(
+                "g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR'"
+            )
+        elif print_type == "Pre-Release":
+            where_conditions.append("g.abbreviation LIKE '%_RE'")
+        elif print_type == "Starter Deck":
+            where_conditions.append(
+                "g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE'"
+            )
+        elif print_type == "Pre-Release Starter":
+            where_conditions.append("g.abbreviation LIKE '%_PRE'")
+        elif print_type == "Promotion":
+            # Promotion is only UEPR cards
+            where_conditions.append("g.abbreviation = 'UEPR'")
 
     # Handle filters
     filter_fields = [
@@ -39,17 +91,148 @@ def handle_api_search():
         "ActionPointCost",
         "Trigger",
         "Affinities",
+        "PrintType",
     ]
 
     for field in filter_fields:
         values = request.args.getlist(field)
         if values:
-            # Create placeholders for the IN clause
-            placeholders = ",".join(["?" for _ in values])
-            where_conditions.append(
-                f"(SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') IN ({placeholders})"
-            )
-            params.extend(values)
+            if field == "PrintType":
+                # Special handling for PrintType - use the same logic as the print_type parameter
+                print_type_conditions = []
+                for value in values:
+                    if value == "Base":
+                        print_type_conditions.append(
+                            "g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR'"
+                        )
+                    elif value == "Pre-Release":
+                        print_type_conditions.append("g.abbreviation LIKE '%_RE'")
+                    elif value == "Starter Deck":
+                        print_type_conditions.append(
+                            "g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE'"
+                        )
+                    elif value == "Pre-Release Starter":
+                        print_type_conditions.append("g.abbreviation LIKE '%_PRE'")
+                    elif value == "Promotion":
+                        print_type_conditions.append("g.abbreviation = 'UEPR'")
+
+                if print_type_conditions:
+                    where_conditions.append(f"({' OR '.join(print_type_conditions)})")
+            else:
+                # Regular field handling
+                placeholders = ",".join(["?" for _ in values])
+                where_conditions.append(
+                    f"(SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') IN ({placeholders})"
+                )
+                params.extend(values)
+
+    # Handle advanced filters (and_filters, or_filters, not_filters)
+    import json
+
+    # Process AND filters
+    and_filters_json = request.args.get("and_filters")
+    if and_filters_json:
+        try:
+            and_filters = json.loads(and_filters_json)
+            for filter_obj in and_filters:
+                field = filter_obj.get("field")
+                value = filter_obj.get("value")
+                if field and value:
+                    if field == "PrintType":
+                        # Use the same PrintType logic as above
+                        if value == "Base":
+                            where_conditions.append(
+                                "g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR'"
+                            )
+                        elif value == "Pre-Release":
+                            where_conditions.append("g.abbreviation LIKE '%_RE'")
+                        elif value == "Starter Deck":
+                            where_conditions.append(
+                                "g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE'"
+                            )
+                        elif value == "Pre-Release Starter":
+                            where_conditions.append("g.abbreviation LIKE '%_PRE'")
+                        elif value == "Promotion":
+                            where_conditions.append("g.abbreviation = 'UEPR'")
+                    else:
+                        # Regular field handling
+                        where_conditions.append(
+                            f"(SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') = ?"
+                        )
+                        params.append(value)
+        except json.JSONDecodeError:
+            pass  # Ignore invalid JSON
+
+    # Process OR filters
+    or_filters_json = request.args.get("or_filters")
+    if or_filters_json:
+        try:
+            or_filters = json.loads(or_filters_json)
+            or_conditions = []
+            for filter_obj in or_filters:
+                field = filter_obj.get("field")
+                value = filter_obj.get("value")
+                if field and value:
+                    if field == "PrintType":
+                        # Use the same PrintType logic as above
+                        if value == "Base":
+                            or_conditions.append(
+                                "(g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR')"
+                            )
+                        elif value == "Pre-Release":
+                            or_conditions.append("(g.abbreviation LIKE '%_RE')")
+                        elif value == "Starter Deck":
+                            or_conditions.append(
+                                "(g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE')"
+                            )
+                        elif value == "Pre-Release Starter":
+                            or_conditions.append("(g.abbreviation LIKE '%_PRE')")
+                        elif value == "Promotion":
+                            or_conditions.append("(g.abbreviation = 'UEPR')")
+                    else:
+                        # Regular field handling
+                        or_conditions.append(
+                            f"(SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') = ?"
+                        )
+                        params.append(value)
+            if or_conditions:
+                where_conditions.append(f"({' OR '.join(or_conditions)})")
+        except json.JSONDecodeError:
+            pass  # Ignore invalid JSON
+
+    # Process NOT filters
+    not_filters_json = request.args.get("not_filters")
+    if not_filters_json:
+        try:
+            not_filters = json.loads(not_filters_json)
+            for filter_obj in not_filters:
+                field = filter_obj.get("field")
+                value = filter_obj.get("value")
+                if field and value:
+                    if field == "PrintType":
+                        # Use the same PrintType logic as above but negated
+                        if value == "Base":
+                            where_conditions.append(
+                                "NOT (g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR')"
+                            )
+                        elif value == "Pre-Release":
+                            where_conditions.append("NOT (g.abbreviation LIKE '%_RE')")
+                        elif value == "Starter Deck":
+                            where_conditions.append(
+                                "NOT (g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE')"
+                            )
+                        elif value == "Pre-Release Starter":
+                            where_conditions.append("NOT (g.abbreviation LIKE '%_PRE')")
+                        elif value == "Promotion":
+                            where_conditions.append("NOT (g.abbreviation = 'UEPR')")
+                    else:
+                        # Regular field handling
+                        where_conditions.append(
+                            f"NOT ((SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') = ?)"
+                        )
+                        params.append(value)
+        except json.JSONDecodeError:
+            pass  # Ignore invalid JSON
 
     where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
@@ -103,7 +286,7 @@ def handle_api_search():
     # Get paginated results with metadata and prices (TCGCSV-aligned)
     # Use market_price if available, otherwise fall back to mid_price
     search_query = (
-        f"SELECT c.*, GROUP_CONCAT(cm.name || ':' || cm.value, '|||') as metadata, "
+        f"SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, GROUP_CONCAT(cm.name || ':' || cm.value, '|||') as metadata, "
         f"COALESCE(cp.market_price, cp.mid_price) as price {base_query} "
         f"LEFT JOIN card_attributes cm ON c.id = cm.card_id "
         f"LEFT JOIN card_prices cp ON c.id = cp.card_id "
@@ -121,11 +304,27 @@ def handle_api_search():
         # Start with basic card data
         processed_card = {
             "id": card["id"],
+            "product_id": card.get("product_id", 0),
             "name": card["name"],
+            "clean_name": card.get("clean_name"),
             "image_url": card["image_url"],
             "card_url": card["card_url"],
             "game": card["game"],
-            "price": card.get("price", ""),  # Add price from card_prices table
+            "category_id": card.get("category_id", 0),
+            "group_id": card.get("group_id", 0),
+            "group_name": card.get("group_name"),
+            "group_abbreviation": card.get("group_abbreviation"),
+            "print_type": detect_print_type(card.get("group_abbreviation")),
+            "image_count": card.get("image_count", 0),
+            "is_presale": card.get("is_presale", False),
+            "released_on": card.get("released_on", ""),
+            "presale_note": card.get("presale_note", ""),
+            "modified_on": card.get("modified_on", ""),
+            "price": card.get("price", None),  # Add price from card_prices table
+            "low_price": card.get("low_price"),
+            "mid_price": card.get("mid_price"),
+            "high_price": card.get("high_price"),
+            "created_at": card.get("created_at", ""),
         }
 
         # Parse metadata string and add as individual fields
@@ -134,7 +333,9 @@ def handle_api_search():
             for pair in metadata_pairs:
                 if ":" in pair:
                     name, field_value = pair.split(":", 1)
-                    processed_card[name] = field_value
+                    # Don't overwrite group fields with any field from metadata
+                    if name not in ["group_name", "group_abbreviation"]:
+                        processed_card[name] = field_value
 
         cards.append(processed_card)
 
@@ -176,17 +377,37 @@ def handle_filter_fields():
     fields = conn.execute(query).fetchall()
     conn.close()
 
-    # Return field names with display names
-    return jsonify(
-        [
-            {"name": field["name"], "display": field["display_name"] or field["name"]}
-            for field in fields
-        ]
-    )
+    # Convert to list and add PrintType as a special field
+    field_list = [
+        {"name": field["name"], "display": field["display_name"] or field["name"]}
+        for field in fields
+    ]
+
+    # Add PrintType as a special field (not from card_attributes)
+    field_list.append({"name": "PrintType", "display": "Print Type"})
+
+    # Sort by display name
+    field_list.sort(key=lambda x: x["display"])
+
+    return jsonify(field_list)
 
 
 def handle_filter_values(field, game=None):
     """Get all unique values for a specific filter field, optionally filtered by game"""
+
+    # Special handling for PrintType field
+    if field == "PrintType":
+        # Return all possible print types with proper casing
+        return jsonify(
+            [
+                "Base",
+                "Pre-Release",
+                "Starter Deck",
+                "Pre-Release Starter",
+                "Promotion",
+            ]
+        )
+
     conn = get_db_connection()
 
     if game:

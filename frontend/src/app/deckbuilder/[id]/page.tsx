@@ -8,6 +8,7 @@ import { CardDetailModal } from '@/components/features/search/CardDetailModal';
 import { dataManager, Deck, HandItem, CardReference } from '@/lib/dataManager';
 import { Card } from '@/types/card';
 import { DeckValidation } from '@/lib/deckValidation';
+import { openTCGPlayerDeck } from '@/lib/tcgplayerUtils';
 
 export default function DeckBuilderPage() {
   const params = useParams();
@@ -76,10 +77,48 @@ export default function DeckBuilderPage() {
     }
   }, [selectedSeries, selectedColor, sortBy]);
 
-  // Update displays when deck changes
+  // Update deckCards when currentDeck changes
   useEffect(() => {
     if (currentDeck) {
-      updateDeckCardsDisplay();
+      // Convert deck cards to Card format for display
+      const deckCardData: Card[] = currentDeck.cards.map(deckItem => ({
+        id: deckItem.id || 0,
+        product_id: deckItem.product_id || 0,
+        name: deckItem.name ?? '',
+        clean_name: deckItem.clean_name || null,
+        image_url: deckItem.image_url ?? null,
+        card_url: deckItem.card_url,
+        game: deckItem.game ?? '',
+        category_id: deckItem.category_id || 0,
+        group_id: deckItem.group_id || 0,
+        group_name: deckItem.group_name,
+        group_abbreviation: deckItem.group_abbreviation,
+        image_count: deckItem.image_count || 0,
+        is_presale: deckItem.is_presale || false,
+        released_on: deckItem.released_on || '',
+        presale_note: deckItem.presale_note || '',
+        modified_on: deckItem.modified_on || '',
+        price: deckItem.price || 0,
+        low_price: deckItem.low_price || null,
+        mid_price: deckItem.mid_price || null,
+        high_price: deckItem.high_price || null,
+        created_at: deckItem.created_at || '',
+        // Dynamic attributes
+        SeriesName: deckItem.SeriesName,
+        Rarity: deckItem.Rarity,
+        Number: deckItem.Number,
+        CardType: deckItem.CardType,
+        RequiredEnergy: deckItem.RequiredEnergy,
+        ActionPointCost: deckItem.ActionPointCost,
+        ActivationEnergy: deckItem.ActivationEnergy,
+        Description: deckItem.Description,
+        GeneratedEnergy: deckItem.GeneratedEnergy,
+        BattlePointBP: deckItem.BattlePointBP,
+        Trigger: deckItem.Trigger,
+        Affinities: deckItem.Affinities,
+        quantity: deckItem.quantity
+      }));
+      setDeckCards(deckCardData);
     }
   }, [currentDeck]);
 
@@ -188,6 +227,13 @@ export default function DeckBuilderPage() {
 
   const handleQuantityChange = useCallback((card: Card, change: number) => {
     if (!card.card_url) return; // Skip if no card_url
+    
+    console.log('handleQuantityChange - card data:', {
+      name: card.name,
+      group_abbreviation: card.group_abbreviation,
+      group_name: card.group_name,
+      card_url: card.card_url
+    });
 
     // Use startTransition to batch the state update and prevent re-render storms
     startTransition(() => {
@@ -229,6 +275,8 @@ export default function DeckBuilderPage() {
                 game: card.game,
                 category_id: card.category_id,
                 group_id: card.group_id,
+                group_name: card.group_name,
+                group_abbreviation: card.group_abbreviation,
                 image_count: card.image_count,
                 is_presale: card.is_presale,
                 released_on: card.released_on,
@@ -258,6 +306,13 @@ export default function DeckBuilderPage() {
             cards: updatedCards,
             updatedAt: new Date()
           };
+          console.log('Saving deck with card data:', {
+            name: card.name,
+            group_abbreviation: card.group_abbreviation,
+            group_name: card.group_name,
+            storedCard: updatedCards.find(c => c.card_url === card.card_url)
+          });
+          
           dataManager.updateDeck(updatedDeck);
           
           // Set default cover if no cover is set and we have cards
@@ -288,6 +343,16 @@ export default function DeckBuilderPage() {
   const updateDeckCardsDisplay = async () => {
     if (!currentDeck) return;
 
+    console.log('Loading deck data:', {
+      deckId: currentDeck.id,
+      cardCount: currentDeck.cards.length,
+      firstCard: currentDeck.cards[0] ? {
+        name: currentDeck.cards[0].name,
+        group_abbreviation: currentDeck.cards[0].group_abbreviation,
+        group_name: currentDeck.cards[0].group_name
+      } : null
+    });
+
     const deckCardData: Card[] = [];
     
     for (const deckItem of currentDeck.cards) {
@@ -313,6 +378,8 @@ export default function DeckBuilderPage() {
             game: deckItem.game ?? '',
             category_id: deckItem.category_id || 0,
             group_id: deckItem.group_id || 0,
+            group_name: deckItem.group_name,
+            group_abbreviation: deckItem.group_abbreviation || undefined,
             image_count: deckItem.image_count || 0,
             is_presale: deckItem.is_presale || false,
             released_on: deckItem.released_on || '',
@@ -375,38 +442,19 @@ export default function DeckBuilderPage() {
       // Build search parameters
       const params = new URLSearchParams();
       
+      // Add game parameter directly
+      params.append('game', 'Union Arena');
+      
       if (searchQuery.trim()) {
         params.append('q', searchQuery.trim());
       }
       
-      // Combine all filters into a single and_filters array
-      const andFilters = [];
-      
-      // Add default Union Arena filter
-      andFilters.push({
-        field: 'game',
-        value: 'Union Arena',
-        displayText: 'Game: Union Arena'
-      });
-      
       if (selectedSeries) {
-        andFilters.push({
-          field: 'series',
-          value: selectedSeries,
-          displayText: `Series: ${selectedSeries}`
-        });
+        params.append('anime', selectedSeries); // API uses 'anime' parameter for series
       }
       
       if (selectedColor) {
-        andFilters.push({
-          field: 'color',
-          value: selectedColor,
-          displayText: `Color: ${selectedColor}`
-        });
-      }
-      
-      if (andFilters.length > 0) {
-        params.append('and_filters', JSON.stringify(andFilters));
+        params.append('color', selectedColor);
       }
       
       if (sortBy) {
@@ -648,6 +696,17 @@ export default function DeckBuilderPage() {
               </button>
               
               <button
+                onClick={() => openTCGPlayerDeck(deckCards)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors flex items-center"
+                disabled={deckCards.length === 0}
+              >
+                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m8 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
+                </svg>
+                Buy Deck
+              </button>
+              
+              <button
                 onClick={() => setShowDecklistModal(true)}
                 className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg transition-colors flex items-center"
               >
@@ -831,7 +890,7 @@ export default function DeckBuilderPage() {
                   cards={deckCards}
                   onCardClick={handleCardClick}
                   onQuantityChange={handleQuantityChange}
-                  showPrices={false}
+                  showPrices={true}
                   showRarity={true}
                   customGridClasses="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-5"
                 />
