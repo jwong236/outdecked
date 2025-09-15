@@ -156,12 +156,6 @@ export default function DeckListPage() {
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
-      {/* Hide background switcher on this page */}
-      <style jsx global>{`
-        .fixed.top-20.right-4.z-40 {
-          display: none !important;
-        }
-      `}</style>
 
       {/* Header */}
       <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg p-6 mb-6">
@@ -215,7 +209,7 @@ export default function DeckListPage() {
                         }}
                       />
                     ) : (
-                      <div className="w-32 h-32 rounded-lg border border-white/20 bg-white/10 flex items-center justify-center">
+                      <div className="w-40 h-56 rounded-lg border border-white/20 bg-white/10 flex items-center justify-center">
                         <svg className="w-8 h-8 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>

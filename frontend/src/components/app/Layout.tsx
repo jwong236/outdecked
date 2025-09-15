@@ -3,6 +3,7 @@
 import { Navigation } from './Navigation';
 import { BackgroundSwitcher } from './BackgroundSwitcher';
 import { useBackground } from '@/contexts/BackgroundContext';
+import { usePathname } from 'next/navigation';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,6 +11,10 @@ interface LayoutProps {
 
 export function Layout({ children }: LayoutProps) {
   const { background, setBackground } = useBackground();
+  const pathname = usePathname();
+  
+  // Only show background switcher on homepage
+  const isHomepage = pathname === '/';
 
   return (
     <>
@@ -29,13 +34,15 @@ export function Layout({ children }: LayoutProps) {
       
       <Navigation />
       
-      {/* Background Switcher - positioned below navbar */}
-      <div className="fixed top-20 right-4">
-        <BackgroundSwitcher 
-          currentBackground={background}
-          onBackgroundChange={setBackground}
-        />
-      </div>
+      {/* Background Switcher - only show on homepage */}
+      {isHomepage && (
+        <div className="fixed top-20 right-4">
+          <BackgroundSwitcher 
+            currentBackground={background}
+            onBackgroundChange={setBackground}
+          />
+        </div>
+      )}
       
       <main className="relative">
         {children}
