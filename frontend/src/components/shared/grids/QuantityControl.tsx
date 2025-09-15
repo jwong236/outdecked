@@ -95,16 +95,22 @@ export function QuantityControl({
     } else {
       setQuantity(getCurrentQuantity());
       
-      // Listen for cart updates (only for hand and printList contexts)
-      const handleCartUpdate = () => {
+      // Listen for updates (cart updates for hand, printList updates for printList)
+      const handleUpdate = () => {
         setQuantity(getCurrentQuantity());
       };
       
-      window.addEventListener('cartUpdated', handleCartUpdate);
-      
-      return () => {
-        window.removeEventListener('cartUpdated', handleCartUpdate);
-      };
+      if (context === 'printList') {
+        window.addEventListener('printListUpdated', handleUpdate);
+        return () => {
+          window.removeEventListener('printListUpdated', handleUpdate);
+        };
+      } else {
+        window.addEventListener('cartUpdated', handleUpdate);
+        return () => {
+          window.removeEventListener('cartUpdated', handleUpdate);
+        };
+      }
     }
   }, [card.quantity, context]); // Remove card.card_url from dependencies
 

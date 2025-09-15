@@ -141,27 +141,9 @@ export function ProxyCard({
           )}
         </div>
 
-        {/* Price */}
-        {showPrices && (
-          <div className="pt-2 border-t border-white/10">
-            <div className="text-xs">
-              <span className="text-gray-400">Price:</span>
-              <span className="ml-1 text-white font-medium">
-                {formatPrice(card.price)}
-              </span>
-            </div>
-          </div>
-        )}
-
-        {/* Print Quantity Display */}
+        {/* Quantity Control Only */}
         <div className="pt-2 border-t border-white/10">
-          <div className="flex items-center justify-between">
-            <div className="text-xs">
-              <span className="text-gray-400">Print:</span>
-              <span className="ml-1 text-white font-medium">
-                {currentQuantity} {currentQuantity === 1 ? 'copy' : 'copies'}
-              </span>
-            </div>
+          <div className="flex items-center justify-center">
             <div className="quantity-control">
               <QuantityControl 
                 card={card} 

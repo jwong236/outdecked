@@ -106,24 +106,11 @@ export function DeckCard({
           <span className="line-clamp-2">{card.name}</span>
         </h3>
 
-        {/* Card Details */}
-        <div className="space-y-1 text-xs text-gray-300">
-          {card.clean_name && card.clean_name !== card.name && (
-            <p className="line-clamp-1">{card.clean_name}</p>
-          )}
-          
-          {showRarity && card.Rarity && (
-            <p className="font-medium text-blue-400">
-              {card.Rarity}
-            </p>
-          )}
-        </div>
-
         {/* Price */}
         {showPrices && (
           <div className="pt-2 border-t border-white/10">
             <div className="text-xs">
-              <span className="text-gray-400">Price:</span>
+              <span className="text-white">Price:</span>
               <span className="ml-1 text-white font-medium">
                 {card.price ? `$${card.price.toFixed(2)}` : 'N/A'}
               </span>

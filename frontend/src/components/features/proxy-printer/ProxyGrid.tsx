@@ -14,7 +14,7 @@ export interface ProxyGridProps extends Omit<BaseCardGridProps, 'children'> {
 export function ProxyGrid({
   cards,
   onCardClick,
-  showPrices = true,
+  showPrices = false,
   showRarity = true,
   priority = false,
   ...baseProps

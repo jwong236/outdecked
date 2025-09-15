@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/types/card';
 import { CartGrid } from '@/components/features/cart/CartGrid';
 import { CardDetailModal } from '@/components/features/search/CardDetailModal';
-import { dataManager, HandItem } from '@/lib/dataManager';
+import { dataManager, Deck, HandItem } from '@/lib/dataManager';
 
 
 export default function CartPage() {
@@ -14,6 +14,10 @@ export default function CartPage() {
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showMoveToProxyConfirm, setShowMoveToProxyConfirm] = useState(false);
+  const [showCopyToDeckModal, setShowCopyToDeckModal] = useState(false);
+  const [decks, setDecks] = useState<Deck[]>([]);
+  const [newDeckName, setNewDeckName] = useState('');
+  const [selectedDeckId, setSelectedDeckId] = useState<string>('');
 
   useEffect(() => {
     const loadHand = () => {
@@ -22,7 +26,13 @@ export default function CartPage() {
       setIsLoading(false);
     };
 
+    const loadDecks = () => {
+      const deckData = dataManager.getDecks();
+      setDecks(deckData);
+    };
+
     loadHand();
+    loadDecks();
     
     // Listen for cart updates
     const handleCartUpdate = () => {
@@ -58,6 +68,29 @@ export default function CartPage() {
     window.location.href = '/proxy-printer';
   };
 
+  const handleCopyToDeckClick = () => {
+    setShowCopyToDeckModal(true);
+  };
+
+  const copyToDeck = () => {
+    if (selectedDeckId === 'new') {
+      // Create new deck using the same method as deck builder page
+      const newDeck = dataManager.createDeck(newDeckName.trim() || 'New Deck', 'Union Arena', 'private');
+      // Then add cards to the newly created deck
+      dataManager.addCardsToDeck(newDeck.id, hand);
+      // Reload decks to reflect the new deck
+      const deckData = dataManager.getDecks();
+      setDecks(deckData);
+    } else {
+      // Add to existing deck
+      dataManager.addCardsToDeck(selectedDeckId, hand);
+    }
+    
+    setShowCopyToDeckModal(false);
+    setSelectedDeckId('');
+    setNewDeckName('');
+  };
+
   const handleCardClick = (card: Card) => {
     const index = hand.findIndex(c => c.card_url === card.card_url);
     setSelectedCard(card);
@@ -76,7 +109,7 @@ export default function CartPage() {
     }
   };
 
-  const totalItems = dataManager.getHandTotalItems();
+  const totalItems = dataManager.getHandTotalItems() || 0;
 
   if (isLoading) {
     return (
@@ -123,7 +156,7 @@ export default function CartPage() {
           {/* Hand Items */}
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8">
             <CartGrid
-              cards={hand}
+              cards={hand.filter(item => item && typeof item === 'object' && item.name)}
               onCardClick={handleCardClick}
             />
           </div>
@@ -140,7 +173,16 @@ export default function CartPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                   </svg>
-                  Move to Proxy Printer
+                  Copy to Proxy Printer
+                </button>
+                <button 
+                  onClick={handleCopyToDeckClick}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-150"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  Copy to Deck
                 </button>
                 <button 
                   onClick={handleClearClick}
@@ -214,7 +256,7 @@ export default function CartPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-white">Move to Proxy Printer</h3>
+              <h3 className="text-lg font-semibold text-white">Copy to Proxy Printer</h3>
             </div>
             
             <p className="text-gray-200 mb-6">
@@ -232,7 +274,165 @@ export default function CartPage() {
                 onClick={moveToProxyPrinter}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-150"
               >
-                Move to Proxy Printer
+                Copy to Proxy Printer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Copy to Deck Modal */}
+      {showCopyToDeckModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-6 border-b border-white/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white">Copy to Deck ({totalItems} items)</h3>
+              </div>
+              <button
+                onClick={() => setShowCopyToDeckModal(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6">
+              {/* Decks Grid */}
+              <div>
+                <h4 className="text-white font-semibold mb-4">Select Deck</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
+                  {/* Create New Deck Option */}
+                  <button
+                    onClick={() => setSelectedDeckId('new')}
+                    className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                      selectedDeckId === 'new'
+                        ? 'border-green-500 bg-green-500/20'
+                        : 'border-white/20 bg-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    <div className="flex gap-4">
+                      {/* Create New Deck Icon */}
+                      <div className="flex-shrink-0">
+                        <div className="w-32 h-44 rounded-lg border border-white/20 bg-white/10 flex items-center justify-center">
+                          <svg className="w-12 h-12 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                          </svg>
+                        </div>
+                      </div>
+                      
+                      {/* Create New Deck Info */}
+                      <div className="flex-1 min-w-0">
+                        <h5 className="text-white font-semibold truncate">Create New Deck</h5>
+                        <p className="text-gray-300 text-sm">Start with a fresh deck</p>
+                        <p className="text-gray-400 text-xs">New deck</p>
+                      </div>
+                      
+                      {/* Selection Indicator */}
+                      {selectedDeckId === 'new' && (
+                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                          <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                  
+                  {/* Existing Decks */}
+                  {decks.filter(deck => deck && deck.id && deck.name).map((deck) => (
+                      <button
+                        key={deck.id}
+                        onClick={() => setSelectedDeckId(deck.id)}
+                        className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
+                          selectedDeckId === deck.id
+                            ? 'border-green-500 bg-green-500/20'
+                            : 'border-white/20 bg-white/5 hover:bg-white/10'
+                        }`}
+                      >
+                        <div className="flex gap-4">
+                          {/* Deck Cover */}
+                          <div className="flex-shrink-0">
+                            {deck.cover ? (
+                              <img
+                                src={deck.cover.startsWith('http') ? deck.cover : `/api/proxy-image?url=${encodeURIComponent(deck.cover)}`}
+                                alt={`${deck.name} cover`}
+                                className="w-32 h-44 rounded-lg border border-white/20 object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-32 h-44 rounded-lg border border-white/20 bg-white/10 flex items-center justify-center">
+                                <svg className="w-10 h-10 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Deck Info */}
+                          <div className="flex-1 min-w-0">
+                            <h5 className="text-white font-semibold truncate">{deck.name}</h5>
+                            <p className="text-gray-300 text-sm">
+                              {deck.cards.length} cards
+                            </p>
+                            <p className="text-gray-400 text-xs">
+                              {new Date(deck.updatedAt).toLocaleDateString()}
+                            </p>
+                          </div>
+                          
+                          {/* Selection Indicator */}
+                          {selectedDeckId === deck.id && (
+                            <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              
+              {/* New Deck Name Input */}
+              {selectedDeckId === 'new' && (
+                <div className="mt-6">
+                  <label className="block text-sm font-medium text-white mb-2">
+                    New Deck Name
+                  </label>
+                  <input
+                    type="text"
+                    value={newDeckName}
+                    onChange={(e) => setNewDeckName(e.target.value)}
+                    placeholder="Enter deck name..."
+                    className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500"
+                  />
+                </div>
+              )}
+            </div>
+            
+            <div className="flex gap-3 justify-end p-6 border-t border-white/20">
+              <button
+                onClick={() => setShowCopyToDeckModal(false)}
+                className="px-4 py-2 text-gray-300 hover:text-white transition-colors duration-150"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={copyToDeck}
+                disabled={!selectedDeckId || (selectedDeckId === 'new' && !newDeckName.trim())}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors duration-150 disabled:bg-gray-500 disabled:cursor-not-allowed"
+              >
+                Copy Cards
               </button>
             </div>
           </div>
