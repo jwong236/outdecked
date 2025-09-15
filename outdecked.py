@@ -27,6 +27,24 @@ from search import (
     handle_filter_fields,
     handle_filter_values,
 )
+from auth import (
+    handle_register,
+    handle_login,
+    handle_logout,
+    handle_get_current_user,
+    handle_get_user_preferences,
+    handle_update_user_preferences,
+    handle_get_users,
+    handle_update_user_role,
+    handle_get_user_stats,
+    handle_get_user_hand,
+    handle_save_user_hand,
+    handle_get_user_decks,
+    handle_save_user_decks,
+    require_auth,
+    require_role,
+    require_permission,
+)
 from deck_builder import (
     handle_get_decks,
     handle_create_deck,
@@ -485,18 +503,32 @@ def generate_pdf():
 def api_stats():
     """API endpoint for basic statistics"""
     conn = get_db_connection()
+
+    # Get total card count
     cursor = conn.execute("SELECT COUNT(*) as total FROM cards")
     total_cards = cursor.fetchone()["total"]
 
-    cursor = conn.execute("SELECT COUNT(DISTINCT game) as games FROM cards")
-    total_games = cursor.fetchone()["games"]
+    # Get series count (distinct SeriesName values)
+    cursor = conn.execute(
+        """
+        SELECT COUNT(DISTINCT value) as count 
+        FROM card_attributes 
+        WHERE name = 'SeriesName'
+    """
+    )
+    series_count = cursor.fetchone()["count"]
+
+    # Get total attribute count
+    cursor = conn.execute("SELECT COUNT(*) as count FROM card_attributes")
+    attribute_count = cursor.fetchone()["count"]
 
     conn.close()
 
     return jsonify(
         {
-            "total_cards": total_cards,
-            "game_count": total_games,
+            "cards": total_cards,
+            "series": series_count,
+            "attributes": attribute_count,
             "last_scrape": "Never",  # TODO: Track last scrape time
             "cards_today": 0,  # TODO: Track cards added today
         }
@@ -587,6 +619,90 @@ def restore_database():
 
     except Exception as e:
         return jsonify({"error": f"Failed to restore database: {str(e)}"}), 500
+
+
+# Authentication Routes
+@app.route("/api/auth/register", methods=["POST"])
+def register():
+    """User registration endpoint"""
+    return handle_register()
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    """User login endpoint"""
+    return handle_login()
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def logout():
+    """User logout endpoint"""
+    return handle_logout()
+
+
+@app.route("/api/auth/me", methods=["GET"])
+def get_current_user():
+    """Get current user information"""
+    return handle_get_current_user()
+
+
+# User Management Routes
+@app.route("/api/user/preferences", methods=["GET"])
+def get_user_preferences():
+    """Get user preferences"""
+    return handle_get_user_preferences()
+
+
+@app.route("/api/user/preferences", methods=["PUT"])
+def update_user_preferences():
+    """Update user preferences"""
+    return handle_update_user_preferences()
+
+
+@app.route("/api/users", methods=["GET"])
+@require_permission("manage_users")
+def get_users():
+    """Get all users (admin only)"""
+    return handle_get_users()
+
+
+@app.route("/api/users/role", methods=["PUT"])
+@require_permission("manage_users")
+def update_user_role():
+    """Update user role (admin only)"""
+    return handle_update_user_role()
+
+
+@app.route("/api/user/stats", methods=["GET"])
+@require_permission("view_admin_panel")
+def get_user_stats():
+    """Get user statistics (admin only)"""
+    return handle_get_user_stats()
+
+
+# Hand Persistence Routes
+@app.route("/api/user/hand", methods=["GET"])
+def get_user_hand():
+    """Get user's saved hand"""
+    return handle_get_user_hand()
+
+
+@app.route("/api/user/hand", methods=["POST"])
+def save_user_hand():
+    """Save user's hand to database"""
+    return handle_save_user_hand()
+
+
+@app.route("/api/user/decks", methods=["GET"])
+def get_user_decks():
+    """Get user's saved decks"""
+    return handle_get_user_decks()
+
+
+@app.route("/api/user/decks", methods=["POST"])
+def save_user_decks():
+    """Save user's decks to database"""
+    return handle_save_user_decks()
 
 
 # Initialize database when app starts (for Cloud Run)

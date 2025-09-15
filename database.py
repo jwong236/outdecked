@@ -117,8 +117,212 @@ def init_db():
         """
     )
 
+    # User Management Tables
+    # Users table
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'user',
+            display_name TEXT,
+            avatar_url TEXT,
+            is_active BOOLEAN DEFAULT TRUE,
+            is_verified BOOLEAN DEFAULT FALSE,
+            email_verification_token TEXT,
+            password_reset_token TEXT,
+            password_reset_expires TIMESTAMP,
+            last_login TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
+    # User preferences table
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_preferences (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            preference_key TEXT NOT NULL,
+            preference_value TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            UNIQUE(user_id, preference_key)
+        )
+        """
+    )
+
+    # User sessions table
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            session_token TEXT UNIQUE NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            ip_address TEXT,
+            user_agent TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+        """
+    )
+
+    # User hands table
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_hands (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            hand_data TEXT NOT NULL,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            UNIQUE(user_id)
+        )
+        """
+    )
+
+    # User decks table
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS user_decks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            deck_id TEXT NOT NULL,
+            deck_data TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+            UNIQUE(user_id, deck_id)
+        )
+        """
+    )
+
+    # Create indexes for better performance
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON user_preferences(user_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_hands_user_id ON user_hands(user_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_decks_user_id ON user_decks(user_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_decks_deck_id ON user_decks(deck_id)"
+    )
+
     conn.commit()
     conn.close()
+
+    # Populate categories and groups from TCGCSV
+    populate_categories_and_groups()
+
+
+def create_default_owner():
+    """Create default owner account if it doesn't exist"""
+    import hashlib
+
+    # Use direct connection to avoid circular dependency
+    conn = sqlite3.connect("cards.db")
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    # Check if owner already exists
+    cursor.execute("SELECT id FROM users WHERE role = 'owner'")
+    if cursor.fetchone():
+        conn.close()
+        return
+
+    # Create owner account
+    username = "owner"
+    email = "owner@outdecked.com"
+    password = "admin123"  # Should be changed after first login
+
+    # Hash password (simple hash for now, should use bcrypt in production)
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+    cursor.execute(
+        """
+        INSERT INTO users (username, email, password_hash, role, display_name, is_verified)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """,
+        (username, email, password_hash, "owner", "System Owner", True),
+    )
+
+    user_id = cursor.lastrowid
+
+    # Set default preferences for owner
+    cursor.execute(
+        """
+        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
+        VALUES (?, ?, ?, ?, ?)
+    """,
+        (user_id, "background-1.jpg", 24, "name", "light"),
+    )
+
+    conn.commit()
+    conn.close()
+
+    print(f"✅ Created default owner account: {username}")
+    print("⚠️  IMPORTANT: Change the default password after first login!")
+
+
+def create_test_user():
+    """Create test user account for testing purposes"""
+    import hashlib
+
+    conn = sqlite3.connect("cards.db")
+    cursor = conn.cursor()
+
+    # Check if test user already exists
+    cursor.execute("SELECT id FROM users WHERE username = 'testuser'")
+    if cursor.fetchone():
+        conn.close()
+        return
+
+    username = "testuser"
+    email = "testuser@example.com"
+    password = "testpass123"
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+    cursor.execute(
+        """
+        INSERT INTO users (username, email, password_hash, role, display_name, is_active)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """,
+        (username, email, password_hash, "user", "Test User", True),
+    )
+
+    user_id = cursor.lastrowid
+
+    # Set default preferences for test user
+    cursor.execute(
+        """
+        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
+        VALUES (?, ?, ?, ?, ?)
+    """,
+        (user_id, "background-1.jpg", 24, "name", "light"),
+    )
+
+    conn.commit()
+    conn.close()
+
+    print(f"✅ Created test user account: {username}")
 
 
 def get_db_connection():
@@ -126,6 +330,8 @@ def get_db_connection():
     if not os.path.exists("cards.db"):
         print("Database file not found, initializing new database...")
         init_db()
+        create_default_owner()
+        create_test_user()
 
     conn = sqlite3.connect("cards.db")
     conn.row_factory = sqlite3.Row

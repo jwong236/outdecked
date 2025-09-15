@@ -6,12 +6,17 @@ Handles deck CRUD operations and deck builder functionality.
 from flask import request, jsonify, session
 from deck_manager import create_deck_manager
 from models import DECK_VALIDATION_RULES
+from auth import get_current_user
 
 
 def handle_get_decks():
     """Handle GET /api/decks - Get all user decks."""
     try:
-        deck_manager = create_deck_manager(session)
+        # Check if user is authenticated
+        user = get_current_user()
+        user_id = user["id"] if user else None
+        
+        deck_manager = create_deck_manager(session, user_id)
         decks = deck_manager.get_all_decks()
 
         # Sort decks by last modified (newest first)
@@ -34,7 +39,11 @@ def handle_create_deck():
         if not data or not data.get("name"):
             return jsonify({"success": False, "error": "Deck name is required"}), 400
 
-        deck_manager = create_deck_manager(session)
+        # Check if user is authenticated
+        user = get_current_user()
+        user_id = user["id"] if user else None
+        
+        deck_manager = create_deck_manager(session, user_id)
 
         # Create new deck
         deck = deck_manager.create_new_deck(
@@ -68,7 +77,11 @@ def handle_update_deck(deck_id):
         if not data:
             return jsonify({"success": False, "error": "No data provided"}), 400
 
-        deck_manager = create_deck_manager(session)
+        # Check if user is authenticated
+        user = get_current_user()
+        user_id = user["id"] if user else None
+        
+        deck_manager = create_deck_manager(session, user_id)
 
         # Load existing deck
         existing_deck = deck_manager.load_deck(deck_id)
@@ -100,7 +113,11 @@ def handle_update_deck(deck_id):
 def handle_delete_deck(deck_id):
     """Handle DELETE /api/decks/<deck_id> - Delete deck."""
     try:
-        deck_manager = create_deck_manager(session)
+        # Check if user is authenticated
+        user = get_current_user()
+        user_id = user["id"] if user else None
+        
+        deck_manager = create_deck_manager(session, user_id)
 
         # Check if deck exists
         existing_deck = deck_manager.load_deck(deck_id)
@@ -124,7 +141,11 @@ def handle_delete_deck(deck_id):
 def handle_get_deck(deck_id):
     """Handle GET /api/decks/<deck_id> - Get specific deck."""
     try:
-        deck_manager = create_deck_manager(session)
+        # Check if user is authenticated
+        user = get_current_user()
+        user_id = user["id"] if user else None
+        
+        deck_manager = create_deck_manager(session, user_id)
         deck = deck_manager.load_deck(deck_id)
 
         if not deck:
@@ -146,7 +167,11 @@ def handle_add_card_to_deck(deck_id):
         if not data or not data.get("card"):
             return jsonify({"success": False, "error": "Card data is required"}), 400
 
-        deck_manager = create_deck_manager(session)
+        # Check if user is authenticated
+        user = get_current_user()
+        user_id = user["id"] if user else None
+        
+        deck_manager = create_deck_manager(session, user_id)
 
         # Load deck
         deck = deck_manager.load_deck(deck_id)
@@ -182,7 +207,11 @@ def handle_remove_card_from_deck(deck_id, card_id):
         data = request.get_json() or {}
         quantity = data.get("quantity", 1)
 
-        deck_manager = create_deck_manager(session)
+        # Check if user is authenticated
+        user = get_current_user()
+        user_id = user["id"] if user else None
+        
+        deck_manager = create_deck_manager(session, user_id)
 
         # Load deck
         deck = deck_manager.load_deck(deck_id)
@@ -229,7 +258,11 @@ def handle_update_card_quantity(deck_id, card_id):
                 400,
             )
 
-        deck_manager = create_deck_manager(session)
+        # Check if user is authenticated
+        user = get_current_user()
+        user_id = user["id"] if user else None
+        
+        deck_manager = create_deck_manager(session, user_id)
 
         # Load deck
         deck = deck_manager.load_deck(deck_id)
