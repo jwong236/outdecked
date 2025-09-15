@@ -10,6 +10,7 @@ import requests
 import json
 import sys
 import os
+import time
 
 # Base URL for the Flask API
 BASE_URL = "http://localhost:5000"
@@ -541,6 +542,67 @@ class TestDeckBuilderAPI:
         print(f"   ✅ Found {len(data)} decks")
 
         assert isinstance(data, list)
+
+    def test_user_decks_persistence(self):
+        """Test user deck persistence endpoints"""
+        print(f"\n🔍 Testing user deck persistence...")
+
+        # Create a session to maintain cookies
+        session = requests.Session()
+
+        # Use existing test user (created in database setup)
+        test_username = "testuser"
+
+        # Login to get session
+        login_data = {"username": test_username, "password": "testpass123"}
+
+        login_response = session.post(f"{BASE_URL}/api/auth/login", json=login_data)
+        assert login_response.status_code == 200
+
+        # Test saving decks
+        test_decks = [
+            {
+                "id": "test_deck_1",
+                "name": "Test Deck 1",
+                "game": "Union Arena",
+                "visibility": "private",
+                "cards": [],
+                "created_date": "2024-01-01T00:00:00",
+                "last_modified": "2024-01-01T00:00:00",
+            },
+            {
+                "id": "test_deck_2",
+                "name": "Test Deck 2",
+                "game": "Union Arena",
+                "visibility": "private",
+                "cards": [],
+                "created_date": "2024-01-01T00:00:00",
+                "last_modified": "2024-01-01T00:00:00",
+            },
+        ]
+
+        save_response = session.post(
+            f"{BASE_URL}/api/user/decks", json={"decks": test_decks}
+        )
+        assert save_response.status_code == 200
+
+        # Test loading decks
+        load_response = session.get(f"{BASE_URL}/api/user/decks")
+        assert load_response.status_code == 200
+
+        loaded_data = load_response.json()
+        assert loaded_data["success"] == True
+        assert len(loaded_data["decks"]) == 2
+
+        print(f"   ✅ Successfully saved and loaded {len(loaded_data['decks'])} decks")
+
+        # Verify deck data integrity
+        for i, deck in enumerate(loaded_data["decks"]):
+            assert deck["id"] == test_decks[i]["id"]
+            assert deck["name"] == test_decks[i]["name"]
+            assert deck["game"] == test_decks[i]["game"]
+
+        print(f"   ✅ Deck data integrity verified")
 
 
 class TestScrapingAPI:

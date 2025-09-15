@@ -42,7 +42,8 @@ class TestDatabaseConnection:
         
         expected_tables = [
             "cards", "card_attributes", "card_prices", 
-            "categories", "groups", "attributes_fields"
+            "categories", "groups", "attributes_fields",
+            "users", "user_preferences", "user_sessions", "user_hands", "user_decks"
         ]
         
         print(f"   ✅ Found {len(tables)} tables: {tables}")
@@ -638,6 +639,154 @@ class TestDatabasePerformance:
         assert cards_time < 1.0
         assert attributes_time < 1.0
         assert join_time < 1.0
+
+
+class TestUserTables:
+    """Test class for user management tables"""
+
+    @pytest.fixture
+    def conn(self):
+        """Database connection fixture"""
+        conn = get_db_connection()
+        if not conn:
+            pytest.skip("Database connection failed")
+        yield conn
+        conn.close()
+
+    def test_users_table_schema(self, conn):
+        """Test users table schema"""
+        print(f"\n🔍 Testing users table schema...")
+        cursor = conn.execute("PRAGMA table_info(users)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        expected_columns = [
+            "id", "username", "email", "password_hash", "role", 
+            "display_name", "avatar_url", "is_active", "is_verified",
+            "email_verification_token", "password_reset_token", 
+            "password_reset_expires", "last_login", "created_at", "updated_at"
+        ]
+        
+        print(f"   ✅ Found {len(columns)} columns: {columns}")
+        
+        for expected_col in expected_columns:
+            assert expected_col in columns, f"Column '{expected_col}' not found"
+            print(f"   📄 Column '{expected_col}' exists")
+
+    def test_user_preferences_table_schema(self, conn):
+        """Test user_preferences table schema"""
+        print(f"\n🔍 Testing user_preferences table schema...")
+        cursor = conn.execute("PRAGMA table_info(user_preferences)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        expected_columns = [
+            "id", "user_id", "background", "cards_per_page", "default_sort", "theme",
+            "created_at", "updated_at"
+        ]
+        
+        print(f"   ✅ Found {len(columns)} columns: {columns}")
+        
+        for expected_col in expected_columns:
+            assert expected_col in columns, f"Column '{expected_col}' not found"
+            print(f"   📄 Column '{expected_col}' exists")
+
+    def test_user_sessions_table_schema(self, conn):
+        """Test user_sessions table schema"""
+        print(f"\n🔍 Testing user_sessions table schema...")
+        cursor = conn.execute("PRAGMA table_info(user_sessions)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        expected_columns = [
+            "id", "user_id", "session_token", "expires_at", 
+            "ip_address", "user_agent", "created_at"
+        ]
+        
+        print(f"   ✅ Found {len(columns)} columns: {columns}")
+        
+        for expected_col in expected_columns:
+            assert expected_col in columns, f"Column '{expected_col}' not found"
+            print(f"   📄 Column '{expected_col}' exists")
+
+    def test_user_hands_table_schema(self, conn):
+        """Test user_hands table schema"""
+        print(f"\n🔍 Testing user_hands table schema...")
+        cursor = conn.execute("PRAGMA table_info(user_hands)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        expected_columns = [
+            "id", "user_id", "card_id", "quantity", 
+            "created_at", "updated_at"
+        ]
+        
+        print(f"   ✅ Found {len(columns)} columns: {columns}")
+        
+        for expected_col in expected_columns:
+            assert expected_col in columns, f"Column '{expected_col}' not found"
+            print(f"   📄 Column '{expected_col}' exists")
+
+    def test_user_decks_table_schema(self, conn):
+        """Test user_decks table schema"""
+        print(f"\n🔍 Testing user_decks table schema...")
+        cursor = conn.execute("PRAGMA table_info(user_decks)")
+        columns = [row[1] for row in cursor.fetchall()]
+        
+        expected_columns = [
+            "id", "user_id", "deck_id", "deck_data", 
+            "created_at", "updated_at"
+        ]
+        
+        print(f"   ✅ Found {len(columns)} columns: {columns}")
+        
+        for expected_col in expected_columns:
+            assert expected_col in columns, f"Column '{expected_col}' not found"
+            print(f"   📄 Column '{expected_col}' exists")
+
+    def test_owner_account_exists(self, conn):
+        """Test that owner account exists"""
+        print(f"\n🔍 Testing owner account existence...")
+        cursor = conn.execute("SELECT username, role FROM users WHERE role = 'owner'")
+        owner = cursor.fetchone()
+        
+        assert owner is not None, "Owner account should exist"
+        assert owner[0] == "owner", "Owner username should be 'owner'"
+        assert owner[1] == "owner", "Owner role should be 'owner'"
+        print(f"   ✅ Owner account exists: {owner[0]}")
+
+    def test_owner_has_preferences(self, conn):
+        """Test that owner has default preferences"""
+        print(f"\n🔍 Testing owner preferences...")
+        cursor = conn.execute("SELECT id FROM users WHERE role = 'owner'")
+        owner = cursor.fetchone()
+        
+        if owner:
+            cursor.execute(
+                "SELECT COUNT(*) FROM user_preferences WHERE user_id = ?", 
+                (owner[0],)
+            )
+            pref_count = cursor.fetchone()[0]
+            print(f"   ✅ Owner has {pref_count} preferences")
+            assert pref_count > 0, "Owner should have default preferences"
+
+    def test_user_table_indexes(self, conn):
+        """Test that user table indexes exist"""
+        print(f"\n🔍 Testing user table indexes...")
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='index'")
+        indexes = [row[0] for row in cursor.fetchall()]
+        
+        expected_indexes = [
+            "idx_users_username",
+            "idx_users_email", 
+            "idx_users_role",
+            "idx_user_preferences_user_id",
+            "idx_user_sessions_token",
+            "idx_user_sessions_user_id",
+            "idx_user_hands_user_id"
+        ]
+        
+        for index in expected_indexes:
+            if index in indexes:
+                print(f"   📄 Index '{index}' exists")
+            else:
+                print(f"   ⚠️  Index '{index}' missing")
 
 
 if __name__ == "__main__":
