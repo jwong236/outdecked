@@ -5,14 +5,17 @@ import { useParams, useRouter } from 'next/navigation';
 import { SearchGrid } from '@/components/features/search/SearchGrid';
 import { DeckGrid } from '@/components/features/deckbuilder/DeckGrid';
 import { CardDetailModal } from '@/components/features/search/CardDetailModal';
+import { SignInModal } from '@/components/shared/modals/SignInModal';
 import { dataManager, Deck, HandItem, CardReference } from '@/lib/dataManager';
 import { Card } from '@/types/card';
 import { DeckValidation } from '@/lib/deckValidation';
 import { openTCGPlayerDeck } from '@/lib/tcgplayerUtils';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function DeckBuilderPage() {
   const params = useParams();
   const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
   const deckId = params.id as string;
   
   const [currentDeck, setCurrentDeck] = useState<Deck | null>(null);
@@ -21,6 +24,7 @@ export default function DeckBuilderPage() {
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showSignInModal, setShowSignInModal] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [deckName, setDeckName] = useState('New Deck');
   const [originalDeckName, setOriginalDeckName] = useState('New Deck');
@@ -53,6 +57,17 @@ export default function DeckBuilderPage() {
 
   // Load deck or create new one
   useEffect(() => {
+    // Check authentication first
+    if (!authLoading && !user) {
+      setShowSignInModal(true);
+      return;
+    }
+    
+    // Only proceed if user is authenticated
+    if (!user) {
+      return;
+    }
+    
     if (deckId === 'new') {
       // Check if there's a current deck being worked on
       const currentDeck = dataManager.getCurrentDeck();
@@ -68,14 +83,14 @@ export default function DeckBuilderPage() {
     loadFilterOptions();
     // Load some initial cards
     handleSearch();
-  }, [deckId]);
+  }, [deckId, authLoading, user, router]);
 
   // Auto-search when filters change
   useEffect(() => {
-    if (selectedSeries || selectedColor || sortBy) {
+    if (user && (selectedSeries || selectedColor || sortBy)) {
       handleSearch();
     }
-  }, [selectedSeries, selectedColor, sortBy]);
+  }, [selectedSeries, selectedColor, sortBy, user]);
 
   // Update deckCards when currentDeck changes
   useEffect(() => {
@@ -612,6 +627,16 @@ export default function DeckBuilderPage() {
     setShowCoverSelectionModal(false);
   };
 
+  // Show loading state while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+        <div className="text-white text-xl">Checking authentication...</div>
+      </div>
+    );
+  }
+
+
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       {/* Hide background switcher on this page */}
@@ -1123,6 +1148,18 @@ export default function DeckBuilderPage() {
             </div>
           </div>
         )}
+
+      {/* Sign In Modal */}
+      <SignInModal
+        isOpen={showSignInModal}
+        onClose={() => {
+          setShowSignInModal(false);
+          // Redirect to homepage if user closes modal without signing in
+          router.push('/');
+        }}
+        title="Sign In Required"
+        message="You need to be signed in to access the deck builder. Sign in to create, edit, and manage your personal deck collection."
+      />
     </div>
   );
 }
