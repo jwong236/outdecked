@@ -32,22 +32,36 @@ export function CardDetailModal({
   className = '',
 }: CardDetailModalProps) {
   const [imageLoading, setImageLoading] = useState(true);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     if (card) {
       setImageLoading(true);
+      setImageError(false);
     }
   }, [card]);
 
   const handlePrevious = () => {
-    if (currentIndex > 0 && onNavigate) {
-      onNavigate(currentIndex - 1);
+    if (onNavigate) {
+      if (currentIndex > 0) {
+        // Navigate to previous card on current page
+        onNavigate(currentIndex - 1);
+      } else if (hasPrevPage) {
+        // Navigate to previous page (will show last card of previous page)
+        onNavigate(-1);
+      }
     }
   };
 
   const handleNext = () => {
-    if (currentIndex < allCards.length - 1 && onNavigate) {
-      onNavigate(currentIndex + 1);
+    if (onNavigate) {
+      if (currentIndex < allCards.length - 1) {
+        // Navigate to next card on current page
+        onNavigate(currentIndex + 1);
+      } else if (hasNextPage) {
+        // Navigate to next page (will show first card of next page)
+        onNavigate(allCards.length);
+      }
     }
   };
 
@@ -101,7 +115,7 @@ export function CardDetailModal({
         <>
           {(currentIndex > 0 || hasPrevPage) && (
             <button
-              onClick={() => onNavigate(currentIndex - 1)}
+              onClick={handlePrevious}
               className="fixed left-8 top-1/2 transform -translate-y-1/2 z-50 bg-white/10 backdrop-blur-sm hover:bg-white/20 px-4 py-3 shadow-xl border border-white/20 transition-all duration-200 rounded-lg text-white"
               aria-label="Previous card"
             >
@@ -111,7 +125,7 @@ export function CardDetailModal({
           
           {(currentIndex < allCards.length - 1 || hasNextPage) && (
             <button
-              onClick={() => onNavigate(currentIndex + 1)}
+              onClick={handleNext}
               className="fixed right-8 top-1/2 transform -translate-y-1/2 z-50 bg-white/10 backdrop-blur-sm hover:bg-white/20 px-4 py-3 shadow-xl border border-white/20 transition-all duration-200 rounded-lg text-white"
               aria-label="Next card"
             >
@@ -146,25 +160,39 @@ export function CardDetailModal({
                     {/* Card Image */}
                     <div className="space-y-4">
                       <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-gray-800/50 border border-white/10">
-                        {card.image_url ? (
+                        {card.image_url && !imageError ? (
                           <>
                             {imageLoading && (
                               <div className="absolute inset-0 flex items-center justify-center">
                                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-400"></div>
                               </div>
                             )}
-                                   <Image
-                                     src={card.image_url}
-                                     alt={card.name}
-                                     fill
-                                     className={`object-contain transition-opacity duration-300 ${
-                                       imageLoading ? 'opacity-0' : 'opacity-100'
-                                     }`}
-                                     sizes="(max-width: 1024px) 100vw, 50vw"
-                                     onLoad={() => setImageLoading(false)}
-                                     onError={() => setImageLoading(false)}
-                                   />
+                            <Image
+                              src={card.image_url}
+                              alt={card.name}
+                              fill
+                              className={`object-contain transition-opacity duration-300 ${
+                                imageLoading ? 'opacity-0' : 'opacity-100'
+                              }`}
+                              sizes="(max-width: 1024px) 100vw, 50vw"
+                              onLoad={() => setImageLoading(false)}
+                              onError={() => {
+                                setImageLoading(false);
+                                setImageError(true);
+                              }}
+                              unoptimized={true}
+                            />
                           </>
+                        ) : imageError ? (
+                          <div className="flex flex-col items-center justify-center h-full bg-gradient-to-br from-gray-800 to-gray-900 text-gray-300 p-8">
+                            <svg className="w-24 h-24 mb-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                            </svg>
+                            <div className="text-center">
+                              <div className="text-lg font-medium text-gray-200 mb-2">Image Coming Soon</div>
+                              <div className="text-sm text-gray-400">This card is not yet released</div>
+                            </div>
+                          </div>
                         ) : (
                           <div className="flex items-center justify-center h-full text-gray-400">
                             <svg className="w-24 h-24" fill="currentColor" viewBox="0 0 20 20">
