@@ -296,8 +296,10 @@ export default function ProxyPrinterPage() {
         }
       }
       
-      // Remove loading message
-      document.body.removeChild(loadingMessage);
+      // Remove loading message safely
+      if (loadingMessage.parentNode === document.body) {
+        document.body.removeChild(loadingMessage);
+      }
       
       // Save the PDF
       const fileName = `proxy-cards-${new Date().toISOString().split('T')[0]}.pdf`;
@@ -309,7 +311,7 @@ export default function ProxyPrinterPage() {
       
       // Remove loading message if it exists
       const loadingMessage = document.querySelector('div[style*="position: fixed"]');
-      if (loadingMessage) {
+      if (loadingMessage && loadingMessage.parentNode === document.body) {
         document.body.removeChild(loadingMessage);
       }
     }

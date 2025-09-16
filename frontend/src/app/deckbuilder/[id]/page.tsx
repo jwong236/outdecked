@@ -1,25 +1,30 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo, startTransition } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { SearchGrid } from '@/components/features/search/SearchGrid';
-import { DeckGrid } from '@/components/features/deckbuilder/DeckGrid';
+import { GroupedDeckGrid } from '@/components/features/deckbuilder/GroupedDeckGrid';
 import { CardDetailModal } from '@/components/features/search/CardDetailModal';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
+import { CompactFilterSection } from '@/components/features/deckbuilder/CompactFilterSection';
+import { AdvancedFilters } from '@/components/features/search/AdvancedFilters';
+import { DecklistModal } from '@/components/features/deckbuilder/DecklistModal';
 import { dataManager, Deck, HandItem, CardReference } from '@/lib/dataManager';
 import { Card } from '@/types/card';
 import { DeckValidation } from '@/lib/deckValidation';
 import { openTCGPlayerDeck } from '@/lib/tcgplayerUtils';
+import { useSearchStore, getCurrentSeries, getCurrentColor, getCurrentCardType } from '@/stores/searchStore';
+import { useSearchCards, useSeriesValues, useColorValues, useFilterFields } from '@/lib/hooks';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function DeckBuilderPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, isLoading: authLoading } = useAuth();
   const deckId = params.id as string;
   
   const [currentDeck, setCurrentDeck] = useState<Deck | null>(null);
-  const [searchResults, setSearchResults] = useState<Card[]>([]);
   const [deckCards, setDeckCards] = useState<Card[]>([]);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
@@ -29,12 +34,7 @@ export default function DeckBuilderPage() {
   const [deckName, setDeckName] = useState('New Deck');
   const [originalDeckName, setOriginalDeckName] = useState('New Deck');
   const [hasUnsavedNameChanges, setHasUnsavedNameChanges] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedSeries, setSelectedSeries] = useState('');
-  const [selectedColor, setSelectedColor] = useState('');
-  const [sortBy, setSortBy] = useState('');
-  const [seriesOptions, setSeriesOptions] = useState<string[]>([]);
-  const [colorOptions, setColorOptions] = useState<string[]>([]);
+  const [deckSortBy, setDeckSortBy] = useState('required_energy');
   const [showMoveConfirmModal, setShowMoveConfirmModal] = useState(false);
   const [moveMessage, setMoveMessage] = useState('');
   const [showGoToSearch, setShowGoToSearch] = useState(false);
@@ -42,10 +42,127 @@ export default function DeckBuilderPage() {
   const [showCoverModal, setShowCoverModal] = useState(false);
   const [showDecklistModal, setShowDecklistModal] = useState(false);
   const [showCoverSelectionModal, setShowCoverSelectionModal] = useState(false);
+  const [showAdvancedFiltersModal, setShowAdvancedFiltersModal] = useState(false);
+  const [showClearDeckModal, setShowClearDeckModal] = useState(false);
+
+  // Search store for unified search functionality
+  const {
+    filters,
+    setQuery,
+    setSeries,
+    setColor,
+    setCardType,
+    setSort,
+    addAndFilter,
+    addOrFilter,
+    addNotFilter,
+    removeAndFilter,
+    removeOrFilter,
+    removeNotFilter,
+    clearAllFilters,
+  } = useSearchStore();
+
+  // Search hooks
+  const { data: searchData, isLoading: searchLoading } = useSearchCards(filters);
+  const { data: seriesData } = useSeriesValues();
+  const { data: colorData } = useColorValues();
+  const { data: filterFields } = useFilterFields();
+
+  // Create options for dropdowns
+  const seriesOptions = useMemo(() => [
+    { value: '', label: 'All Series' },
+    ...(seriesData || []).map(series => ({ value: series, label: series }))
+  ], [seriesData]);
+
+  const colorOptions = useMemo(() => [
+    { value: '', label: 'All Colors' },
+    ...(colorData || []).map(color => ({ value: color, label: color }))
+  ], [colorData]);
+
+  const cardTypeOptions = useMemo(() => [
+    { value: '', label: 'All Types' },
+    { value: 'Character', label: 'Character' },
+    { value: 'Event', label: 'Event' },
+    { value: 'Action Point', label: 'Action Point' },
+    { value: 'Site', label: 'Site' },
+  ], []);
+
+  const sortOptions = useMemo(() => [
+    { value: '', label: 'Name (A-Z)' },
+    { value: 'price_desc', label: 'Price (High to Low)' },
+    { value: 'price_asc', label: 'Price (Low to High)' },
+    { value: 'rarity_desc', label: 'Rarity (High to Low)' },
+    { value: 'rarity_asc', label: 'Rarity (Low to High)' },
+    { value: 'required_energy_asc', label: 'Required Energy (Low to High)' },
+    { value: 'required_energy_desc', label: 'Required Energy (High to Low)' },
+  ], []);
+
+  // Handler functions for filters
+  const handleRemoveFilter = useCallback((filterType: string, value?: string) => {
+    if (filterType === 'and') {
+      // Find the index of the filter with matching displayText
+      const index = filters.and_filters.findIndex(f => f.displayText === value);
+      if (index !== -1) {
+        removeAndFilter(index);
+      }
+    } else if (filterType === 'or') {
+      // Find the index of the filter with matching displayText
+      const index = filters.or_filters.findIndex(f => f.displayText === value);
+      if (index !== -1) {
+        removeOrFilter(index);
+      }
+    } else if (filterType === 'not') {
+      // Find the index of the filter with matching displayText
+      const index = filters.not_filters.findIndex(f => f.displayText === value);
+      if (index !== -1) {
+        removeNotFilter(index);
+      }
+    } else if (filterType === 'query') {
+      setQuery('');
+    } else if (filterType === 'series') {
+      setSeries('');
+    } else if (filterType === 'color') {
+      setColor('');
+    } else if (filterType === 'cardType') {
+      setCardType('');
+    }
+  }, [removeAndFilter, removeOrFilter, removeNotFilter, setQuery, setSeries, setColor, setCardType, filters]);
+
+  const handleRemoveMultipleFilters = useCallback((filterType: string, values: string[]) => {
+    if (filterType === 'not') {
+      // For base rarity filters, we need to find and remove them by their actual values
+      const baseRarityValues = [
+        'Common 1-Star',
+        'Rare 1-Star', 
+        'Rare 2-Star',
+        'Super Rare 1-Star',
+        'Super Rare 2-Star',
+        'Super Rare 3-Star',
+        'Uncommon 1-Star',
+        'Union Rare'
+      ];
+      
+      // Find indices of base rarity filters and remove them in reverse order
+      const indicesToRemove: number[] = [];
+      filters.not_filters.forEach((filter, index) => {
+        if (filter.field === 'Rarity' && baseRarityValues.includes(filter.value)) {
+          indicesToRemove.push(index);
+        }
+      });
+      
+      // Remove in reverse order to avoid index shifting
+      indicesToRemove.reverse().forEach(index => {
+        removeNotFilter(index);
+      });
+    }
+  }, [removeNotFilter, filters]);
+
+  const hasActiveAdvancedFilters = filters.and_filters.length > 0 || filters.or_filters.length > 0 || filters.not_filters.length > 0;
 
   // Create memoized search results with correct quantities from deck
   const searchResultsWithQuantities = useMemo(() => {
-    return searchResults.map(card => {
+    const cards = searchData?.cards || [];
+    return cards.map(card => {
       // Find quantity directly from currentDeck to avoid intermediate memoization
       const deckQuantity = currentDeck?.cards.find(c => c.card_url === card.card_url)?.quantity || 0;
       return {
@@ -53,7 +170,33 @@ export default function DeckBuilderPage() {
         quantity: deckQuantity
       };
     });
-  }, [searchResults, currentDeck?.cards]);
+  }, [searchData?.cards, currentDeck?.cards]);
+
+  // Prepare deck cards for PDF generation
+  const deckCardsForPdf = useMemo(() => {
+    if (!currentDeck || !deckCards.length) return [];
+    
+    return currentDeck.cards.map(deckCard => {
+      const cardData = deckCards.find(c => c.card_url === deckCard.card_url);
+      if (!cardData) return null;
+      
+      return {
+        name: cardData.name,
+        image_url: cardData.image_url || '',
+        quantity: deckCard.quantity,
+        CardType: cardData.CardType || 'Unknown',
+        RequiredEnergy: cardData.RequiredEnergy || '0'
+      };
+    }).filter(Boolean);
+  }, [currentDeck, deckCards]);
+
+  // Initialize series from URL parameters (only if deck doesn't have defaultSeries)
+  useEffect(() => {
+    const seriesFromUrl = searchParams.get('series');
+    if (seriesFromUrl && (!currentDeck || !currentDeck.defaultSeries)) {
+      setSeries(seriesFromUrl);
+    }
+  }, [searchParams, setSeries, currentDeck]);
 
   // Load deck or create new one
   useEffect(() => {
@@ -80,17 +223,16 @@ export default function DeckBuilderPage() {
     } else {
       loadDeck(deckId);
     }
-    loadFilterOptions();
     // Load some initial cards
     handleSearch();
   }, [deckId, authLoading, user, router]);
 
   // Auto-search when filters change
   useEffect(() => {
-    if (user && (selectedSeries || selectedColor || sortBy)) {
+    if (user && (filters.series || filters.color || filters.cardType || filters.sort)) {
       handleSearch();
     }
-  }, [selectedSeries, selectedColor, sortBy, user]);
+  }, [filters.series, filters.color, filters.cardType, filters.sort, user]);
 
   // Update deckCards when currentDeck changes
   useEffect(() => {
@@ -137,26 +279,6 @@ export default function DeckBuilderPage() {
     }
   }, [currentDeck]);
 
-  // Load filter options
-  const loadFilterOptions = async () => {
-    try {
-      // Load series options
-      const seriesResponse = await fetch('/api/metadata-values/Union Arena/SeriesName');
-      if (seriesResponse.ok) {
-        const series = await seriesResponse.json();
-        setSeriesOptions(series);
-      }
-
-      // Load color options
-      const colorResponse = await fetch('/api/color-values?game=Union Arena');
-      if (colorResponse.ok) {
-        const colors = await colorResponse.json();
-        setColorOptions(colors);
-      }
-    } catch (error) {
-      console.error('Error loading filter options:', error);
-    }
-  };
 
   const createNewDeck = () => {
     const newDeck: Deck = {
@@ -189,6 +311,11 @@ export default function DeckBuilderPage() {
       // Save this as the current deck being worked on
       dataManager.setCurrentDeck(deck);
       
+      // Set series from deck's defaultSeries if available
+      if (deck.defaultSeries) {
+        setSeries(deck.defaultSeries);
+      }
+      
       // Load search results to ensure we have card data for the deck
       await handleSearch();
       
@@ -199,6 +326,18 @@ export default function DeckBuilderPage() {
     } else {
       // Deck not found, redirect to deck list
       router.push('/deckbuilder');
+    }
+  };
+
+  // Handle series change and save to deck
+  const handleSeriesChange = (newSeries: string) => {
+    setSeries(newSeries);
+    
+    // Update the deck's defaultSeries
+    if (currentDeck) {
+      const updatedDeck = { ...currentDeck, defaultSeries: newSeries };
+      dataManager.updateDeck(updatedDeck);
+      setCurrentDeck(updatedDeck);
     }
   };
 
@@ -214,7 +353,8 @@ export default function DeckBuilderPage() {
       setIsModalOpen(true);
     } else {
       // For search result cards, find index in searchResults
-      const index = searchResults.findIndex(c => c.card_url === card.card_url);
+      const searchCards = searchData?.cards || [];
+      const index = searchCards.findIndex(c => c.card_url === card.card_url);
       setSelectedCard(card);
       setSelectedCardIndex(index >= 0 ? index : 0);
       setIsModalOpen(true);
@@ -228,8 +368,8 @@ export default function DeckBuilderPage() {
     if (isDeckCard && deckCards[index]) {
       setSelectedCard(deckCards[index]);
       setSelectedCardIndex(index);
-    } else if (searchResults[index]) {
-      setSelectedCard(searchResults[index]);
+    } else if (searchCards[index]) {
+      setSelectedCard(searchCards[index]);
       setSelectedCardIndex(index);
     }
   };
@@ -372,7 +512,8 @@ export default function DeckBuilderPage() {
     
     for (const deckItem of currentDeck.cards) {
       // Find the card in search results first
-      const searchCard = searchResults.find(card => card.card_url === deckItem.card_url);
+      const searchCards = searchData?.cards || [];
+      const searchCard = searchCards.find(card => card.card_url === deckItem.card_url);
       if (searchCard) {
         deckCardData.push({ ...searchCard, quantity: deckItem.quantity });
       } else {
@@ -451,52 +592,9 @@ export default function DeckBuilderPage() {
     setDeckCards(deckCardData);
   };
 
-  const handleSearch = async () => {
-    setIsLoading(true);
-    try {
-      // Build search parameters
-      const params = new URLSearchParams();
-      
-      // Add game parameter directly
-      params.append('game', 'Union Arena');
-      
-      if (searchQuery.trim()) {
-        params.append('q', searchQuery.trim());
-      }
-      
-      if (selectedSeries) {
-        params.append('anime', selectedSeries); // API uses 'anime' parameter for series
-      }
-      
-      if (selectedColor) {
-        params.append('color', selectedColor);
-      }
-      
-      if (sortBy) {
-        params.append('sort', sortBy);
-      }
-
-      const searchUrl = `/api/search?${params.toString()}`;
-      console.log('Search URL:', searchUrl);
-      
-      const response = await fetch(searchUrl);
-      const data = await response.json();
-      
-      console.log('Search response:', data);
-      
-      if (data.cards) {
-        setSearchResults(data.cards);
-        console.log('Found cards:', data.cards.length);
-      } else {
-        setSearchResults([]);
-        console.log('No cards found');
-      }
-    } catch (error) {
-      console.error('Search error:', error);
-      setSearchResults([]);
-    } finally {
-      setIsLoading(false);
-    }
+  const handleSearch = () => {
+    // Search is now handled automatically by the search store and useSearchCards hook
+    // This function is kept for compatibility with the CompactFilterSection
   };
 
   const saveDeckName = () => {
@@ -629,11 +727,7 @@ export default function DeckBuilderPage() {
 
   // Show loading state while checking authentication
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Checking authentication...</div>
-      </div>
-    );
+    return null; // Don't show anything while checking auth
   }
 
 
@@ -711,13 +805,13 @@ export default function DeckBuilderPage() {
               </button>
               
               <button
-                onClick={() => setShowPrintConfirmModal(true)}
-                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors flex items-center"
+                onClick={() => setShowDecklistModal(true)}
+                className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg transition-colors flex items-center"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-                Proxy Printer
+                Decklist to Image
               </button>
               
               <button
@@ -732,13 +826,13 @@ export default function DeckBuilderPage() {
               </button>
               
               <button
-                onClick={() => setShowDecklistModal(true)}
-                className="px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg transition-colors flex items-center"
+                onClick={() => setShowPrintConfirmModal(true)}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg transition-colors flex items-center"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
-                Decklist to Image
+                Proxy Printer
               </button>
             </div>
           </div>
@@ -756,116 +850,41 @@ export default function DeckBuilderPage() {
                 Search Cards
               </h2>
               
-              {/* Search Form */}
-              <div className="space-y-4">
-                {/* Search Input */}
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Search for cards..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                    className="flex-1 px-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    onClick={handleSearch}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                  >
-                    Search
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSearchQuery('');
-                      setSelectedSeries('');
-                      setSelectedColor('');
-                      setSortBy('');
-                      handleSearch();
-                    }}
-                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
-                  >
-                    Load All
-                  </button>
-                </div>
-
-                {/* Filters */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {/* Series Filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Series</label>
-                    <select
-                      value={selectedSeries}
-                      onChange={(e) => setSelectedSeries(e.target.value)}
-                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">All Series</option>
-                      {seriesOptions.map((series) => (
-                        <option key={series} value={series} className="bg-gray-800">
-                          {series}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Color Filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Color</label>
-                    <select
-                      value={selectedColor}
-                      onChange={(e) => setSelectedColor(e.target.value)}
-                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">All Colors</option>
-                      {colorOptions.map((color) => (
-                        <option key={color} value={color} className="bg-gray-800">
-                          {color}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Sort Filter */}
-                  <div>
-                    <label className="block text-sm font-medium text-white mb-2">Sort By</label>
-                    <select
-                      value={sortBy}
-                      onChange={(e) => setSortBy(e.target.value)}
-                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Name (A-Z)</option>
-                      <option value="price_desc" className="bg-gray-800">Price (High to Low)</option>
-                      <option value="price_asc" className="bg-gray-800">Price (Low to High)</option>
-                      <option value="rarity_desc" className="bg-gray-800">Rarity (High to Low)</option>
-                      <option value="rarity_asc" className="bg-gray-800">Rarity (Low to High)</option>
-                    </select>
-                  </div>
-                </div>
-
-                {/* Clear Filters */}
-                {(selectedSeries || selectedColor || sortBy) && (
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => {
-                        setSelectedSeries('');
-                        setSelectedColor('');
-                        setSortBy('');
-                      }}
-                      className="px-3 py-1 text-sm bg-red-600 hover:bg-red-700 text-white rounded transition-colors"
-                    >
-                      Clear Filters
-                    </button>
-                  </div>
-                )}
-              </div>
+              {/* Compact Filter Section */}
+              <CompactFilterSection
+                query={filters.query || ''}
+                onQueryChange={setQuery}
+                series={getCurrentSeries()}
+                onSeriesChange={handleSeriesChange}
+                color={getCurrentColor()}
+                onColorChange={setColor}
+                cardType={getCurrentCardType()}
+                onCardTypeChange={setCardType}
+                sort={filters.sort || ''}
+                onSortChange={setSort}
+                seriesOptions={seriesOptions}
+                colorOptions={colorOptions}
+                cardTypeOptions={cardTypeOptions}
+                sortOptions={sortOptions}
+                onSearch={handleSearch}
+                onAdvancedFilters={() => setShowAdvancedFiltersModal(true)}
+                hasActiveFilters={hasActiveAdvancedFilters}
+                onAddAndFilter={addAndFilter}
+                onAddNotFilter={addNotFilter}
+                currentFilters={filters}
+                onRemoveFilter={handleRemoveFilter}
+                onRemoveMultipleFilters={handleRemoveMultipleFilters}
+                onClearAllFilters={clearAllFilters}
+              />
             </div>
 
             {/* Search Results */}
             <div className="flex-1 overflow-auto">
-              {isLoading ? (
+              {searchLoading ? (
                 <div className="flex items-center justify-center h-32">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
                 </div>
-              ) : searchResults.length > 0 ? (
+              ) : searchResultsWithQuantities.length > 0 ? (
                 <SearchGrid
                   cards={searchResultsWithQuantities}
                   onCardClick={handleCardClick}
@@ -892,17 +911,47 @@ export default function DeckBuilderPage() {
           {/* Right Side - Current Deck */}
           <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg p-6 flex flex-col">
             <div className="mb-4">
-              <h2 className="text-xl font-semibold text-white mb-4 flex items-center">
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-                Current Deck
-                {currentDeck && (
-                  <span className="ml-2 text-sm font-normal text-white/70">
-                    ({currentDeck.cards.reduce((sum, c) => sum + c.quantity, 0)} cards)
-                  </span>
-                )}
-              </h2>
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                <h2 className="text-xl font-semibold text-white flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                  </svg>
+                  Current Deck
+                  {currentDeck && (
+                    <span className="ml-2 text-sm font-normal text-white/70">
+                      ({currentDeck.cards.reduce((sum, c) => sum + c.quantity, 0)} cards)
+                    </span>
+                  )}
+                </h2>
+                
+                {/* Deck Controls */}
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-white">Sort by:</label>
+                    <select
+                      value={deckSortBy}
+                      onChange={(e) => setDeckSortBy(e.target.value)}
+                      className="px-3 py-1 bg-white/20 border border-white/30 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="name" className="bg-gray-800">Name (A-Z)</option>
+                      <option value="required_energy" className="bg-gray-800">Required Energy</option>
+                      <option value="rarity" className="bg-gray-800">Rarity</option>
+                    </select>
+                  </div>
+                  
+                  {/* Clear Deck Button */}
+                  <button
+                    onClick={() => setShowClearDeckModal(true)}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors flex items-center gap-1"
+                    disabled={!currentDeck || currentDeck.cards.length === 0}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    Clear Deck
+                  </button>
+                </div>
+              </div>
               
               {/* Deck Validation */}
               <DeckValidation cards={deckCards} />
@@ -911,13 +960,11 @@ export default function DeckBuilderPage() {
             {/* Deck Cards */}
             <div className="flex-1 overflow-auto">
               {deckCards.length > 0 ? (
-                <DeckGrid
+                <GroupedDeckGrid
                   cards={deckCards}
                   onCardClick={handleCardClick}
                   onQuantityChange={handleQuantityChange}
-                  showPrices={true}
-                  showRarity={true}
-                  customGridClasses="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 2xl:grid-cols-5"
+                  sortBy={deckSortBy}
                 />
               ) : (
                 <div className="flex items-center justify-center h-32 text-white/70">
@@ -939,7 +986,7 @@ export default function DeckBuilderPage() {
           card={selectedCard}
           isOpen={isModalOpen}
           onClose={handleCloseModal}
-          allCards={selectedCard && deckCards.some(deckCard => deckCard.card_url === selectedCard.card_url) ? deckCards : searchResults}
+          allCards={selectedCard && deckCards.some(deckCard => deckCard.card_url === selectedCard.card_url) ? deckCards : (searchData?.cards || [])}
           currentIndex={selectedCardIndex}
           onNavigate={handleNavigate}
           hasNextPage={false}
@@ -1069,28 +1116,13 @@ export default function DeckBuilderPage() {
           </div>
         )}
 
-        {/* Decklist to Image Modal */}
-        {showDecklistModal && (
-          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-            <div className="bg-gray-900/95 backdrop-blur-sm rounded-xl shadow-2xl border border-white/10 p-6 max-w-md mx-4">
-              <div className="text-center">
-                <div className="w-12 h-12 mx-auto mb-4 bg-pink-600/20 rounded-full flex items-center justify-center">
-                  <svg className="w-6 h-6 text-pink-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold text-white mb-2">Decklist to Image</h3>
-                <p className="text-gray-300 mb-6">This feature is not implemented yet.</p>
-                <button
-                  onClick={() => setShowDecklistModal(false)}
-                  className="w-full px-4 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg transition-colors"
-                >
-                  OK
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Decklist Modal */}
+        <DecklistModal
+          isOpen={showDecklistModal}
+          onClose={() => setShowDecklistModal(false)}
+          deckName={deckName}
+          cards={deckCardsForPdf}
+        />
 
         {/* Cover Selection Modal */}
         {showCoverSelectionModal && (
@@ -1149,6 +1181,45 @@ export default function DeckBuilderPage() {
           </div>
         )}
 
+        {/* Clear Deck Modal */}
+        {showClearDeckModal && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-gray-900/95 backdrop-blur-sm rounded-xl shadow-2xl border border-white/10 p-6 max-w-md mx-4">
+              <div className="text-center">
+                <div className="w-12 h-12 mx-auto mb-4 bg-red-600/20 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-semibold text-white mb-2">Clear Deck</h3>
+                <p className="text-gray-300 mb-6">Are you sure you want to remove all cards from this deck? This action cannot be undone.</p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowClearDeckModal(false)}
+                    className="flex-1 px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (currentDeck) {
+                        const clearedDeck = { ...currentDeck, cards: [], updatedAt: new Date() };
+                        setCurrentDeck(clearedDeck);
+                        dataManager.updateDeck(clearedDeck);
+                        setDeckCards([]);
+                        setShowClearDeckModal(false);
+                      }
+                    }}
+                    className="flex-1 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                  >
+                    Clear Deck
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
       {/* Sign In Modal */}
       <SignInModal
         isOpen={showSignInModal}
@@ -1160,6 +1231,62 @@ export default function DeckBuilderPage() {
         title="Sign In Required"
         message="You need to be signed in to access the deck builder. Sign in to create, edit, and manage your personal deck collection."
       />
+
+      {/* Advanced Filters Modal */}
+      {showAdvancedFiltersModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg w-[60vw] max-w-none max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-white">Settings</h2>
+                <button
+                  onClick={() => setShowAdvancedFiltersModal(false)}
+                  className="text-white/70 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <AdvancedFilters
+                andFilters={filters.and_filters}
+                orFilters={filters.or_filters}
+                notFilters={filters.not_filters}
+                onAddAndFilter={addAndFilter}
+                onAddOrFilter={addOrFilter}
+                onAddNotFilter={addNotFilter}
+                onRemoveAndFilter={(index) => removeAndFilter(filters.and_filters[index]?.value || '')}
+                onRemoveOrFilter={(index) => removeOrFilter(filters.or_filters[index]?.value || '')}
+                onRemoveNotFilter={(index) => removeNotFilter(filters.not_filters[index]?.value || '')}
+                availableFields={filterFields || []}
+                game="Union Arena"
+                series={getCurrentSeries()}
+                onSeriesChange={handleSeriesChange}
+                color={getCurrentColor()}
+                onColorChange={setColor}
+                cardType={getCurrentCardType()}
+                onCardTypeChange={setCardType}
+                sort={filters.sort || ''}
+                onSortChange={setSort}
+                seriesOptions={seriesOptions}
+                colorOptions={colorOptions}
+                cardTypeOptions={cardTypeOptions}
+                sortOptions={sortOptions}
+                currentFilters={filters}
+                deckVisibility={currentDeck?.visibility || 'private'}
+                onDeckVisibilityChange={(visibility) => {
+                  if (currentDeck) {
+                    const updatedDeck = { ...currentDeck, visibility: visibility as 'private' | 'public' | 'unlisted', updatedAt: new Date() };
+                    setCurrentDeck(updatedDeck);
+                    dataManager.updateDeck(updatedDeck);
+                  }
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

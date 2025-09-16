@@ -3,7 +3,7 @@
 import { XMarkIcon } from '@heroicons/react/20/solid';
 
 export interface FilterPillProps {
-  type: 'AND' | 'OR' | 'NOT';
+  type: 'AND' | 'OR' | 'NOT' | 'NOT NOT';
   value: string;
   onRemove: () => void;
   className?: string;
@@ -18,6 +18,8 @@ export function FilterPill({ type, value, onRemove, className = '' }: FilterPill
         return 'bg-green-100 text-green-800 border-green-200 hover:bg-green-200';
       case 'NOT':
         return 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200';
+      case 'NOT NOT':
+        return 'bg-red-100 text-red-800 border-red-200 hover:bg-red-200';
       default:
         return 'bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200';
     }
@@ -27,9 +29,18 @@ export function FilterPill({ type, value, onRemove, className = '' }: FilterPill
     <span
       className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm border transition-colors duration-150 ${getFilterChipStyle(type)} ${className}`}
     >
-      <span className="text-[10px] font-normal leading-none" style={{ transform: 'translateY(-1px)' }}>
-        {type}
-      </span>
+      {type === 'NOT NOT' ? (
+        <>
+          <span className="text-[10px] font-normal leading-none" style={{ transform: 'translateY(-1px)' }}>
+            NOT
+          </span>
+          <span className="text-sm font-normal">NOT</span>
+        </>
+      ) : (
+        <span className="text-[10px] font-normal leading-none" style={{ transform: 'translateY(-1px)' }}>
+          {type}
+        </span>
+      )}
       <span>{value}</span>
       <button
         onClick={onRemove}

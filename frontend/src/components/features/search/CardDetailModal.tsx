@@ -77,7 +77,12 @@ export function CardDetailModal({
       link.download = `${card.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.jpg`;
       document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
+      
+      // Safe removal with check
+      if (link.parentNode === document.body) {
+        document.body.removeChild(link);
+      }
+      
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Failed to download image:', error);
@@ -257,7 +262,7 @@ export function CardDetailModal({
                         {card.Trigger && (
                           <div className="mt-4">
                             <span className="font-medium text-gray-300">Trigger:</span>
-                            <div className="mt-1 text-sm text-gray-200">{formatTriggerWithIcons(card.Trigger)}</div>
+                            <div className="mt-1 text-sm text-gray-200 leading-relaxed">{formatTriggerWithIcons(card.Trigger)}</div>
                           </div>
                         )}
                         

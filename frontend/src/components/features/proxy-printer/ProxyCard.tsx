@@ -51,9 +51,9 @@ export function ProxyCard({
   `;
 
   const variantClasses = {
-    default: 'p-4',
-    compact: 'p-3',
-    detailed: 'p-6',
+    default: 'p-3',
+    compact: 'p-2',
+    detailed: 'p-4',
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
@@ -131,25 +131,17 @@ export function ProxyCard({
       {/* Card Info */}
       <div className="space-y-2">
         {/* Card Name */}
-        <h3 className="font-semibold text-white text-sm leading-tight h-8 flex items-center group-hover:text-blue-300 transition-colors duration-200">
-          <span className="line-clamp-2">{card.name}</span>
-        </h3>
-
-        {/* Card Details */}
-        <div className="space-y-1 text-xs text-gray-300">
+        <div className="h-12 flex flex-col justify-between">
+          <h3 className="font-semibold text-white text-sm leading-tight group-hover:text-blue-300 transition-colors duration-200">
+            <span className="line-clamp-1">{card.name}</span>
+          </h3>
           {card.clean_name && card.clean_name !== card.name && (
-            <p className="line-clamp-1">{card.clean_name}</p>
-          )}
-          
-          {showRarity && (
-            <p className={`font-medium ${getRarityColor()}`}>
-              {/* Rarity would come from card attributes */}
-            </p>
+            <p className="text-xs text-gray-300 line-clamp-1">{card.clean_name}</p>
           )}
         </div>
 
         {/* Quantity Control Only */}
-        <div className="pt-2 border-t border-white/10">
+        <div className="pt-1 border-t border-white/10">
           <div className="flex items-center justify-center">
             <div className="quantity-control">
               <QuantityControl 

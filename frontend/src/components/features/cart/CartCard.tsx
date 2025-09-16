@@ -39,9 +39,9 @@ export function CartCard({
   `;
 
   const variantClasses = {
-    default: 'p-4',
-    compact: 'p-3',
-    detailed: 'p-6',
+    default: 'p-3',
+    compact: 'p-2',
+    detailed: 'p-4',
   };
 
   return (
@@ -101,24 +101,28 @@ export function CartCard({
 
       {/* Card Info */}
       <div className="space-y-2">
-        {/* Card Name */}
-        <h3 className="font-semibold text-white text-sm leading-tight h-8 flex items-center group-hover:text-blue-300 transition-colors duration-200">
-          <span className="line-clamp-2">{card.name}</span>
-        </h3>
+        {/* Card Name and Price - Custom layout */}
+        <div className="h-12 relative">
+          {/* Name area - can span multiple lines */}
+          <div className="absolute inset-0 pr-16">
+            <h3 className="font-semibold text-white text-sm leading-tight group-hover:text-blue-300 transition-colors duration-200 line-clamp-2">
+              {card.name}
+            </h3>
+          </div>
+          {/* Price - positioned at bottom right */}
+          {showPrices && (
+            <div className="absolute bottom-0 right-0">
+              <span className="text-xs text-white/70 font-medium">
+                {card.price ? `$${card.price.toFixed(2)}` : 'N/A'}
+              </span>
+            </div>
+          )}
+        </div>
 
-
-        {/* Price and TCGP Button Row */}
-        <div className="pt-2 border-t border-white/10">
-          <div className="flex items-center justify-between">
-            {showPrices && (
-              <div className="text-xs">
-                <span className="text-gray-400">Price:</span>
-                <span className="ml-1 text-white font-medium">
-                  {card.price ? `$${card.price.toFixed(2)}` : 'N/A'}
-                </span>
-              </div>
-            )}
-            {card.card_url && (
+        {/* TCGP Button Row */}
+        {card.card_url && (
+          <div className="pt-1 border-t border-white/10">
+            <div className="flex items-center justify-end">
               <a 
                 href={card.card_url} 
                 target="_blank" 
@@ -134,9 +138,9 @@ export function CartCard({
                   className="w-4 h-4"
                 />
               </a>
-            )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Quantity Control */}
         <div className="pt-2">

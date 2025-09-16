@@ -6,6 +6,7 @@ import { FilterPill } from './FilterPill';
 export interface ActiveFiltersProps {
   filters: SearchFilters;
   onRemoveFilter: (filterType: string, value?: string) => void;
+  onRemoveMultipleFilters: (filterType: string, values: string[]) => void;
   onClearAll: () => void;
   className?: string;
 }
@@ -13,15 +14,17 @@ export interface ActiveFiltersProps {
 export function ActiveFilters({ 
   filters, 
   onRemoveFilter, 
+  onRemoveMultipleFilters,
   onClearAll, 
   className = '' 
 }: ActiveFiltersProps) {
   const hasActiveFilters = 
     filters.query || 
-    filters.series || 
-    filters.color || 
-    filters.and_filters.length > 0 ||
-    filters.or_filters.length > 0 ||
+    filters.series ||
+    filters.color ||
+    filters.cardType ||
+    filters.and_filters.length > 0 || 
+    filters.or_filters.length > 0 || 
     filters.not_filters.length > 0;
 
   // Always show the component, even when empty
@@ -34,6 +37,8 @@ export function ActiveFilters({
         return `Series: ${value}`;
       case 'color':
         return `Color: ${value}`;
+      case 'cardType':
+        return `Card Type: ${value}`;
       case 'sort':
         const sortLabels: Record<string, string> = {
           'name': 'Name A-Z',
@@ -80,7 +85,7 @@ export function ActiveFilters({
         <h3 className="text-sm font-medium text-white">Active Filters</h3>
         <button
           onClick={onClearAll}
-          className="text-sm text-blue-400 hover:text-blue-300 transition-colors duration-150 cursor-pointer"
+          className="text-sm text-white hover:text-blue-200 transition-colors duration-150 cursor-pointer font-medium"
         >
           Clear All
         </button>
@@ -105,11 +110,61 @@ export function ActiveFilters({
             {filters.query && renderFilterChip('query', filters.query)}
             {filters.series && renderFilterChip('series', filters.series)}
             {filters.color && renderFilterChip('color', filters.color)}
+            {filters.cardType && renderFilterChip('cardType', filters.cardType)}
             
             {/* 3. NOT Filters (must NOT match) */}
-            {filters.not_filters.map((filter, index) => 
-              renderFilterChip('not', filter.displayText, index)
-            )}
+            {(() => {
+              const baseRarityValues = [
+                'Common 1-Star',
+                'Rare 1-Star', 
+                'Rare 2-Star',
+                'Super Rare 1-Star',
+                'Super Rare 2-Star',
+                'Super Rare 3-Star',
+                'Uncommon 1-Star',
+                'Union Rare'
+              ];
+              
+              // Check if all base rarity filters are present
+              const hasAllBaseRarityFilters = baseRarityValues.every(value => 
+                filters.not_filters.some(f => f.field === 'Rarity' && f.value === value)
+              );
+              
+              // Get non-base-rarity filters
+              const nonBaseRarityFilters = filters.not_filters.filter(filter => 
+                !(filter.field === 'Rarity' && baseRarityValues.includes(filter.value))
+              );
+              
+              return (
+                <>
+                  {/* Show single "Base Rarity" pill if all base rarity filters are present */}
+                  {hasAllBaseRarityFilters && (
+                    <FilterPill
+                      type="NOT NOT"
+                      value="Base Rarity"
+                      onRemove={() => {
+                        // Remove all base rarity filters using the bulk removal function
+                        const baseRarityFilters = baseRarityValues.map(value => `Rarity: ${value}`);
+                        onRemoveMultipleFilters('not', baseRarityFilters);
+                      }}
+                    />
+                  )}
+                  
+                  {/* Show individual base rarity filters if not all are present */}
+                  {!hasAllBaseRarityFilters && filters.not_filters
+                    .filter(filter => filter.field === 'Rarity' && baseRarityValues.includes(filter.value))
+                    .map((filter, index) => 
+                      renderFilterChip('not', filter.displayText, index)
+                    )
+                  }
+                  
+                  {/* Show other NOT filters */}
+                  {nonBaseRarityFilters.map((filter, index) => 
+                    renderFilterChip('not', filter.displayText, index)
+                  )}
+                </>
+              );
+            })()}
           </>
         ) : (
           <p className="text-sm text-gray-400 italic">No filters applied</p>

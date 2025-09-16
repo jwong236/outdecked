@@ -5,7 +5,10 @@ import { useRouter } from 'next/navigation';
 import { dataManager, Deck } from '@/lib/dataManager';
 import { analyzeDeck } from '@/lib/deckValidation';
 import { useAuth } from '@/contexts/AuthContext';
+import { PageTitle } from '@/components/shared/PageTitle';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
+import { useSeriesValues } from '@/lib/hooks';
+import { useSearchStore } from '@/stores/searchStore';
 import Link from 'next/link';
 
 export default function DeckListPage() {
@@ -19,10 +22,17 @@ export default function DeckListPage() {
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
   const [newDeckGame, setNewDeckGame] = useState('Union Arena');
+  const [newDeckSeries, setNewDeckSeries] = useState('');
   const [newDeckVisibility, setNewDeckVisibility] = useState<'private' | 'public' | 'unlisted'>('private');
   const [availableGames, setAvailableGames] = useState<Array<{name: string, display: string}>>([]);
   const [showCoverSelectionModal, setShowCoverSelectionModal] = useState(false);
   const [deckForCoverChange, setDeckForCoverChange] = useState<Deck | null>(null);
+
+  // Load series data
+  const { data: seriesData } = useSeriesValues();
+  
+  // Search store for setting default series
+  const { setSeries } = useSearchStore();
 
   useEffect(() => {
     // Check authentication first
@@ -136,14 +146,18 @@ export default function DeckListPage() {
 
   const confirmCreateDeck = () => {
     if (newDeckName.trim()) {
-      const newDeck = dataManager.createDeck(newDeckName.trim(), newDeckGame, newDeckVisibility);
+      const newDeck = dataManager.createDeck(newDeckName.trim(), newDeckGame, newDeckVisibility, newDeckSeries);
       loadDecks();
       setShowCreateModal(false);
+      
       setNewDeckName('');
       setNewDeckGame('Union Arena');
+      setNewDeckSeries('');
       setNewDeckVisibility('private');
       // Clear current deck and redirect to the new deck
       dataManager.clearCurrentDeck();
+      
+      // Redirect to the new deck (series will be loaded from deck.defaultSeries)
       window.location.href = `/deckbuilder/${newDeck.id}`;
     }
   };
@@ -152,6 +166,7 @@ export default function DeckListPage() {
     setShowCreateModal(false);
     setNewDeckName('');
     setNewDeckGame('Union Arena');
+    setNewDeckSeries('');
     setNewDeckVisibility('private');
   };
 
@@ -168,49 +183,42 @@ export default function DeckListPage() {
 
   // Show loading state while checking authentication
   if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
-        <div className="text-white text-xl">Checking authentication...</div>
-      </div>
-    );
+    return null; // Don't show anything while checking auth
   }
 
   return (
-    <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
+    <div className="w-full py-8">
 
-      {/* Header */}
-      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg p-6 mb-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold text-white flex items-center">
-              <svg className="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-              </svg>
-              My Decks
-            </h1>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleCreateDeck}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center"
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-              </svg>
-              Create New Deck
-            </button>
-          </div>
-        </div>
-      </div>
+      {/* Page Title */}
+      <PageTitle
+        title="My Decks"
+        icon={
+          <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+          </svg>
+        }
+        actions={
+          <button
+            onClick={handleCreateDeck}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center"
+          >
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            Create New Deck
+          </button>
+        }
+      />
 
       {/* Deck List */}
-      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg p-6">
-        {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-          </div>
-        ) : decks.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+            </div>
+          ) : decks.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {decks.map((deck) => (
               <div
                 key={deck.id}
@@ -414,6 +422,7 @@ export default function DeckListPage() {
             </button>
           </div>
         )}
+        </div>
       </div>
 
       {/* Create Deck Modal */}
@@ -466,6 +475,25 @@ export default function DeckListPage() {
                   {availableGames.map((game) => (
                     <option key={game.name} value={game.name} className="bg-gray-800">
                       {game.display}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Series Selection */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Default Series Filter
+                </label>
+                <select
+                  value={newDeckSeries}
+                  onChange={(e) => setNewDeckSeries(e.target.value)}
+                  className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                >
+                  <option value="" className="bg-gray-800">No default series</option>
+                  {seriesData?.map((series) => (
+                    <option key={series} value={series} className="bg-gray-800">
+                      {series}
                     </option>
                   ))}
                 </select>
@@ -624,6 +652,7 @@ export default function DeckListPage() {
         title="Sign In Required"
         message="You need to be signed in to access the deck builder. Sign in to create, edit, and manage your personal deck collection."
       />
+
     </div>
   );
 }

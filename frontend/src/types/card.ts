@@ -72,6 +72,7 @@ export interface SearchFilters {
   game: string;
   series: string;
   color: string;
+  cardType: string;
   sort: string;
   page: number;
   per_page: number;

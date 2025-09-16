@@ -179,7 +179,7 @@ export function QuantityControl({
         </svg>
       </button>
       
-      <div className={`${sizeClasses[size].button} text-white flex items-center justify-center font-medium border-l border-r border-white/20`}>
+      <div className={`${sizeClasses[size].button} ${effectiveQuantity > 4 ? 'text-red-400' : 'text-white'} flex items-center justify-center font-medium border-l border-r border-white/20`}>
         {effectiveQuantity}
       </div>
       

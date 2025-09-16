@@ -389,6 +389,13 @@ def api_filter_values(field):
     return handle_filter_values(field, game)
 
 
+@app.route("/api/print-type-values")
+def api_print_type_values():
+    from search import get_print_type_values
+
+    return get_print_type_values()
+
+
 @app.route("/stats")
 def get_stats():
     conn = get_db_connection()

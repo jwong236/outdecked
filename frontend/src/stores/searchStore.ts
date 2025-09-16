@@ -12,6 +12,7 @@ interface SearchState {
   setGame: (game: string) => void;
   setSeries: (series: string) => void;
   setColor: (color: string) => void;
+  setCardType: (cardType: string) => void;
   setSort: (sort: string) => void;
   setPage: (page: number) => void;
   setPerPage: (perPage: number) => void;
@@ -27,6 +28,7 @@ interface SearchState {
   
   // URL synchronization
   initializeFromUrl: (urlFilters: Partial<SearchFilters>) => void;
+  
   syncToUrl: () => void;
   
   // Loading states
@@ -42,12 +44,76 @@ const initialFilters: SearchFilters = {
   game: 'Union Arena',
   series: '',
   color: '',
-  sort: '',
+  cardType: '',
+  sort: 'required_energy_asc',
   page: 1,
   per_page: 24,
-  and_filters: [],
+  and_filters: [
+    {
+      type: 'and',
+      field: 'PrintType',
+      value: 'Base',
+      displayText: 'PrintType: Base',
+    }
+  ],
   or_filters: [],
-  not_filters: [],
+  not_filters: [
+    {
+      type: 'not',
+      field: 'CardType',
+      value: 'Action Point',
+      displayText: 'CardType: Action Point',
+    },
+    // Base Rarity Only filters - exclude all non-base rarities
+    {
+      type: 'not',
+      field: 'Rarity',
+      value: 'Common 1-Star',
+      displayText: 'Rarity: Common 1-Star',
+    },
+    {
+      type: 'not',
+      field: 'Rarity',
+      value: 'Rare 1-Star',
+      displayText: 'Rarity: Rare 1-Star',
+    },
+    {
+      type: 'not',
+      field: 'Rarity',
+      value: 'Rare 2-Star',
+      displayText: 'Rarity: Rare 2-Star',
+    },
+    {
+      type: 'not',
+      field: 'Rarity',
+      value: 'Super Rare 1-Star',
+      displayText: 'Rarity: Super Rare 1-Star',
+    },
+    {
+      type: 'not',
+      field: 'Rarity',
+      value: 'Super Rare 2-Star',
+      displayText: 'Rarity: Super Rare 2-Star',
+    },
+    {
+      type: 'not',
+      field: 'Rarity',
+      value: 'Super Rare 3-Star',
+      displayText: 'Rarity: Super Rare 3-Star',
+    },
+    {
+      type: 'not',
+      field: 'Rarity',
+      value: 'Uncommon 1-Star',
+      displayText: 'Rarity: Uncommon 1-Star',
+    },
+    {
+      type: 'not',
+      field: 'Rarity',
+      value: 'Union Rare',
+      displayText: 'Rarity: Union Rare',
+    }
+  ],
 };
 
 export const useSearchStore = create<SearchState>((set) => ({
@@ -67,15 +133,79 @@ export const useSearchStore = create<SearchState>((set) => ({
     })),
 
   setSeries: (series: string) => 
-    set((state) => ({ 
-      filters: { ...state.filters, series, page: 1 } 
-    })),
+    set((state) => {
+      // Remove existing Series AND filters
+      const filteredAndFilters = state.filters.and_filters.filter(f => f.field !== 'SeriesName');
+      
+      // Add new Series AND filter if series is selected
+      const newAndFilters = series ? [
+        ...filteredAndFilters,
+        {
+          type: 'and' as const,
+          field: 'SeriesName',
+          value: series,
+          displayText: `SeriesName: ${series}`,
+        }
+      ] : filteredAndFilters;
+      
+      return { 
+        filters: { 
+          ...state.filters, 
+          and_filters: newAndFilters,
+          page: 1 
+        } 
+      };
+    }),
 
   setColor: (color: string) => 
-    set((state) => ({ 
-      filters: { ...state.filters, color, page: 1 } 
-    })),
+    set((state) => {
+      // Remove existing Color AND filters
+      const filteredAndFilters = state.filters.and_filters.filter(f => f.field !== 'Color');
+      
+      // Add new Color AND filter if color is selected
+      const newAndFilters = color ? [
+        ...filteredAndFilters,
+        {
+          type: 'and' as const,
+          field: 'Color',
+          value: color,
+          displayText: `Color: ${color}`,
+        }
+      ] : filteredAndFilters;
+      
+      return { 
+        filters: { 
+          ...state.filters, 
+          and_filters: newAndFilters,
+          page: 1 
+        } 
+      };
+    }),
 
+  setCardType: (cardType: string) => 
+    set((state) => {
+      // Remove existing CardType AND filters
+      const filteredAndFilters = state.filters.and_filters.filter(f => f.field !== 'CardType');
+      
+      // Add new CardType AND filter if cardType is selected
+      const newAndFilters = cardType ? [
+        ...filteredAndFilters,
+        {
+          type: 'and' as const,
+          field: 'CardType',
+          value: cardType,
+          displayText: `CardType: ${cardType}`,
+        }
+      ] : filteredAndFilters;
+      
+      return { 
+        filters: { 
+          ...state.filters, 
+          and_filters: newAndFilters,
+          page: 1 
+        } 
+      };
+    }),
 
   setSort: (sort: string) => 
     set((state) => ({ 
@@ -154,6 +284,7 @@ export const useSearchStore = create<SearchState>((set) => ({
         query: '',
         series: '',
         color: '',
+        cardType: '',
         sort: '',
         and_filters: [],
         or_filters: [],
@@ -167,17 +298,18 @@ export const useSearchStore = create<SearchState>((set) => ({
   setError: (error: string | null) => set({ error }),
 
   // URL synchronization
-  initializeFromUrl: (urlFilters: Partial<SearchFilters>) => 
-    set((state) => ({ 
-      filters: { 
-        ...state.filters, 
+  initializeFromUrl: (urlFilters: Partial<SearchFilters>) =>
+    set((state) => ({
+      filters: {
+        ...state.filters,
         ...urlFilters,
-        // Ensure arrays are properly initialized
-        and_filters: urlFilters.and_filters || [],
-        or_filters: urlFilters.or_filters || [],
-        not_filters: urlFilters.not_filters || [],
-      } 
+        // Only override arrays if they exist in URL filters, otherwise keep defaults
+        and_filters: urlFilters.and_filters !== undefined ? urlFilters.and_filters : state.filters.and_filters,
+        or_filters: urlFilters.or_filters !== undefined ? urlFilters.or_filters : state.filters.or_filters,
+        not_filters: urlFilters.not_filters !== undefined ? urlFilters.not_filters : state.filters.not_filters,
+      }
     })),
+
 
   syncToUrl: () => {
     // This will be called by components that need to sync to URL
@@ -187,3 +319,22 @@ export const useSearchStore = create<SearchState>((set) => ({
   // Reset
   resetFilters: () => set({ filters: initialFilters, error: null }),
 }));
+
+// Helper functions to get current dropdown values from AND filters
+export const getCurrentSeries = () => {
+  const state = useSearchStore.getState();
+  const seriesFilter = state.filters.and_filters.find(f => f.field === 'SeriesName');
+  return seriesFilter ? seriesFilter.value : '';
+};
+
+export const getCurrentColor = () => {
+  const state = useSearchStore.getState();
+  const colorFilter = state.filters.and_filters.find(f => f.field === 'Color');
+  return colorFilter ? colorFilter.value : '';
+};
+
+export const getCurrentCardType = () => {
+  const state = useSearchStore.getState();
+  const cardTypeFilter = state.filters.and_filters.find(f => f.field === 'CardType');
+  return cardTypeFilter ? cardTypeFilter.value : '';
+};

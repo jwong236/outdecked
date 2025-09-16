@@ -27,6 +27,7 @@ def init_db():
             category_id INTEGER,
             group_id INTEGER,
             group_name TEXT,
+            print_type TEXT,
             image_count INTEGER,
             is_presale BOOLEAN DEFAULT FALSE,
             released_on TEXT,
@@ -414,6 +415,22 @@ def save_cards_to_db(cards):
         for card in cards:
             if card["name"] and card.get("product_id"):
                 try:
+                    # Get group abbreviation for print_type computation
+                    group_abbreviation = None
+                    if card.get("group_id"):
+                        cursor.execute(
+                            "SELECT abbreviation FROM groups WHERE group_id = ?",
+                            (card["group_id"],),
+                        )
+                        group_result = cursor.fetchone()
+                        if group_result:
+                            group_abbreviation = group_result[0]
+
+                    # Compute print_type
+                    from search import detect_print_type
+
+                    print_type = detect_print_type(group_abbreviation, card["name"])
+
                     # Check if card already exists by product_id
                     cursor.execute(
                         "SELECT id FROM cards WHERE product_id = ?",
@@ -427,7 +444,7 @@ def save_cards_to_db(cards):
                         cursor.execute(
                             """
                             UPDATE cards SET name = ?, clean_name = ?, image_url = ?, card_url = ?, 
-                                           group_id = ?, group_name = ?, image_count = ?, 
+                                           group_id = ?, group_name = ?, print_type = ?, image_count = ?, 
                                            is_presale = ?, released_on = ?, presale_note = ?, modified_on = ?
                             WHERE product_id = ?
                             """,
@@ -438,6 +455,7 @@ def save_cards_to_db(cards):
                                 card.get("card_url", ""),
                                 card.get("group_id"),
                                 card.get("series", ""),
+                                print_type,
                                 card.get("image_count", 0),
                                 card.get("is_presale", False),
                                 card.get("released_on", ""),
@@ -452,9 +470,9 @@ def save_cards_to_db(cards):
                         cursor.execute(
                             """
                             INSERT INTO cards (product_id, name, clean_name, image_url, card_url, game, 
-                                             category_id, group_id, group_name, image_count, 
+                                             category_id, group_id, group_name, print_type, image_count, 
                                              is_presale, released_on, presale_note, modified_on)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 card["product_id"],
@@ -466,6 +484,7 @@ def save_cards_to_db(cards):
                                 card.get("category_id", 81),
                                 card.get("group_id"),
                                 card.get("series", ""),
+                                print_type,
                                 card.get("image_count", 0),
                                 card.get("is_presale", False),
                                 card.get("released_on", ""),

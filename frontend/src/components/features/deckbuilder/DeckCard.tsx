@@ -52,7 +52,7 @@ export function DeckCard({
 
   return (
     <div 
-      className={`${baseClasses} p-4 ${className}`}
+      className={`${baseClasses} p-3 ${className}`}
       onClick={handleCardClick}
       role="button"
       tabIndex={0}
@@ -108,25 +108,15 @@ export function DeckCard({
 
       {/* Card Info */}
       <div className="space-y-2">
-        {/* Card Name */}
-        <h3 className="font-semibold text-white text-sm leading-tight h-8 flex items-center group-hover:text-blue-300 transition-colors duration-200">
-          <span className="line-clamp-2">{card.name}</span>
-        </h3>
-
-        {/* Price */}
-        {showPrices && (
-          <div className="pt-2 border-t border-white/10">
-            <div className="text-xs">
-              <span className="text-white">Price:</span>
-              <span className="ml-1 text-white font-medium">
-                {card.price ? `$${card.price.toFixed(2)}` : 'N/A'}
-              </span>
-            </div>
-          </div>
-        )}
+        {/* Card Name - No price for deck cards */}
+        <div className="h-12 flex items-center">
+          <h3 className="font-semibold text-white text-sm leading-tight group-hover:text-blue-300 transition-colors duration-200 line-clamp-2">
+            {card.name}
+          </h3>
+        </div>
 
         {/* Quantity Control */}
-        <div className="pt-2">
+        <div className="pt-1">
           <QuantityControl 
             card={card} 
             size="sm" 

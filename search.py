@@ -6,10 +6,12 @@ from flask import request, jsonify
 from database import get_db_connection
 
 
-def detect_print_type(abbreviation):
-    """Automatically detect print type from group abbreviation"""
+def detect_print_type(abbreviation, card_name=None):
+    """Automatically detect print type from group abbreviation and card name"""
     if not abbreviation:
         return "Unknown"
+    elif card_name and "Box Topper Foil" in card_name:
+        return "Box Topper Foil"
     elif abbreviation.endswith("_PRE"):
         return "Pre-Release Starter"
     elif abbreviation.endswith("_RE"):
@@ -34,6 +36,7 @@ def handle_api_search():
     sort_by = request.args.get("sort", "")
     anime = request.args.get("anime", "").strip()  # For series filtering
     color = request.args.get("color", "").strip()  # For color filtering
+    card_type = request.args.get("cardType", "").strip()  # For card type filtering
 
     # Build base query with group name
     base_query = "FROM cards c LEFT JOIN groups g ON c.group_id = g.group_id"
@@ -60,6 +63,13 @@ def handle_api_search():
             "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'ActivationEnergy') = ?"
         )
         params.append(color)
+
+    # Handle card type filter
+    if card_type:
+        where_conditions.append(
+            "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'CardType') = ?"
+        )
+        params.append(card_type)
 
     # Handle print type filter
     print_type = request.args.get("print_type", "")
@@ -98,26 +108,10 @@ def handle_api_search():
         values = request.args.getlist(field)
         if values:
             if field == "PrintType":
-                # Special handling for PrintType - use the same logic as the print_type parameter
-                print_type_conditions = []
-                for value in values:
-                    if value == "Base":
-                        print_type_conditions.append(
-                            "g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR'"
-                        )
-                    elif value == "Pre-Release":
-                        print_type_conditions.append("g.abbreviation LIKE '%_RE'")
-                    elif value == "Starter Deck":
-                        print_type_conditions.append(
-                            "g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE'"
-                        )
-                    elif value == "Pre-Release Starter":
-                        print_type_conditions.append("g.abbreviation LIKE '%_PRE'")
-                    elif value == "Promotion":
-                        print_type_conditions.append("g.abbreviation = 'UEPR'")
-
-                if print_type_conditions:
-                    where_conditions.append(f"({' OR '.join(print_type_conditions)})")
+                # Use database print_type column for filtering
+                placeholders = ",".join(["?" for _ in values])
+                where_conditions.append(f"c.print_type IN ({placeholders})")
+                params.extend(values)
             else:
                 # Regular field handling
                 placeholders = ",".join(["?" for _ in values])
@@ -139,21 +133,9 @@ def handle_api_search():
                 value = filter_obj.get("value")
                 if field and value:
                     if field == "PrintType":
-                        # Use the same PrintType logic as above
-                        if value == "Base":
-                            where_conditions.append(
-                                "g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR'"
-                            )
-                        elif value == "Pre-Release":
-                            where_conditions.append("g.abbreviation LIKE '%_RE'")
-                        elif value == "Starter Deck":
-                            where_conditions.append(
-                                "g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE'"
-                            )
-                        elif value == "Pre-Release Starter":
-                            where_conditions.append("g.abbreviation LIKE '%_PRE'")
-                        elif value == "Promotion":
-                            where_conditions.append("g.abbreviation = 'UEPR'")
+                        # Use database print_type column for filtering
+                        where_conditions.append("c.print_type = ?")
+                        params.append(value)
                     else:
                         # Regular field handling
                         where_conditions.append(
@@ -174,21 +156,9 @@ def handle_api_search():
                 value = filter_obj.get("value")
                 if field and value:
                     if field == "PrintType":
-                        # Use the same PrintType logic as above
-                        if value == "Base":
-                            or_conditions.append(
-                                "(g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR')"
-                            )
-                        elif value == "Pre-Release":
-                            or_conditions.append("(g.abbreviation LIKE '%_RE')")
-                        elif value == "Starter Deck":
-                            or_conditions.append(
-                                "(g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE')"
-                            )
-                        elif value == "Pre-Release Starter":
-                            or_conditions.append("(g.abbreviation LIKE '%_PRE')")
-                        elif value == "Promotion":
-                            or_conditions.append("(g.abbreviation = 'UEPR')")
+                        # Use database print_type column for filtering
+                        or_conditions.append("(c.print_type = ?)")
+                        params.append(value)
                     else:
                         # Regular field handling
                         or_conditions.append(
@@ -210,21 +180,9 @@ def handle_api_search():
                 value = filter_obj.get("value")
                 if field and value:
                     if field == "PrintType":
-                        # Use the same PrintType logic as above but negated
-                        if value == "Base":
-                            where_conditions.append(
-                                "NOT (g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR')"
-                            )
-                        elif value == "Pre-Release":
-                            where_conditions.append("NOT (g.abbreviation LIKE '%_RE')")
-                        elif value == "Starter Deck":
-                            where_conditions.append(
-                                "NOT (g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE')"
-                            )
-                        elif value == "Pre-Release Starter":
-                            where_conditions.append("NOT (g.abbreviation LIKE '%_PRE')")
-                        elif value == "Promotion":
-                            where_conditions.append("NOT (g.abbreviation = 'UEPR')")
+                        # Use database print_type column for filtering
+                        where_conditions.append("NOT (c.print_type = ?)")
+                        params.append(value)
                     else:
                         # Regular field handling
                         where_conditions.append(
@@ -314,7 +272,7 @@ def handle_api_search():
             "group_id": card.get("group_id", 0),
             "group_name": card.get("group_name"),
             "group_abbreviation": card.get("group_abbreviation"),
-            "print_type": detect_print_type(card.get("group_abbreviation")),
+            "print_type": card.get("print_type", "Unknown"),
             "image_count": card.get("image_count", 0),
             "is_presale": card.get("is_presale", False),
             "released_on": card.get("released_on", ""),
@@ -471,3 +429,19 @@ def handle_filter_values(field, game=None):
             return jsonify(raw_values)
 
     return jsonify(raw_values)
+
+
+def get_print_type_values():
+    """Get unique print type values from the database"""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    try:
+        query = "SELECT DISTINCT print_type FROM cards WHERE print_type IS NOT NULL AND print_type != '' ORDER BY print_type"
+        cursor.execute(query)
+        values = [row[0] for row in cursor.fetchall()]
+        return jsonify(values)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        conn.close()

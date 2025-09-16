@@ -53,9 +53,9 @@ export function SearchCard({
   `;
 
   const variantClasses = {
-    default: 'p-4',
-    compact: 'p-3',
-    detailed: 'p-6',
+    default: 'p-3',
+    compact: 'p-2',
+    detailed: 'p-4',
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
@@ -133,25 +133,24 @@ export function SearchCard({
 
       {/* Card Info */}
       <div className="space-y-2">
-        {/* Card Name */}
-        <h3 className="font-semibold text-white text-sm leading-tight h-8 flex items-center group-hover:text-blue-300 transition-colors duration-200">
-          <span className="line-clamp-2">{card.name}</span>
-        </h3>
-
-        {/* Price */}
-        {showPrices && (
-          <div className="pt-2 border-t border-white/10">
-            <div className="text-xs">
-              <span className="text-white">Price:</span>
-              <span className="ml-1 text-white font-medium">
+        {/* Card Name and Price - Simple 3-line layout */}
+        <div className="h-12 flex flex-col justify-between">
+          {/* Name gets 2 lines */}
+          <h3 className="font-semibold text-white text-sm leading-tight group-hover:text-blue-300 transition-colors duration-200 line-clamp-2">
+            {card.name}
+          </h3>
+          {/* Price gets its own line */}
+          {showPrices && (
+            <div className="flex justify-end">
+              <span className="text-xs text-white/70 font-medium">
                 {formatPrice(card.price)}
               </span>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Action Buttons */}
-        <div className="pt-2 space-y-2">
+        <div className="pt-1 space-y-2">
           {onAddToDeck ? (() => {
             // Deck builder context - use card.quantity to determine if it's in deck
             const isInDeck = (card.quantity || 0) > 0;

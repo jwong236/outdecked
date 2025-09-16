@@ -21,12 +21,14 @@ export function SearchGrid({
   showPrices = true,
   showRarity = true,
   priority = false,
+  gridSize = 'compact', // Use compact grid for better space efficiency
   ...baseProps
 }: SearchGridProps) {
   return (
     <BaseCardGrid
       {...baseProps}
       cards={cards}
+      gridSize={gridSize}
     >
       {(card, index) => (
         <SearchCard

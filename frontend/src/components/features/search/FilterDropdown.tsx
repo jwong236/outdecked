@@ -37,6 +37,7 @@ export function FilterDropdown({
   const [mounted, setMounted] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number; width: number } | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -44,9 +45,31 @@ export function FilterDropdown({
 
   useEffect(() => {
     if (isOpen && buttonRef.current) {
-      setButtonRect(buttonRef.current.getBoundingClientRect());
+      const rect = buttonRef.current.getBoundingClientRect();
+      setButtonRect(rect);
+      
+      // Calculate optimal dropdown position
+      const viewportHeight = window.innerHeight;
+      const dropdownHeight = Math.min(384, options.length * 40 + 16); // max-h-96 = 384px, estimate 40px per option + padding
+      const spaceBelow = viewportHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      
+      let top: number;
+      if (spaceBelow >= dropdownHeight || spaceBelow >= spaceAbove) {
+        // Position below the button
+        top = rect.bottom + 4;
+      } else {
+        // Position above the button
+        top = rect.top - dropdownHeight - 4;
+      }
+      
+      setDropdownPosition({
+        top: Math.max(8, Math.min(top, viewportHeight - dropdownHeight - 8)), // Keep 8px margin from viewport edges
+        left: rect.left,
+        width: rect.width,
+      });
     }
-  }, [isOpen]);
+  }, [isOpen, options.length]);
 
   // Close dropdown when clicking outside, scrolling, or when another dropdown button is clicked
   useEffect(() => {
@@ -127,13 +150,13 @@ export function FilterDropdown({
           </span>
         </button>
 
-        {mounted && isOpen && buttonRect && createPortal(
+        {mounted && isOpen && dropdownPosition && createPortal(
           <div 
             className="fixed z-50 rounded-lg bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 filter-dropdown filter-dropdown-options max-h-96 overflow-y-auto"
             style={{
-              top: buttonRect.bottom + 4,
-              left: buttonRect.left,
-              width: buttonRect.width,
+              top: dropdownPosition.top,
+              left: dropdownPosition.left,
+              width: dropdownPosition.width,
             }}
           >
             {options.map((option) => {

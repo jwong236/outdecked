@@ -102,24 +102,24 @@ export default function HomePage() {
 
         <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
           <CogIcon className="h-12 w-12 text-red-400 mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">Admin Panel</h3>
+          <h3 className="text-xl font-semibold text-white mb-2">More Features</h3>
           <p className="text-gray-200">
-            Manage your database and configure system settings.
+            Additional features and tools are coming soon to enhance your deck building experience.
           </p>
-          <Link href="/admin" className="text-red-400 hover:text-red-300 mt-4 inline-block">
-            Admin Panel →
-          </Link>
+          <div className="text-red-400 mt-4 inline-block">
+            Coming Soon →
+          </div>
         </div>
 
         <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6">
           <ArrowDownTrayIcon className="h-12 w-12 text-indigo-400 mb-4" />
-          <h3 className="text-xl font-semibold text-white mb-2">Card Scraping</h3>
+          <h3 className="text-xl font-semibold text-white mb-2">More Tools</h3>
           <p className="text-gray-200">
-            Update your card database with the latest TCGPlayer data.
+            Advanced tools and utilities are in development to provide even more functionality.
           </p>
-          <Link href="/scraping" className="text-indigo-400 hover:text-indigo-300 mt-4 inline-block">
-            Scrape Cards →
-          </Link>
+          <div className="text-indigo-400 mt-4 inline-block">
+            Coming Soon →
+          </div>
         </div>
       </div>
 
