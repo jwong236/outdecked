@@ -5,7 +5,7 @@ import { Card } from '@/types/card';
 import { CartGrid } from '@/features/cart/CartGrid';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
-import { dataManager, Deck, HandItem } from '../../lib/dataManager';
+import { dataManager, Deck, HandItem } from '@/lib/dataManager';
 import { useAuth } from '@/features/auth/AuthContext';
 
 export function CartPage() {

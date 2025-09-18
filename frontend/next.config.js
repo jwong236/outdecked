@@ -2,7 +2,7 @@
 const path = require('path');
 
 const nextConfig = {
-  // output: 'export', // Temporarily disabled for deployment
+  output: 'export', // Static export for Flask serving
   trailingSlash: true,
   eslint: {
     ignoreDuringBuilds: true,
@@ -24,7 +24,7 @@ const nextConfig = {
   webpack: (config, { isServer }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      '@': path.resolve(process.cwd(), 'src'),
+      '@': path.resolve(__dirname, 'src'),
     };
     config.resolve.extensions = ['.js', '.jsx', '.ts', '.tsx', '.json'];
     config.resolve.fallback = {
