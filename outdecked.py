@@ -88,140 +88,34 @@ logger = logging.getLogger(__name__)
 # Routes
 @app.route("/")
 def index():
-    """Serve the main page"""
-    html = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>OutDecked - TCG Deck Builder</title>
-        <style>
-            body {
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-                margin: 0;
-                padding: 0;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-            }
-            .container {
-                text-align: center;
-                max-width: 800px;
-                padding: 2rem;
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 20px;
-                backdrop-filter: blur(10px);
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-            }
-            h1 {
-                font-size: 3rem;
-                margin-bottom: 1rem;
-                text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
-            }
-            .subtitle {
-                font-size: 1.2rem;
-                margin-bottom: 2rem;
-                opacity: 0.9;
-            }
-            .status {
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 15px;
-                padding: 1.5rem;
-                margin: 2rem 0;
-            }
-            .api-status {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin: 1rem 0;
-                padding: 0.5rem;
-                background: rgba(255, 255, 255, 0.05);
-                border-radius: 10px;
-            }
-            .status-indicator {
-                width: 12px;
-                height: 12px;
-                background: #4ade80;
-                border-radius: 50%;
-                box-shadow: 0 0 10px #4ade80;
-            }
-            .coming-soon {
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 15px;
-                padding: 1.5rem;
-                margin: 2rem 0;
-            }
-            a {
-                color: #60a5fa;
-                text-decoration: none;
-            }
-            a:hover {
-                text-decoration: underline;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>🃏 OutDecked</h1>
-            <p class="subtitle">TCG Deck Builder & Card Management System</p>
-            
-            <div class="status">
-                <h2>🚀 Backend API Status</h2>
-                <div class="api-status">
-                    <span>Flask Backend</span>
-                    <div class="status-indicator"></div>
-                </div>
-                <div class="api-status">
-                    <span>Database Connection</span>
-                    <div class="status-indicator"></div>
-                </div>
-                <div class="api-status">
-                    <span>API Endpoints</span>
-                    <div class="status-indicator"></div>
-                </div>
-            </div>
-            
-            <div class="coming-soon">
-                <h3>🎯 Next.js Frontend Coming Soon</h3>
-                <p>The backend API is ready and functional!</p>
-                <p>Health Check: <a href="/health">/health</a></p>
-                <p>API Endpoints: <a href="/api">/api</a></p>
-            </div>
-            
-            <div style="margin-top: 2rem; opacity: 0.8;">
-                <p>Built with Flask & Python | Deployed on Google Cloud Run</p>
-            </div>
-        </div>
-    </body>
-    </html>
-    """
-    return html
+    """Serve the Next.js frontend"""
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/<path:path>")
 def serve_frontend(path):
-    """Handle other routes"""
+    """Serve Next.js static files and routes"""
     # Handle API routes - let them go to Flask
     if path.startswith("api/"):
         return "API route not found", 404
-    
-    # For any other route, redirect to main page
-    return redirect(url_for('index'))
+
+    # Try to serve static files first
+    try:
+        return send_from_directory("frontend", path)
+    except FileNotFoundError:
+        # For client-side routing, serve index.html
+        return send_from_directory("frontend", "index.html")
 
 
 @app.route("/admin")
 def admin():
     """Admin route"""
-    return redirect(url_for('index'))
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/scraping")
 def scraping():
-    return redirect(url_for('index'))
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/api/start-scraping", methods=["POST"])
@@ -386,7 +280,7 @@ def get_scraping_status():
 
 @app.route("/deckbuilder")
 def deckbuilder():
-    return redirect(url_for('index'))
+    return send_from_directory("frontend", "index.html")
 
 
 # Deck Builder API Routes
@@ -437,12 +331,12 @@ def get_validation_rules():
 
 @app.route("/proxy-printer")
 def proxy_printer():
-    return redirect(url_for('index'))
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/cart")
 def cart():
-    return redirect(url_for('index'))
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/search")
