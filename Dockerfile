@@ -1,4 +1,23 @@
-# Use Python 3.11 slim image
+# Multi-stage build for Next.js frontend + Flask backend
+
+# Stage 1: Build Next.js frontend
+FROM node:18-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Copy package files
+COPY frontend/package*.json ./
+
+# Install dependencies
+RUN npm ci --only=production
+
+# Copy frontend source
+COPY frontend/ .
+
+# Build the Next.js application
+RUN npm run build
+
+# Stage 2: Python backend with built frontend
 FROM python:3.11-slim
 
 # Set working directory
@@ -12,6 +31,7 @@ RUN apt-get update && apt-get install -y \
     libxslt-dev \
     libffi-dev \
     libssl-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching
@@ -20,8 +40,12 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy Python application code
+COPY *.py ./
+COPY models.py ./
+
+# Copy built Next.js frontend from previous stage
+COPY --from=frontend-builder /app/frontend/out /app/frontend/
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app \

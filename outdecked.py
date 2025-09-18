@@ -3,7 +3,7 @@ OutDecked - Card Management Web Application
 Main Flask application with routes and business logic.
 """
 
-from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, send_from_directory
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 import os
@@ -80,12 +80,29 @@ logger = logging.getLogger(__name__)
 # Routes
 @app.route("/")
 def index():
-    return render_template("home.html")
+    """Serve the Next.js frontend"""
+    return send_from_directory('frontend', 'index.html')
+
+
+@app.route("/<path:path>")
+def serve_frontend(path):
+    """Serve Next.js static files and routes"""
+    # Handle API routes - let them go to Flask
+    if path.startswith('api/'):
+        return "API route not found", 404
+    
+    # Try to serve static files first
+    try:
+        return send_from_directory('frontend', path)
+    except FileNotFoundError:
+        # For client-side routing, serve index.html
+        return send_from_directory('frontend', 'index.html')
 
 
 @app.route("/admin")
 def admin():
-    return render_template("admin.html")
+    """Legacy admin route - redirect to frontend"""
+    return send_from_directory('frontend', 'index.html')
 
 
 @app.route("/scraping")
