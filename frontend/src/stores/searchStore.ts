@@ -4,6 +4,7 @@ import { SearchFilters, FilterOption } from '@/types/card';
 interface SearchState {
   // Search state
   filters: SearchFilters;
+  defaultFilters: FilterOption[];
   isLoading: boolean;
   error: string | null;
   
@@ -26,6 +27,12 @@ interface SearchState {
   removeNotFilter: (index: number) => void;
   clearAllFilters: () => void;
   
+  // Default filter management
+  addDefaultFilter: (filter: FilterOption) => void;
+  removeDefaultFilter: (filter: FilterOption) => void;
+  clearDefaultFilters: () => void;
+  setDefaultFilters: (filters: FilterOption[]) => void;
+  
   // URL synchronization
   initializeFromUrl: (urlFilters: Partial<SearchFilters>) => void;
   
@@ -45,79 +52,82 @@ const initialFilters: SearchFilters = {
   series: '',
   color: '',
   cardType: '',
-  sort: 'required_energy_asc',
+  sort: 'required_energy_desc',
   page: 1,
-  per_page: 24,
-  and_filters: [
-    {
-      type: 'and',
-      field: 'PrintType',
-      value: 'Base',
-      displayText: 'PrintType: Base',
-    }
-  ],
+  per_page: 25,
+  and_filters: [],
   or_filters: [],
-  not_filters: [
-    {
-      type: 'not',
-      field: 'CardType',
-      value: 'Action Point',
-      displayText: 'CardType: Action Point',
-    },
-    // Base Rarity Only filters - exclude all non-base rarities
-    {
-      type: 'not',
-      field: 'Rarity',
-      value: 'Common 1-Star',
-      displayText: 'Rarity: Common 1-Star',
-    },
-    {
-      type: 'not',
-      field: 'Rarity',
-      value: 'Rare 1-Star',
-      displayText: 'Rarity: Rare 1-Star',
-    },
-    {
-      type: 'not',
-      field: 'Rarity',
-      value: 'Rare 2-Star',
-      displayText: 'Rarity: Rare 2-Star',
-    },
-    {
-      type: 'not',
-      field: 'Rarity',
-      value: 'Super Rare 1-Star',
-      displayText: 'Rarity: Super Rare 1-Star',
-    },
-    {
-      type: 'not',
-      field: 'Rarity',
-      value: 'Super Rare 2-Star',
-      displayText: 'Rarity: Super Rare 2-Star',
-    },
-    {
-      type: 'not',
-      field: 'Rarity',
-      value: 'Super Rare 3-Star',
-      displayText: 'Rarity: Super Rare 3-Star',
-    },
-    {
-      type: 'not',
-      field: 'Rarity',
-      value: 'Uncommon 1-Star',
-      displayText: 'Rarity: Uncommon 1-Star',
-    },
-    {
-      type: 'not',
-      field: 'Rarity',
-      value: 'Union Rare',
-      displayText: 'Rarity: Union Rare',
-    }
-  ],
+  not_filters: [],
 };
+
+// Base default filters that should always be present
+const baseDefaultFilters = [
+  {
+    type: 'and',
+    field: 'PrintType',
+    value: 'Base',
+    displayText: 'PrintType: Base',
+  },
+  {
+    type: 'not',
+    field: 'CardType',
+    value: 'Action Point',
+    displayText: 'CardType: Action Point',
+  },
+  // Base Rarity Only filters - exclude all non-base rarities
+  {
+    type: 'not',
+    field: 'Rarity',
+    value: 'Common 1-Star',
+    displayText: 'Rarity: Common 1-Star',
+  },
+  {
+    type: 'not',
+    field: 'Rarity',
+    value: 'Rare 1-Star',
+    displayText: 'Rarity: Rare 1-Star',
+  },
+  {
+    type: 'not',
+    field: 'Rarity',
+    value: 'Rare 2-Star',
+    displayText: 'Rarity: Rare 2-Star',
+  },
+  {
+    type: 'not',
+    field: 'Rarity',
+    value: 'Super Rare 1-Star',
+    displayText: 'Rarity: Super Rare 1-Star',
+  },
+  {
+    type: 'not',
+    field: 'Rarity',
+    value: 'Super Rare 2-Star',
+    displayText: 'Rarity: Super Rare 2-Star',
+  },
+  {
+    type: 'not',
+    field: 'Rarity',
+    value: 'Super Rare 3-Star',
+    displayText: 'Rarity: Super Rare 3-Star',
+  },
+  {
+    type: 'not',
+    field: 'Rarity',
+    value: 'Uncommon 1-Star',
+    displayText: 'Rarity: Uncommon 1-Star',
+  },
+  {
+    type: 'not',
+    field: 'Rarity',
+    value: 'Union Rare',
+    displayText: 'Rarity: Union Rare',
+  }
+];
 
 export const useSearchStore = create<SearchState>((set) => ({
   filters: initialFilters,
+  defaultFilters: baseDefaultFilters,
   isLoading: false,
   error: null,
 
@@ -151,6 +161,7 @@ export const useSearchStore = create<SearchState>((set) => ({
       return { 
         filters: { 
           ...state.filters, 
+          series: series,  // Update the series field
           and_filters: newAndFilters,
           page: 1 
         } 
@@ -159,15 +170,15 @@ export const useSearchStore = create<SearchState>((set) => ({
 
   setColor: (color: string) => 
     set((state) => {
-      // Remove existing Color AND filters
-      const filteredAndFilters = state.filters.and_filters.filter(f => f.field !== 'Color');
+      // Remove existing ActivationEnergy AND filters
+      const filteredAndFilters = state.filters.and_filters.filter(f => f.field !== 'ActivationEnergy');
       
-      // Add new Color AND filter if color is selected
+      // Add new ActivationEnergy AND filter if color is selected
       const newAndFilters = color ? [
         ...filteredAndFilters,
         {
           type: 'and' as const,
-          field: 'Color',
+          field: 'ActivationEnergy',
           value: color,
           displayText: `Color: ${color}`,
         }
@@ -176,6 +187,7 @@ export const useSearchStore = create<SearchState>((set) => ({
       return { 
         filters: { 
           ...state.filters, 
+          color: color,  // Update the color field
           and_filters: newAndFilters,
           page: 1 
         } 
@@ -201,6 +213,7 @@ export const useSearchStore = create<SearchState>((set) => ({
       return { 
         filters: { 
           ...state.filters, 
+          cardType: cardType,  // Update the cardType field
           and_filters: newAndFilters,
           page: 1 
         } 
@@ -317,6 +330,25 @@ export const useSearchStore = create<SearchState>((set) => ({
   },
 
   // Reset
+  // Default filter management
+  addDefaultFilter: (filter: FilterOption) =>
+    set((state) => ({
+      defaultFilters: [...state.defaultFilters, filter]
+    })),
+
+  removeDefaultFilter: (filter: FilterOption) =>
+    set((state) => ({
+      defaultFilters: state.defaultFilters.filter(
+        f => !(f.field === filter.field && f.value === filter.value && f.type === filter.type)
+      )
+    })),
+
+  clearDefaultFilters: () =>
+    set({ defaultFilters: [] }),
+
+  setDefaultFilters: (filters: FilterOption[]) =>
+    set({ defaultFilters: filters }),
+
   resetFilters: () => set({ filters: initialFilters, error: null }),
 }));
 
@@ -329,7 +361,7 @@ export const getCurrentSeries = () => {
 
 export const getCurrentColor = () => {
   const state = useSearchStore.getState();
-  const colorFilter = state.filters.and_filters.find(f => f.field === 'Color');
+  const colorFilter = state.filters.and_filters.find(f => f.field === 'ActivationEnergy');
   return colorFilter ? colorFilter.value : '';
 };
 

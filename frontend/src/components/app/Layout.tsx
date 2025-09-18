@@ -1,7 +1,7 @@
 'use client';
 
 import { Navigation } from './Navigation';
-import { useBackground } from '@/contexts/BackgroundContext';
+import { useBackground } from '@/components/shared/BackgroundContext';
 
 interface LayoutProps {
   children: React.ReactNode;
