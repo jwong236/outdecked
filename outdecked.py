@@ -80,29 +80,14 @@ logger = logging.getLogger(__name__)
 # Routes
 @app.route("/")
 def index():
-    """Serve the Next.js frontend"""
-    return send_from_directory('frontend', 'index.html')
-
-
-@app.route("/<path:path>")
-def serve_frontend(path):
-    """Serve Next.js static files and routes"""
-    # Handle API routes - let them go to Flask
-    if path.startswith('api/'):
-        return "API route not found", 404
-    
-    # Try to serve static files first
-    try:
-        return send_from_directory('frontend', path)
-    except FileNotFoundError:
-        # For client-side routing, serve index.html
-        return send_from_directory('frontend', 'index.html')
+    """Serve the main page"""
+    return render_template("index.html")
 
 
 @app.route("/admin")
 def admin():
-    """Legacy admin route - redirect to frontend"""
-    return send_from_directory('frontend', 'index.html')
+    """Admin route"""
+    return render_template("index.html")
 
 
 @app.route("/scraping")
