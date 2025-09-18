@@ -3,7 +3,7 @@ OutDecked - Card Management Web Application
 Main Flask application with routes and business logic.
 """
 
-from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, send_from_directory
+from flask import Flask, request, jsonify, send_file, redirect, url_for
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 import os
@@ -80,14 +80,14 @@ logger = logging.getLogger(__name__)
 # Routes
 @app.route("/")
 def index():
-    """Serve the main page"""
-    return render_template("index.html")
+    """Serve the main page - redirect to health for now"""
+    return redirect(url_for('health'))
 
 
 @app.route("/admin")
 def admin():
     """Admin route"""
-    return render_template("index.html")
+    return redirect(url_for('health'))
 
 
 @app.route("/scraping")
