@@ -8,21 +8,42 @@ const exampleCard: Card = {
   name: 'Monkey D. Luffy - Captain of the Straw Hat Pirates',
   card_url: 'https://example.com/luffy',
   image_url: 'https://example.com/luffy.jpg',
-  quantity: 0,
-  price: 15.99,
-  rarity: 'Super Rare',
   clean_name: 'Luffy',
-  // Add other required properties
-} as Card;
+  product_id: 12345,
+  game: 'One Piece',
+  category_id: 1,
+  group_id: 1,
+  image_count: 1,
+  is_presale: false,
+  released_on: '2023-01-01',
+  presale_note: '',
+  modified_on: '2023-01-01',
+  price: 15.99,
+  low_price: 10.00,
+  mid_price: 15.99,
+  high_price: 20.00,
+  created_at: '2023-01-01T00:00:00Z',
+  // Dynamic attributes
+  SeriesName: 'Starter Deck',
+  Rarity: 'Super Rare',
+  Number: '001',
+  CardType: 'Character',
+  RequiredEnergy: '3',
+  ActionPointCost: '2',
+  ActivationEnergy: 'Red',
+  Description: 'This card has a special effect',
+  GeneratedEnergy: '1',
+  BattlePointBP: '5000',
+  Trigger: 'None',
+  Affinities: 'Straw Hat Pirates',
+};
 
 const exampleCardInDeck: Card = {
   ...exampleCard,
-  quantity: 2,
 };
 
 const exampleCardInHand: Card = {
   ...exampleCard,
-  quantity: 3,
 };
 
 // Example usage patterns
