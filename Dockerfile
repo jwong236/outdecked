@@ -43,6 +43,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY *.py ./
 COPY models.py ./
 
+# Copy existing database (if it exists)
+COPY cards.db* ./
+
+# Copy startup script
+COPY start.sh ./
+RUN chmod +x start.sh
+
 # Copy built Next.js frontend from previous stage
 COPY --from=frontend-builder /app/frontend/out /app/frontend/
 
@@ -63,5 +70,5 @@ ENV PORT=8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Run both Flask and Next.js
-CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 outdecked:app
+# Run startup script
+CMD ["./start.sh"]

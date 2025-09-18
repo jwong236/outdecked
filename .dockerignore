@@ -35,8 +35,8 @@ Thumbs.db
 # Logs
 *.log
 
-# Database (will be created in container)
-cards.db
+# Database (will be created in container if not provided)
+# cards.db
 
 # Static demo files
 netlify-static/

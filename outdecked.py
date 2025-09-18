@@ -99,12 +99,24 @@ def serve_frontend(path):
     if path.startswith("api/"):
         return "API route not found", 404
 
-    # Try to serve static files first
-    try:
-        return send_from_directory("frontend", path)
-    except FileNotFoundError:
-        # For client-side routing, serve index.html
-        return send_from_directory("frontend", "index.html")
+    # Clean up the path
+    clean_path = path.rstrip("/")
+
+    # Try different variations of the path
+    paths_to_try = [
+        path,  # Original path
+        f"{clean_path}/index.html",  # Directory with index.html
+        clean_path,  # Path without trailing slash
+    ]
+
+    for try_path in paths_to_try:
+        try:
+            return send_from_directory("frontend", try_path)
+        except FileNotFoundError:
+            continue
+
+    # If nothing works, serve the main index.html for client-side routing
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/admin")
@@ -340,50 +352,15 @@ def cart():
 
 
 @app.route("/search")
-def search_cards():
-    query = request.args.get("q", "").strip()
-    game_filter = request.args.get("game", "")
+@app.route("/search/")
+def search():
+    try:
+        return send_from_directory("frontend", "search/index.html")
+    except FileNotFoundError:
+        return send_from_directory("frontend", "index.html")
 
-    conn = get_db_connection()
 
-    if query:
-        if game_filter:
-            cursor = conn.execute(
-                """
-                SELECT * FROM cards 
-                WHERE name LIKE ? AND game = ?
-                ORDER BY name
-            """,
-                (f"%{query}%", game_filter),
-            )
-        else:
-            cursor = conn.execute(
-                """
-                SELECT * FROM cards 
-                WHERE name LIKE ?
-                ORDER BY name
-            """,
-                (f"%{query}%",),
-            )
-    else:
-        if game_filter:
-            cursor = conn.execute(
-                """
-                SELECT * FROM cards 
-                WHERE game = ?
-                ORDER BY name
-            """,
-                (game_filter,),
-            )
-        else:
-            cursor = conn.execute("SELECT * FROM cards ORDER BY name")
-
-    cards = cursor.fetchall()
-    conn.close()
-
-    return render_template(
-        "search.html", cards=cards, query=query, game_filter=game_filter
-    )
+# Legacy search route removed - using Next.js frontend with /api/search endpoint
 
 
 @app.route("/api/search")
@@ -532,6 +509,7 @@ def generate_pdf():
 
 
 @app.route("/api/stats")
+@app.route("/api/stats/")
 def api_stats():
     """API endpoint for basic statistics"""
     conn = get_db_connection()
@@ -673,6 +651,7 @@ def logout():
 
 
 @app.route("/api/auth/me", methods=["GET"])
+@app.route("/api/auth/me/", methods=["GET"])
 def get_current_user():
     """Get current user information"""
     return handle_get_current_user()
@@ -680,12 +659,14 @@ def get_current_user():
 
 # User Management Routes
 @app.route("/api/user/preferences", methods=["GET"])
+@app.route("/api/user/preferences/", methods=["GET"])
 def get_user_preferences():
     """Get user preferences"""
     return handle_get_user_preferences()
 
 
 @app.route("/api/user/preferences", methods=["PUT"])
+@app.route("/api/user/preferences/", methods=["PUT"])
 def update_user_preferences():
     """Update user preferences"""
     return handle_update_user_preferences()

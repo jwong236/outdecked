@@ -10,6 +10,7 @@ import {
   CogIcon,
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
+import { apiConfig } from '../lib/apiConfig';
 
 interface Stats {
   cards: number;
@@ -24,7 +25,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch('/api/stats');
+        const response = await fetch(apiConfig.getApiUrl('/api/stats'));
         if (response.ok) {
           const data = await response.json();
           setStats({
