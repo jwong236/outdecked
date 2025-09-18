@@ -273,7 +273,7 @@ def create_default_owner():
         INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
         VALUES (?, ?, ?, ?, ?)
     """,
-        (user_id, "background-1.jpg", 24, "name", "light"),
+        (user_id, "/backgrounds/background-1.jpg", 24, "name", "light"),
     )
 
     conn.commit()
@@ -317,7 +317,7 @@ def create_test_user():
         INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
         VALUES (?, ?, ?, ?, ?)
     """,
-        (user_id, "background-1.jpg", 24, "name", "light"),
+        (user_id, "/backgrounds/background-1.jpg", 24, "name", "light"),
     )
 
     conn.commit()

@@ -77,7 +77,7 @@ def handle_api_search():
         if print_type == "Base":
             # Base cards are everything that doesn't match special patterns
             where_conditions.append(
-                "g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR'"
+                "g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR' AND c.name NOT LIKE '%Box Topper Foil%'"
             )
         elif print_type == "Pre-Release":
             where_conditions.append("g.abbreviation LIKE '%_RE'")
@@ -90,6 +90,9 @@ def handle_api_search():
         elif print_type == "Promotion":
             # Promotion is only UEPR cards
             where_conditions.append("g.abbreviation = 'UEPR'")
+        elif print_type == "Box Topper Foil":
+            # Box Topper Foil cards have "Box Topper Foil" in their name
+            where_conditions.append("c.name LIKE '%Box Topper Foil%'")
 
     # Handle filters
     filter_fields = [
@@ -363,6 +366,7 @@ def handle_filter_values(field, game=None):
                 "Starter Deck",
                 "Pre-Release Starter",
                 "Promotion",
+                "Box Topper Foil",
             ]
         )
 

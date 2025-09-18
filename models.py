@@ -45,6 +45,9 @@ DECK_TEMPLATE = {
     "total_cards": 0,  # Count of cards in deck
     "is_legal": False,  # Deck validation status
     "description": "",  # Optional deck description
+    "defaultSeries": "",  # Default series for deck
+    "defaultFilters": {},  # Default filter presets
+    "savedDefaultFilters": {},  # Saved filter selections
 }
 
 # Card in deck structure template

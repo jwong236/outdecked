@@ -227,14 +227,13 @@ def handle_register():
 
         user_id = cursor.lastrowid
 
-        # Set default preferences
-        # Create default preferences for new user
+        # Set default preferences using the existing column-based structure
         cursor.execute(
             """
             INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
             VALUES (?, ?, ?, ?, ?)
         """,
-            (user_id, "background-1.jpg", 24, "name", "light"),
+            (user_id, "/backgrounds/background-1.jpg", 24, "name", "light"),
         )
 
         conn.commit()
@@ -397,7 +396,7 @@ def handle_get_user_preferences():
         }
     else:
         preferences = {
-            "background": "background-1.jpg",
+            "background": "/backgrounds/background-1.jpg",
             "cards_per_page": 24,
             "default_sort": "name",
             "theme": "light",
@@ -419,7 +418,7 @@ def handle_update_user_preferences():
     cursor = conn.cursor()
 
     # Update specific columns
-    background = preferences.get("background", "background-1.jpg")
+    background = preferences.get("background", "/backgrounds/background-1.jpg")
     cards_per_page = preferences.get("cards_per_page", 24)
     default_sort = preferences.get("default_sort", "name")
     theme = preferences.get("theme", "light")

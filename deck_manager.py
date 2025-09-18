@@ -33,7 +33,15 @@ class DeckManager:
         """Generate a unique deck ID."""
         return str(uuid.uuid4())
 
-    def create_new_deck(self, name, game="Union Arena", description=""):
+    def create_new_deck(
+        self,
+        name,
+        game="Union Arena",
+        description="",
+        defaultSeries="",
+        defaultFilters=None,
+        savedDefaultFilters=None,
+    ):
         """Create a new empty deck."""
         deck_id = self.generate_deck_id()
         now = datetime.now().isoformat()
@@ -47,6 +55,9 @@ class DeckManager:
                 "created_date": now,
                 "last_modified": now,
                 "description": description,
+                "defaultSeries": defaultSeries,
+                "defaultFilters": defaultFilters or {},
+                "savedDefaultFilters": savedDefaultFilters or {},
             }
         )
 
@@ -232,46 +243,47 @@ class DeckManager:
 
 class AuthenticatedDeckManager(DeckManager):
     """Manages deck storage for authenticated users with database persistence."""
-    
+
     def __init__(self, session, user_id):
         super().__init__(session)
         self.user_id = user_id
-    
+
     def _get_decks_from_database(self):
         """Get all decks from database for the authenticated user."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             cursor.execute(
                 "SELECT deck_id, deck_data FROM user_decks WHERE user_id = ?",
-                (self.user_id,)
+                (self.user_id,),
             )
             results = cursor.fetchall()
-            
+
             decks = {}
             for row in results:
                 # Handle both Row objects and tuples
-                if hasattr(row, 'keys'):
-                    deck_id = row['deck_id']
-                    deck_data = json.loads(row['deck_data'])
+                if hasattr(row, "keys"):
+                    deck_id = row["deck_id"]
+                    deck_data = json.loads(row["deck_data"])
                 else:
                     deck_id = row[0]
                     deck_data = json.loads(row[1])
                 decks[deck_id] = deck_data
-            
+
+            print(f"Returning {len(decks)} decks from database")
             return decks
         except Exception as e:
             print(f"Error loading decks from database: {e}")
             return {}
         finally:
             conn.close()
-    
+
     def _save_deck_to_database(self, deck_data):
         """Save a single deck to the database."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
             deck_json = json.dumps(deck_data)
             cursor.execute(
@@ -279,7 +291,7 @@ class AuthenticatedDeckManager(DeckManager):
                 INSERT OR REPLACE INTO user_decks (user_id, deck_id, deck_data, updated_at)
                 VALUES (?, ?, ?, datetime('now'))
                 """,
-                (self.user_id, deck_data['id'], deck_json)
+                (self.user_id, deck_data["id"], deck_json),
             )
             conn.commit()
         except Exception as e:
@@ -287,43 +299,69 @@ class AuthenticatedDeckManager(DeckManager):
             conn.rollback()
         finally:
             conn.close()
-    
+
     def _delete_deck_from_database(self, deck_id):
         """Delete a deck from the database."""
         conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         try:
+            # First, check if the deck exists
+            cursor.execute(
+                "SELECT COUNT(*) FROM user_decks WHERE user_id = ? AND deck_id = ?",
+                (self.user_id, deck_id),
+            )
+            count_before = cursor.fetchone()[0]
+            print(
+                f"Deck count before deletion: {count_before} for deck_id {deck_id}, user_id {self.user_id}"
+            )
+
+            # Now delete the deck
             cursor.execute(
                 "DELETE FROM user_decks WHERE user_id = ? AND deck_id = ?",
-                (self.user_id, deck_id)
+                (self.user_id, deck_id),
             )
+            rows_affected = cursor.rowcount
             conn.commit()
+
+            print(
+                f"Deleted {rows_affected} rows for deck_id {deck_id}, user_id {self.user_id}"
+            )
+
+            # Check count after deletion
+            cursor.execute(
+                "SELECT COUNT(*) FROM user_decks WHERE user_id = ? AND deck_id = ?",
+                (self.user_id, deck_id),
+            )
+            count_after = cursor.fetchone()[0]
+            print(f"Deck count after deletion: {count_after}")
+
         except Exception as e:
             print(f"Error deleting deck from database: {e}")
             conn.rollback()
+            raise e  # Re-raise the exception so the calling code knows it failed
         finally:
             conn.close()
-    
+
     def _get_decks_from_storage(self):
         """Get all decks from database (primary) and session (fallback)."""
         # Try database first
         db_decks = self._get_decks_from_database()
         if db_decks:
             return db_decks
-        
+
         # Fallback to session storage
         return super()._get_decks_from_storage()
-    
+
     def _save_decks_to_storage(self, decks):
         """Save all decks to both database and session storage."""
         # Save to database
         for deck_data in decks.values():
             self._save_deck_to_database(deck_data)
-        
+
         # Also save to session as backup
         super()._save_decks_to_storage(decks)
-    
+
     def save_deck(self, deck_data):
         """Save a deck to both database and session storage."""
         if not deck_data.get("id"):
@@ -339,31 +377,87 @@ class AuthenticatedDeckManager(DeckManager):
 
         # Save to database
         self._save_deck_to_database(deck_data)
-        
+
         # Also save to session storage as backup
         decks = super()._get_decks_from_storage()
         decks[deck_data["id"]] = deck_data
         super()._save_decks_to_storage(decks)
 
         return deck_data
-    
+
+    def get_all_decks(self):
+        """Get all saved decks from database."""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT deck_data FROM user_decks WHERE user_id = ?", (self.user_id,)
+            )
+            results = cursor.fetchall()
+
+            decks = []
+            for result in results:
+                if hasattr(result, "keys"):
+                    deck_data = json.loads(result["deck_data"])
+                else:
+                    deck_data = json.loads(result[0])
+                decks.append(deck_data)
+
+            conn.close()
+            print(
+                f"🔵 AuthenticatedDeckManager.get_all_decks - returning {len(decks)} decks from database for user {self.user_id}"
+            )
+            return decks
+        except Exception as e:
+            print(f"Error loading decks from database: {e}")
+            conn.close()
+            return []
+
+    def load_deck(self, deck_id):
+        """Load a specific deck by ID from database."""
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+
+            cursor.execute(
+                "SELECT deck_data FROM user_decks WHERE user_id = ? AND deck_id = ?",
+                (self.user_id, deck_id),
+            )
+            result = cursor.fetchone()
+
+            if result:
+                if hasattr(result, "keys"):
+                    deck_data = json.loads(result["deck_data"])
+                else:
+                    deck_data = json.loads(result[0])
+                return deck_data
+            return None
+        except Exception as e:
+            print(f"Error loading deck from database: {e}")
+            return None
+        finally:
+            conn.close()
+
     def delete_deck(self, deck_id):
-        """Delete a deck from both database and session storage."""
-        # Delete from database
-        self._delete_deck_from_database(deck_id)
-        
-        # Delete from session storage
-        return super().delete_deck(deck_id)
+        """Delete a deck from database only."""
+        try:
+            # Delete from database
+            self._delete_deck_from_database(deck_id)
+            return True
+        except Exception as e:
+            print(f"Error in delete_deck: {e}")
+            return False
 
 
 # Utility functions for direct use
 def create_deck_manager(session, user_id=None):
     """Create a DeckManager instance for the given session.
-    
+
     Args:
         session: Flask session object
         user_id: Optional user ID for authenticated users
-    
+
     Returns:
         AuthenticatedDeckManager if user_id provided, otherwise DeckManager
     """
