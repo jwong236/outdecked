@@ -1,4 +1,23 @@
-# Simple Flask backend deployment
+# Multi-stage build for Next.js frontend + Flask backend
+
+# Stage 1: Build Next.js frontend
+FROM node:20-alpine AS frontend-builder
+
+WORKDIR /app/frontend
+
+# Copy package files first for better caching
+COPY frontend/package*.json ./
+
+# Install all dependencies (including dev dependencies for build)
+RUN npm ci
+
+# Copy frontend source code
+COPY frontend/ .
+
+# Build the Next.js application
+RUN npm run build
+
+# Stage 2: Python backend with built frontend
 FROM python:3.11-slim
 
 # Set working directory
@@ -24,6 +43,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy Python application code
 COPY *.py ./
 COPY models.py ./
+
+# Copy built Next.js frontend from previous stage
+COPY --from=frontend-builder /app/frontend/out /app/frontend/
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app \
