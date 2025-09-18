@@ -14,6 +14,9 @@ RUN npm ci
 # Copy frontend source code
 COPY frontend/ .
 
+# Make sure the next binary is executable
+RUN chmod +x node_modules/.bin/next
+
 # Build the Next.js application
 RUN npm run build
 
