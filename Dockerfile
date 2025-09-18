@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy Python application code
 COPY *.py ./
 COPY models.py ./
-COPY templates/ ./
+COPY templates/ ./templates/
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app \
