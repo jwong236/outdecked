@@ -10,7 +10,7 @@ import { useDeckOperations } from './hooks/useDeckOperations';
 import { useSearchLogic } from './hooks/useSearchLogic';
 import { useDeckBuilderActions, useDeckBuilderSelectors } from './DeckBuilderContext';
 import { useAuth } from '@/features/auth/AuthContext';
-import { dataManager } from '@/lib/dataManager';
+import { dataManager } from '../../lib/dataManager';
 
 export function DeckBuilderContent() {
   const params = useParams();

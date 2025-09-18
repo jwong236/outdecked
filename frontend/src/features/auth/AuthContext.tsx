@@ -51,7 +51,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await loadUserPreferences();
         
         // Load saved hand and decks from database if user is already logged in
-        const { dataManager } = await import('@/lib/dataManager');
+        const { dataManager } = await import('../../lib/dataManager');
         await dataManager.loadHandFromDatabase();
         await dataManager.loadDecksFromDatabase();
       }
@@ -94,7 +94,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await loadUserPreferences();
         
         // Load saved hand and decks from database on login
-        const { dataManager } = await import('@/lib/dataManager');
+        const { dataManager } = await import('../../lib/dataManager');
         await dataManager.loadHandFromDatabase();
         await dataManager.loadDecksFromDatabase();
         

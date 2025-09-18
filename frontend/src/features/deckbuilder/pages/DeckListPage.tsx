@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { dataManager, Deck } from '@/lib/dataManager';
+import { dataManager, Deck } from '../../../lib/dataManager';
 import { analyzeDeck } from '@/lib/deckValidation';
 import { useAuth } from '@/features/auth/AuthContext';
 import { PageTitle } from '@/components/shared/PageTitle';

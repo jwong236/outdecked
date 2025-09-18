@@ -4,7 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import { Card } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
-import { dataManager } from '@/lib/dataManager';
+import { dataManager } from '../../lib/dataManager';
 
 export interface ProxyCardProps {
   card: Card;

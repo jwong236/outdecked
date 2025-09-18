@@ -5,7 +5,7 @@ import { Card } from '@/types/card';
 import { ProxyGrid } from '@/features/proxy-printer/ProxyGrid';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
-import { dataManager, PrintListItem } from '@/lib/dataManager';
+import { dataManager, PrintListItem } from '../../lib/dataManager';
 import { useAuth } from '@/features/auth/AuthContext';
 import jsPDF from 'jspdf';
 

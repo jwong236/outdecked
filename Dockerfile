@@ -63,5 +63,5 @@ ENV PORT=8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# Run the application
+# Run both Flask and Next.js
 CMD exec gunicorn --bind :$PORT --workers 1 --threads 8 --timeout 0 outdecked:app
