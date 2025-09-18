@@ -3,7 +3,15 @@ OutDecked - Card Management Web Application
 Main Flask application with routes and business logic.
 """
 
-from flask import Flask, request, jsonify, send_file, redirect, url_for, send_from_directory
+from flask import (
+    Flask,
+    request,
+    jsonify,
+    send_file,
+    redirect,
+    url_for,
+    send_from_directory,
+)
 from flask_socketio import SocketIO, emit
 from flask_cors import CORS
 import os
@@ -81,33 +89,33 @@ logger = logging.getLogger(__name__)
 @app.route("/")
 def index():
     """Serve the Next.js frontend"""
-    return send_from_directory('frontend', 'index.html')
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/<path:path>")
 def serve_frontend(path):
     """Serve Next.js static files and routes"""
     # Handle API routes - let them go to Flask
-    if path.startswith('api/'):
+    if path.startswith("api/"):
         return "API route not found", 404
-    
+
     # Try to serve static files first
     try:
-        return send_from_directory('frontend', path)
+        return send_from_directory("frontend", path)
     except FileNotFoundError:
         # For client-side routing, serve index.html
-        return send_from_directory('frontend', 'index.html')
+        return send_from_directory("frontend", "index.html")
 
 
 @app.route("/admin")
 def admin():
     """Admin route"""
-    return send_from_directory('frontend', 'index.html')
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/scraping")
 def scraping():
-    return send_from_directory('frontend', 'index.html')
+    return send_from_directory("frontend", "index.html")
 
 
 @app.route("/api/start-scraping", methods=["POST"])
