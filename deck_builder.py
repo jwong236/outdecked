@@ -15,9 +15,16 @@ def handle_get_decks():
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        
+        print(f"🔵 API GET /api/decks - user: {user}, user_id: {user_id}")
+
         deck_manager = create_deck_manager(session, user_id)
         decks = deck_manager.get_all_decks()
+        print(
+            f"🔵 API GET /api/decks - returning {len(decks)} decks for user {user_id}"
+        )
+        print(
+            f"🔵 API GET /api/decks - deck IDs: {[d.get('id', 'NO_ID') for d in decks]}"
+        )
 
         # Sort decks by last modified (newest first)
         decks.sort(key=lambda x: x.get("last_modified", ""), reverse=True)
@@ -42,7 +49,7 @@ def handle_create_deck():
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        
+
         deck_manager = create_deck_manager(session, user_id)
 
         # Create new deck
@@ -50,6 +57,9 @@ def handle_create_deck():
             name=data["name"],
             game=data.get("game", "Union Arena"),
             description=data.get("description", ""),
+            defaultSeries=data.get("defaultSeries", ""),
+            defaultFilters=data.get("defaultFilters", {}),
+            savedDefaultFilters=data.get("savedDefaultFilters", {}),
         )
 
         # Save deck
@@ -69,6 +79,30 @@ def handle_create_deck():
         )
 
 
+def handle_get_deck(deck_id):
+    """Handle GET /api/decks/<deck_id> - Get a specific deck."""
+    try:
+        # Check if user is authenticated
+        user = get_current_user()
+        user_id = user["id"] if user else None
+
+        deck_manager = create_deck_manager(session, user_id)
+
+        # Load the specific deck
+        deck = deck_manager.load_deck(deck_id)
+
+        if deck:
+            return jsonify({"success": True, "deck": deck})
+        else:
+            return jsonify({"success": False, "error": "Deck not found"}), 404
+
+    except Exception as e:
+        return (
+            jsonify({"success": False, "error": f"Failed to load deck: {str(e)}"}),
+            500,
+        )
+
+
 def handle_update_deck(deck_id):
     """Handle PUT /api/decks/<deck_id> - Update existing deck."""
     try:
@@ -80,7 +114,7 @@ def handle_update_deck(deck_id):
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        
+
         deck_manager = create_deck_manager(session, user_id)
 
         # Load existing deck
@@ -90,7 +124,16 @@ def handle_update_deck(deck_id):
 
         # Update deck data
         for key, value in data.items():
-            if key in ["name", "game", "description", "cards"]:
+            if key in [
+                "name",
+                "game",
+                "description",
+                "cards",
+                "cover",
+                "defaultSeries",
+                "defaultFilters",
+                "savedDefaultFilters",
+            ]:
                 existing_deck[key] = value
 
         # Save updated deck
@@ -116,7 +159,8 @@ def handle_delete_deck(deck_id):
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        
+        print(f"Backend: User authentication - user={user}, user_id={user_id}")
+
         deck_manager = create_deck_manager(session, user_id)
 
         # Check if deck exists
@@ -125,11 +169,15 @@ def handle_delete_deck(deck_id):
             return jsonify({"success": False, "error": "Deck not found"}), 404
 
         # Delete deck
+        print(f"Backend: Attempting to delete deck {deck_id} for user {user_id}")
         success = deck_manager.delete_deck(deck_id)
+        print(f"Backend: Delete operation returned success={success}")
 
         if success:
+            print(f"Backend: Deck {deck_id} deleted successfully")
             return jsonify({"success": True, "message": "Deck deleted successfully"})
         else:
+            print(f"Backend: Failed to delete deck {deck_id}")
             return jsonify({"success": False, "error": "Failed to delete deck"}), 500
     except Exception as e:
         return (
@@ -144,7 +192,7 @@ def handle_get_deck(deck_id):
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        
+
         deck_manager = create_deck_manager(session, user_id)
         deck = deck_manager.load_deck(deck_id)
 
@@ -170,7 +218,7 @@ def handle_add_card_to_deck(deck_id):
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        
+
         deck_manager = create_deck_manager(session, user_id)
 
         # Load deck
@@ -210,7 +258,7 @@ def handle_remove_card_from_deck(deck_id, card_id):
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        
+
         deck_manager = create_deck_manager(session, user_id)
 
         # Load deck
@@ -261,7 +309,7 @@ def handle_update_card_quantity(deck_id, card_id):
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        
+
         deck_manager = create_deck_manager(session, user_id)
 
         # Load deck
