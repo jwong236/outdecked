@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { Card } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
 import { dataManager } from '../../lib/dataManager';
+import { apiConfig } from '../../lib/apiConfig';
 
 export interface ProxyCardProps {
   card: Card;
@@ -73,6 +74,12 @@ export function ProxyCard({
 
   const currentQuantity = getCurrentQuantity();
 
+  // Helper function to get proxied image URL
+  const getProxiedImageUrl = (imageUrl: string) => {
+    if (!imageUrl) return '/placeholder-card.png';
+    return `${apiConfig.getApiUrl('/api/images')}?url=${encodeURIComponent(imageUrl)}`;
+  };
+
   return (
     <div 
       className={`${baseClasses} ${variantClasses[variant]} ${className}`}
@@ -91,7 +98,7 @@ export function ProxyCard({
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-gray-100">
         {card.image_url ? (
           <Image
-            src={card.image_url}
+            src={getProxiedImageUrl(card.image_url)}
             alt={card.name}
             fill
             priority={priority}

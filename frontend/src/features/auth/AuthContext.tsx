@@ -49,7 +49,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
-        }
+        },
+        credentials: 'include',
       });
       
       console.log('Response status:', response.status);
@@ -95,7 +96,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const response = await fetch(url, {
         headers: {
           'Accept': 'application/json',
-        }
+        },
+        credentials: 'include',
       });
       
       console.log('Preferences response status:', response.status);

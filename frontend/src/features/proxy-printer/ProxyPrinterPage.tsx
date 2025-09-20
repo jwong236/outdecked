@@ -7,6 +7,7 @@ import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
 import { dataManager, PrintListItem } from '../../lib/dataManager';
 import { useAuth } from '@/features/auth/AuthContext';
+import { apiConfig } from '../../lib/apiConfig';
 import jsPDF from 'jspdf';
 
 export function ProxyPrinterPage() {
@@ -115,8 +116,8 @@ export function ProxyPrinterPage() {
   // Helper function to load image as base64 using backend proxy
   const loadImageAsBase64 = async (url: string): Promise<string> => {
     try {
-      // Try to fetch through our backend proxy
-      const proxyUrl = `/api/images?url=${encodeURIComponent(url)}`;
+      // Fetch through our backend proxy for highest quality
+      const proxyUrl = `${apiConfig.getApiUrl('/api/images')}?url=${encodeURIComponent(url)}`;
       const response = await fetch(proxyUrl);
       
       if (!response.ok) {
@@ -137,38 +138,8 @@ export function ProxyPrinterPage() {
         reader.readAsDataURL(blob);
       });
     } catch (error) {
-      // Fallback to direct method (will likely fail due to CORS)
-      return new Promise((resolve, reject) => {
-        const img = new Image();
-        
-        img.onload = () => {
-          try {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            if (!ctx) {
-              reject(new Error('Could not get canvas context'));
-              return;
-            }
-            
-            canvas.width = img.width;
-            canvas.height = img.height;
-            ctx.drawImage(img, 0, 0);
-            
-            // Convert to base64
-            const base64 = canvas.toDataURL('image/jpeg', 0.8);
-            resolve(base64);
-          } catch (error) {
-            reject(error);
-          }
-        };
-        
-        img.onerror = () => {
-          reject(new Error('Failed to load image'));
-        };
-        
-        img.src = url;
-      });
+      console.error('Failed to load image via proxy:', error);
+      throw new Error(`Failed to load image: ${error.message}`);
     }
   };
 

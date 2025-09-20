@@ -265,6 +265,11 @@ def get_stats():
     total_games = cursor.fetchone()["games"]
 
     cursor = conn.execute(
+        "SELECT COUNT(DISTINCT group_name) as series FROM cards WHERE group_name IS NOT NULL AND group_name != ''"
+    )
+    total_series = cursor.fetchone()["series"]
+
+    cursor = conn.execute(
         "SELECT game, COUNT(*) as count FROM cards GROUP BY game ORDER BY count DESC"
     )
     game_stats = [dict(row) for row in cursor.fetchall()]
@@ -275,6 +280,7 @@ def get_stats():
         {
             "total_cards": total_cards,
             "total_games": total_games,
+            "total_series": total_series,
             "game_stats": game_stats,
         }
     )

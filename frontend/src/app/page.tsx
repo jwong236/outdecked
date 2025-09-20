@@ -13,13 +13,14 @@ import {
 import { apiConfig } from '../lib/apiConfig';
 
 interface Stats {
-  cards: number;
-  series: number;
-  attributes: number;
+  total_cards: number;
+  total_games: number;
+  total_series: number;
+  game_stats: any[];
 }
 
 export default function HomePage() {
-  const [stats, setStats] = useState<Stats>({ cards: 0, series: 0, attributes: 0 });
+  const [stats, setStats] = useState<Stats>({ total_cards: 0, total_games: 0, total_series: 0, game_stats: [] });
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -29,9 +30,10 @@ export default function HomePage() {
         if (response.ok) {
           const data = await response.json();
           setStats({
-            cards: data.cards || 0,
-            series: data.series || 0,
-            attributes: data.attributes || 0
+            total_cards: data.total_cards || 0,
+            total_games: data.total_games || 0,
+            total_series: data.total_series || 0,
+            game_stats: data.game_stats || []
           });
         }
       } catch (error) {
@@ -130,21 +132,21 @@ export default function HomePage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
             <div className="text-4xl font-bold text-white">
-              {isLoading ? '...' : stats.cards.toLocaleString()}
+              {isLoading ? '...' : stats.total_cards.toLocaleString()}
             </div>
-            <div className="text-gray-200">Union Arena Cards</div>
+            <div className="text-gray-200">Total Cards</div>
           </div>
           <div>
             <div className="text-4xl font-bold text-white">
-              {isLoading ? '...' : stats.series.toLocaleString()}
+              {isLoading ? '...' : stats.total_games.toLocaleString()}
+            </div>
+            <div className="text-gray-200">Games Available</div>
+          </div>
+          <div>
+            <div className="text-4xl font-bold text-white">
+              {isLoading ? '...' : stats.total_series.toLocaleString()}
             </div>
             <div className="text-gray-200">Series Available</div>
-          </div>
-          <div>
-            <div className="text-4xl font-bold text-white">
-              {isLoading ? '...' : stats.attributes.toLocaleString()}
-            </div>
-            <div className="text-gray-200">Card Attributes</div>
           </div>
         </div>
       </div>

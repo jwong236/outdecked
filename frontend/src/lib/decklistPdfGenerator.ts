@@ -1,4 +1,5 @@
 // No need for jsPDF anymore - we'll use canvas for PNG generation
+import { apiConfig } from './apiConfig';
 
 export interface DeckCard {
   name: string;
@@ -173,7 +174,7 @@ function groupCardsByType(cards: DeckCard[]): Record<string, DeckCard[]> {
 const loadImageAsBase64 = async (url: string): Promise<string> => {
   try {
     // Try to fetch through our backend proxy
-    const proxyUrl = `/api/images?url=${encodeURIComponent(url)}`;
+    const proxyUrl = `${apiConfig.getApiUrl('/api/images')}?url=${encodeURIComponent(url)}`;
     const response = await fetch(proxyUrl);
     
     if (!response.ok) {

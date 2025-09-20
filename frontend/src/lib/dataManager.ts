@@ -236,7 +236,8 @@ class DataManager {
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
-        }
+        },
+        credentials: 'include',
       });
       if (response.ok) {
         const data = await response.json();
@@ -370,6 +371,7 @@ class DataManager {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(backendDeck)
       });
       
@@ -415,11 +417,12 @@ class DataManager {
     try {
       const updatedDeck = { ...deck, updatedAt: new Date() };
       
-      const response = await fetch(`/api/decks/${deck.id}`, {
+      const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${deck.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify(this.convertFrontendDeckToBackend(updatedDeck))
       });
       
@@ -486,11 +489,12 @@ class DataManager {
    */
   async getDeck(deckId: string): Promise<Deck | null> {
     try {
-      const response = await fetch(`/api/decks/${deckId}`, {
+      const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${deckId}`), {
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
-        }
+        },
+        credentials: 'include',
       });
       
       if (response.ok) {
@@ -704,7 +708,8 @@ class DataManager {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-        }
+        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -767,6 +772,7 @@ class DataManager {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ hand: items }),
       });
 
@@ -795,7 +801,8 @@ class DataManager {
       const response = await fetch(apiConfig.getApiUrl('/api/user/hand'), {
         headers: {
           'Accept': 'application/json',
-        }
+        },
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -825,7 +832,10 @@ class DataManager {
   async deleteDeck(deckId: string): Promise<void> {
     try {
       console.log('🔴 DEBUG: Attempting to delete deck with ID:', deckId);
-      const response = await fetch(`/api/decks/${deckId}`, { method: 'DELETE' });
+      const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${deckId}`), { 
+        method: 'DELETE',
+        credentials: 'include',
+      });
       
       const responseData = await response.json();
       console.log('🔴 DEBUG: Delete response status:', response.status);
