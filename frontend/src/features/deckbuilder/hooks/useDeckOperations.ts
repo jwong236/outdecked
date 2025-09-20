@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { dataManager, Deck, HandItem } from '../../../lib/dataManager';
+import { dataManager, Deck, HandItem } from '@/lib/dataManager';
 import { Card } from '@/types/card';
 import { useDeckBuilderActions, useDeckBuilderSelectors } from '../DeckBuilderContext';
 import { useSearchStore } from '@/stores/searchStore';

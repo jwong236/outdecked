@@ -6,7 +6,7 @@ import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/2
 import Image from 'next/image';
 import { Card } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
-import { formatTriggerWithIcons } from '../../lib/triggerIcons';
+import { formatTriggerWithIcons } from '@/lib/triggerIcons';
 
 export interface CardDetailModalProps {
   card: Card | null;

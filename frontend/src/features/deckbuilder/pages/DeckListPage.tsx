@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { dataManager, Deck } from '../../../lib/dataManager';
+import { dataManager, Deck } from '@/lib/dataManager';
 import { analyzeDeck } from '@/lib/deckValidation';
 import { useAuth } from '@/features/auth/AuthContext';
 import { PageTitle } from '@/components/shared/PageTitle';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
 import { useSeriesValues } from '@/lib/hooks';
 import { useSearchStore } from '@/stores/searchStore';
-import { apiConfig } from '../../../lib/apiConfig';
+import { apiConfig } from '@/lib/apiConfig';
 import Link from 'next/link';
 
 export function DeckListPage() {
