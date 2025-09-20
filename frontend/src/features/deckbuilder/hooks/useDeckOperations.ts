@@ -58,8 +58,8 @@ export function useDeckOperations() {
       setDeckCards([]);
       setHasUnsavedChanges(false);
       
-      // Navigate to the new deck URL to prevent re-creation
-      router.replace(`/deckbuilder/${newDeck.id}`);
+        // Navigate to the new deck URL to prevent re-creation
+        router.replace(`/deckbuilder?deckId=${newDeck.id}`);
       
       // Apply default filters to the search
       setTimeout(() => {

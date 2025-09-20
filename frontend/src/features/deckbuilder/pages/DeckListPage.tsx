@@ -199,8 +199,8 @@ export function DeckListPage() {
         setShowCreateModal(false);
         
         // Navigate to the new deck
-        console.log('Navigating to deck:', `/deckbuilder/${newDeck.id}`);
-        router.push(`/deckbuilder/${newDeck.id}`);
+        console.log('Navigating to deck:', `/deckbuilder?deckId=${newDeck.id}`);
+        router.push(`/deckbuilder?deckId=${newDeck.id}`);
       
         // Set default filters based on the selected series
       // Always start with base default filters
@@ -557,7 +557,7 @@ export function DeckListPage() {
 
                     {/* Edit Button */}
                     <Link
-                      href={`/deckbuilder/${deck.id}`}
+                      href={`/deckbuilder?deckId=${deck.id}`}
                       className="w-full px-3 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-sm transition-colors text-center block mt-auto"
                       onClick={() => dataManager.clearCurrentDeck()}
                     >

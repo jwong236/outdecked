@@ -4,7 +4,7 @@ const path = require('path');
 const nextConfig = {
   // Only enable static export in production
   ...(process.env.NODE_ENV === 'production' && { output: 'export' }),
-  trailingSlash: true,
+  trailingSlash: false,
   eslint: {
     ignoreDuringBuilds: true,
   },

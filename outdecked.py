@@ -126,8 +126,15 @@ def scraping():
 
 
 @app.route("/deckbuilder")
+@app.route("/deckbuilder/")
 def deckbuilder():
-    return send_from_directory("frontend", "index.html")
+    # Serve the main deckbuilder page - handles both deck list and individual deck editing via query parameters
+    return send_from_directory("frontend", "deckbuilder/index.html")
+
+
+@app.route("/auth")
+def auth():
+    return send_from_directory("frontend", "auth/index.html")
 
 
 # User Deck Management (Require Auth)
@@ -591,6 +598,7 @@ def clear_cart():
 @app.route("/<path:path>")
 def serve_frontend(path):
     """Serve Next.js static files and routes"""
+
     # Clean up the path
     clean_path = path.rstrip("/")
 

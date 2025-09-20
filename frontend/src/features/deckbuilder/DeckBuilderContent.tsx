@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { DeckBuilderHeader } from './DeckBuilderHeader';
 import { SearchSection } from './components/sections/SearchSection';
 import { DeckSection } from './components/sections/DeckSection';
@@ -13,11 +13,10 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { dataManager } from '../../lib/dataManager';
 
 export function DeckBuilderContent() {
-  const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isLoading: authLoading } = useAuth();
-  const deckId = params.id as string;
+  const deckId = searchParams.get('deckId');
   const isLoadingRef = useRef(false);
   
   const { setShowSignInModal } = useDeckBuilderActions();
@@ -56,14 +55,12 @@ export function DeckBuilderContent() {
     isLoadingRef.current = true;
     
     // Handle different deck ID scenarios
-    if (deckId === 'new' || deckId === 'deckbuilder') {
+    if (deckId === 'new' || !deckId) {
       // Check if there's a current deck being worked on
       const currentDeck = dataManager.getCurrentDeck();
       if (currentDeck) {
-        // Only redirect if we're not already on the correct URL
-        if (deckId !== currentDeck.id) {
-          router.replace(`/deckbuilder/${currentDeck.id}`);
-        }
+        // Redirect to the current deck
+        router.replace(`/deckbuilder?deckId=${currentDeck.id}`);
         return;
       }
       
