@@ -5,7 +5,7 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { dataManager } from '@/lib/dataManager';
+import { dataManager } from '../../lib/dataManager';
 import { useAuth } from '@/features/auth/AuthContext';
 import { 
   HomeIcon, 

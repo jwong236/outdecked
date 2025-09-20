@@ -4,7 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useSearchStore } from '@/stores/searchStore';
 import { useSearchCards, useSeriesValues, useColorValues, useFilterFields, useFilterValues } from '@/lib/hooks';
 import { useDeckBuilderSelectors, useDeckBuilderActions } from '../DeckBuilderContext';
-import { dataManager } from '@/lib/dataManager';
+import { dataManager } from '../../../lib/dataManager';
 
 export function useSearchLogic() {
   const { currentDeck } = useDeckBuilderSelectors();

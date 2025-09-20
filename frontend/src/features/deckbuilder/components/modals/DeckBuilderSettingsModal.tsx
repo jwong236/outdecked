@@ -6,7 +6,7 @@ import { FilterDropdown } from '@/features/search/FilterDropdown';
 import { useDeckOperations } from '../../hooks/useDeckOperations';
 import { useSearchLogic } from '../../hooks/useSearchLogic';
 import { useDeckBuilderSelectors, useDeckBuilderActions } from '../../DeckBuilderContext';
-import { dataManager } from '@/lib/dataManager';
+import { dataManager } from '../../../../lib/dataManager';
 
 export function DeckBuilderSettingsModal() {
   const { currentDeck, modals } = useDeckBuilderSelectors();

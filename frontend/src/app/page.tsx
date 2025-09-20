@@ -10,7 +10,7 @@ import {
   CogIcon,
   ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
-import { apiConfig } from '@/lib/apiConfig';
+import { apiConfig } from '../lib/apiConfig';
 
 interface Stats {
   total_cards: number;

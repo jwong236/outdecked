@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiConfig } from '@/lib/apiConfig';
+import { apiConfig } from '../../lib/apiConfig';
 
 interface User {
   id: number;
@@ -64,7 +64,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await loadUserPreferences();
         
         // Load saved hand and decks from database if user is already logged in
-        const { dataManager } = await import('@/lib/dataManager');
+        const { dataManager } = await import('../../lib/dataManager');
         await dataManager.loadHandFromDatabase();
         await dataManager.loadDecksFromDatabase();
       } else if (response.status === 401) {
@@ -143,7 +143,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await loadUserPreferences();
         
         // Load saved hand and decks from database on login
-        const { dataManager } = await import('@/lib/dataManager');
+        const { dataManager } = await import('../../lib/dataManager');
         await dataManager.loadHandFromDatabase();
         await dataManager.loadDecksFromDatabase();
         
@@ -212,7 +212,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setPreferences({});
       
       // Clear hand and decks when logging out
-      const { dataManager } = await import('../../lib/dataManager');
+      const { dataManager } = await import('@/lib/dataManager');
       dataManager.clearHand();
       dataManager.clearDecks();
     }

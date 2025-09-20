@@ -2,7 +2,7 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { dataManager, Deck, CardReference } from '@/lib/dataManager';
+import { dataManager, Deck, CardReference } from '../../lib/dataManager';
 import { Card } from '@/types/card';
 import { DeckValidation, analyzeDeck } from '@/lib/deckValidation';
 

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/types/card';
-import { dataManager } from '@/lib/dataManager';
+import { dataManager } from '../../../lib/dataManager';
 
 interface QuantityControlProps {
   card: Card;
