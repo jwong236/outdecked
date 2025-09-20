@@ -41,6 +41,7 @@ def handle_create_deck():
     """Handle POST /api/decks - Save new deck."""
     try:
         data = request.get_json()
+        print(f"🔵 API POST /api/decks - request data: {data}")
 
         # Validate required fields
         if not data or not data.get("name"):
@@ -49,6 +50,7 @@ def handle_create_deck():
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
+        print(f"🔵 API POST /api/decks - user: {user}, user_id: {user_id}")
 
         deck_manager = create_deck_manager(session, user_id)
 
@@ -64,6 +66,7 @@ def handle_create_deck():
 
         # Save deck
         saved_deck = deck_manager.save_deck(deck)
+        print(f"🔵 API POST /api/decks - saved_deck: {saved_deck}")
 
         return jsonify(
             {

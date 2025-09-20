@@ -173,7 +173,7 @@ function groupCardsByType(cards: DeckCard[]): Record<string, DeckCard[]> {
 const loadImageAsBase64 = async (url: string): Promise<string> => {
   try {
     // Try to fetch through our backend proxy
-    const proxyUrl = `/api/proxy-image?url=${encodeURIComponent(url)}`;
+    const proxyUrl = `/api/images?url=${encodeURIComponent(url)}`;
     const response = await fetch(proxyUrl);
     
     if (!response.ok) {

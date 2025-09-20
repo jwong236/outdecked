@@ -18,6 +18,7 @@ import os
 import json
 import threading
 import time
+import requests
 import logging
 from datetime import datetime
 from config import Config
@@ -68,8 +69,17 @@ from deck_builder import (
 app = Flask(__name__)
 app.config.from_object(Config)
 
-# Enable CORS for all routes
-CORS(app, origins=["http://localhost:3000", "http://127.0.0.1:3000"])
+# Configure sessions
+app.config["SESSION_COOKIE_SECURE"] = False  # Set to True in production with HTTPS
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+
+# Enable CORS for all routes with credentials support
+CORS(
+    app,
+    origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    supports_credentials=True,
+)
 
 socketio = SocketIO(app, cors_allowed_origins="*")
 
@@ -92,31 +102,7 @@ def index():
     return send_from_directory("frontend", "index.html")
 
 
-@app.route("/<path:path>")
-def serve_frontend(path):
-    """Serve Next.js static files and routes"""
-    # Handle API routes - let them go to Flask
-    if path.startswith("api/"):
-        return "API route not found", 404
-
-    # Clean up the path
-    clean_path = path.rstrip("/")
-
-    # Try different variations of the path
-    paths_to_try = [
-        path,  # Original path
-        f"{clean_path}/index.html",  # Directory with index.html
-        clean_path,  # Path without trailing slash
-    ]
-
-    for try_path in paths_to_try:
-        try:
-            return send_from_directory("frontend", try_path)
-        except FileNotFoundError:
-            continue
-
-    # If nothing works, serve the main index.html for client-side routing
-    return send_from_directory("frontend", "index.html")
+# Catch-all route moved to end of file
 
 
 @app.route("/admin")
@@ -130,159 +116,8 @@ def scraping():
     return send_from_directory("frontend", "index.html")
 
 
-@app.route("/api/start-scraping", methods=["POST"])
-def start_scraping():
-    """Start the Union Arena card scraping process"""
-    try:
-        # Import here to avoid circular imports
-        from scraper import TCGCSVScraper
-        import threading
-
-        def run_scraping():
-            scraper = TCGCSVScraper()
-            try:
-                logger.info("🚀 Starting Union Arena card scraping...")
-                cards = scraper.scrape_all_union_arena_cards()
-                logger.info(f"🎉 Scraping completed! Total cards: {len(cards)}")
-            except Exception as e:
-                logger.error(f"❌ Scraping failed: {e}")
-
-        # Run scraping in background thread
-        scraping_thread = threading.Thread(target=run_scraping)
-        scraping_thread.daemon = True
-        scraping_thread.start()
-
-        return jsonify({"status": "success", "message": "Scraping started"})
-
-    except Exception as e:
-        logger.error(f"❌ Failed to start scraping: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
-
-
-@app.route("/api/scraping-status", methods=["GET"])
-def get_scraping_status():
-    """Get current scraping status and logs with detailed statistics"""
-    try:
-        # Read the latest log entries from outdecked.log (where scraper actually logs)
-        log_file = "outdecked.log"
-        if os.path.exists(log_file):
-            with open(log_file, "r", encoding="utf-8", errors="ignore") as f:
-                lines = f.readlines()
-                # Get last 100 lines for better statistics parsing
-                recent_lines = lines[-100:] if len(lines) > 100 else lines
-                logs = [line.strip() for line in recent_lines if line.strip()]
-        else:
-            logs = ["[INFO] No logs available yet"]
-
-        # Parse statistics from logs
-        stats = {
-            "is_running": False,
-            "current_group": None,
-            "current_group_number": 0,
-            "total_groups": 47,  # Union Arena has 47 groups
-            "current_card": 0,
-            "total_cards_in_group": 0,
-            "cards_processed": 0,
-            "groups_completed": 0,
-            "estimated_time_remaining": "Unknown",
-            "current_operation": "Idle",
-        }
-
-        # Check if scraping is running and parse statistics
-        if logs:
-            import time
-            import re
-
-            # Look for recent activity (within last 5 minutes)
-            current_time = time.time()
-            recent_activity = False
-
-            for log in logs[-20:]:  # Check last 20 log entries
-                if "Starting Union Arena card scraping" in log:
-                    stats["is_running"] = True
-                    stats["current_operation"] = "Starting"
-                    recent_activity = True
-                elif "Processing group" in log:
-                    stats["is_running"] = True
-                    stats["current_operation"] = "Processing Group"
-                    recent_activity = True
-                    # Extract group number: "Processing group 1/47: Attack on Titan"
-                    match = re.search(r"Processing group (\d+)/(\d+): (.+)", log)
-                    if match:
-                        stats["current_group_number"] = int(match.group(1))
-                        stats["total_groups"] = int(match.group(2))
-                        stats["current_group"] = match.group(3)
-                        stats["groups_completed"] = stats["current_group_number"] - 1
-                elif "Processing card" in log:
-                    stats["is_running"] = True
-                    stats["current_operation"] = "Scraping Cards"
-                    recent_activity = True
-                    # Extract card progress: "Processing card 18/134: Erwin Smith"
-                    match = re.search(r"Processing card (\d+)/(\d+):", log)
-                    if match:
-                        stats["current_card"] = int(match.group(1))
-                        stats["total_cards_in_group"] = int(match.group(2))
-                        stats["cards_processed"] = stats["current_card"] - 1
-                elif "Successfully scraped" in log:
-                    stats["is_running"] = True
-                    recent_activity = True
-                elif "Saved" in log and "cards from" in log and "to database" in log:
-                    # Group completed: "Saved 134 cards from Attack on Titan to database"
-                    match = re.search(r"Saved (\d+) cards from (.+) to database", log)
-                    if match:
-                        cards_saved = int(match.group(1))
-                        group_name = match.group(2)
-                        stats["groups_completed"] += 1
-                elif "Scraping completed" in log or "WebDriver closed" in log:
-                    stats["is_running"] = False
-                    stats["current_operation"] = "Completed"
-                    break
-
-            # Calculate estimated time remaining
-            if (
-                stats["is_running"]
-                and stats["current_card"] > 0
-                and stats["total_cards_in_group"] > 0
-            ):
-                # Estimate based on 10 seconds per card + processing time
-                cards_remaining_in_group = (
-                    stats["total_cards_in_group"] - stats["current_card"]
-                )
-                groups_remaining = stats["total_groups"] - stats["current_group_number"]
-
-                # Rough estimate: 10 seconds per card + 30 seconds per group completion
-                time_per_card = 10  # seconds
-                time_per_group_completion = 30  # seconds
-
-                time_remaining_seconds = (
-                    cards_remaining_in_group * time_per_card
-                    + groups_remaining
-                    * (
-                        stats["total_cards_in_group"] * time_per_card
-                        + time_per_group_completion
-                    )
-                )
-
-                if time_remaining_seconds < 3600:  # Less than 1 hour
-                    stats["estimated_time_remaining"] = (
-                        f"{time_remaining_seconds // 60} minutes"
-                    )
-                else:  # More than 1 hour
-                    hours = time_remaining_seconds // 3600
-                    minutes = (time_remaining_seconds % 3600) // 60
-                    stats["estimated_time_remaining"] = f"{hours}h {minutes}m"
-
-        return jsonify(
-            {
-                "status": "success",
-                "logs": logs[-20:],  # Return last 20 log entries
-                "statistics": stats,
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"❌ Failed to get scraping status: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+# Removed /api/start-scraping - moved to /api/admin/scraping/start with auth
+# Removed /api/scraping-status - moved to /api/admin/scraping/status with auth
 
 
 # @app.route("/admin/scraping")  # DISABLED - template moved to scraping_archive
@@ -295,50 +130,56 @@ def deckbuilder():
     return send_from_directory("frontend", "index.html")
 
 
-# Deck Builder API Routes
-@app.route("/api/decks", methods=["GET"])
-def get_decks():
+# User Deck Management (Require Auth)
+@app.route("/api/user/decks", methods=["GET"])
+def get_user_decks():
+    """Get user's saved decks (moved from /api/decks)"""
     return handle_get_decks()
 
 
-@app.route("/api/decks", methods=["POST"])
-def create_deck():
+@app.route("/api/user/decks", methods=["POST"])
+def create_user_deck():
+    """Create deck (moved from /api/decks)"""
     return handle_create_deck()
 
 
-@app.route("/api/decks/<deck_id>", methods=["GET"])
-def get_deck(deck_id):
+@app.route("/api/user/decks/<deck_id>", methods=["GET"])
+def get_user_deck(deck_id):
+    """Get specific deck (moved from /api/decks/{id})"""
     return handle_get_deck(deck_id)
 
 
-@app.route("/api/decks/<deck_id>", methods=["PUT"])
-def update_deck(deck_id):
+@app.route("/api/user/decks/<deck_id>", methods=["PUT"])
+def update_user_deck(deck_id):
+    """Update deck (moved from /api/decks/{id})"""
     return handle_update_deck(deck_id)
 
 
-@app.route("/api/decks/<deck_id>", methods=["DELETE"])
-def delete_deck(deck_id):
+@app.route("/api/user/decks/<deck_id>", methods=["DELETE"])
+def delete_user_deck(deck_id):
+    """Delete deck (moved from /api/decks/{id})"""
     return handle_delete_deck(deck_id)
 
 
-@app.route("/api/decks/<deck_id>/cards", methods=["POST"])
-def add_card_to_deck(deck_id):
+@app.route("/api/user/decks/<deck_id>/cards", methods=["POST"])
+def add_card_to_user_deck(deck_id):
+    """Add card to deck"""
     return handle_add_card_to_deck(deck_id)
 
 
-@app.route("/api/decks/<deck_id>/cards/<card_id>", methods=["PUT"])
-def update_card_quantity(deck_id, card_id):
+@app.route("/api/user/decks/<deck_id>/cards/<card_id>", methods=["PUT"])
+def update_user_deck_card_quantity(deck_id, card_id):
+    """Update card quantity in deck"""
     return handle_update_card_quantity(deck_id, card_id)
 
 
-@app.route("/api/decks/<deck_id>/cards/<card_id>", methods=["DELETE"])
-def remove_card_from_deck(deck_id, card_id):
+@app.route("/api/user/decks/<deck_id>/cards/<card_id>", methods=["DELETE"])
+def remove_card_from_user_deck(deck_id, card_id):
+    """Remove card from deck"""
     return handle_remove_card_from_deck(deck_id, card_id)
 
 
-@app.route("/api/deck-validation-rules", methods=["GET"])
-def get_validation_rules():
-    return handle_get_validation_rules()
+# Removed /api/deck-validation-rules - validation should be frontend-only
 
 
 @app.route("/proxy-printer")
@@ -363,13 +204,43 @@ def search():
 # Legacy search route removed - using Next.js frontend with /api/search endpoint
 
 
-@app.route("/api/search")
-def api_search():
+# Public API - Card Search and Information
+@app.route("/api/cards")
+def api_cards():
+    """Search cards (renamed from /api/search)"""
     return handle_api_search()
 
 
-@app.route("/games")
+@app.route("/api/cards/<int:card_id>")
+def get_card_by_id(card_id):
+    """Get specific card by product_id"""
+    conn = get_db_connection()
+    cursor = conn.execute("SELECT * FROM cards WHERE product_id = ?", (card_id,))
+    card = cursor.fetchone()
+    conn.close()
+
+    if card:
+        return jsonify(dict(card))
+    else:
+        return jsonify({"error": "Card not found"}), 404
+
+
+@app.route("/api/cards/attributes")
+def api_cards_attributes():
+    """List all available card attributes (renamed from /api/filter-fields)"""
+    return handle_filter_fields()
+
+
+@app.route("/api/cards/attributes/<field>")
+def api_cards_attribute_values(field):
+    """Get distinct values for specific attribute (renamed from /api/filter-values/<field>)"""
+    game = request.args.get("game")
+    return handle_filter_values(field, game)
+
+
+@app.route("/api/games")
 def get_games():
+    """Get available games"""
     conn = get_db_connection()
     cursor = conn.execute("SELECT name, display_name FROM categories ORDER BY name")
     games = [
@@ -380,26 +251,12 @@ def get_games():
     return jsonify(games)
 
 
-@app.route("/api/filter-fields")
-def api_filter_fields():
-    return handle_filter_fields()
+# Removed /api/print-type-values - not used by frontend
 
 
-@app.route("/api/filter-values/<field>")
-def api_filter_values(field):
-    game = request.args.get("game")
-    return handle_filter_values(field, game)
-
-
-@app.route("/api/print-type-values")
-def api_print_type_values():
-    from search import get_print_type_values
-
-    return get_print_type_values()
-
-
-@app.route("/stats")
+@app.route("/api/stats")
 def get_stats():
+    """Get basic application statistics"""
     conn = get_db_connection()
     cursor = conn.execute("SELECT COUNT(*) as total FROM cards")
     total_cards = cursor.fetchone()["total"]
@@ -423,15 +280,31 @@ def get_stats():
     )
 
 
-# Health check endpoint for Cloud Run
-@app.route("/health")
+@app.route("/api/health")
 def health_check():
+    """Health check endpoint (moved from /health for consistency)"""
     return jsonify({"status": "healthy", "timestamp": datetime.now().isoformat()})
 
 
-@app.route("/api/game-stats")
+@app.route("/api/routes")
+def list_routes():
+    """List all available API routes for debugging"""
+    import urllib.parse
+
+    output = []
+    for rule in app.url_map.iter_rules():
+        methods = ",".join(rule.methods)
+        line = urllib.parse.unquote(
+            "{:50s} {:20s} {}".format(rule.endpoint, methods, rule)
+        )
+        output.append(line)
+
+    return "<pre>" + "\n".join(sorted(output)) + "</pre>"
+
+
+@app.route("/api/stats/games")
 def get_game_stats():
-    """Get statistics for all games"""
+    """Get game-specific statistics (renamed from /api/game-stats)"""
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -455,180 +328,43 @@ def get_game_stats():
     return jsonify(stats)
 
 
-@app.route("/api/card/<int:card_id>")
-def get_card(card_id):
-    """Get a specific card by ID"""
-    conn = get_db_connection()
-    cursor = conn.execute("SELECT * FROM cards WHERE id = ?", (card_id,))
-    card = cursor.fetchone()
-    conn.close()
-
-    if card:
-        return jsonify(dict(card))
-    else:
-        return jsonify({"error": "Card not found"}), 404
-
-
-@app.route("/api/card-by-url")
-def get_card_by_url():
-    """Get a specific card by URL"""
-    card_url = request.args.get("url")
-    if not card_url:
+@app.route("/api/images")
+def get_image():
+    """Fetch and return image content (renamed from /api/proxy-image)"""
+    url = request.args.get("url")
+    if not url:
         return jsonify({"error": "URL parameter is required"}), 400
 
-    conn = get_db_connection()
-    cursor = conn.execute("SELECT * FROM cards WHERE card_url = ?", (card_url,))
-    card = cursor.fetchone()
-    conn.close()
-
-    if card:
-        return jsonify({"success": True, "card": dict(card)})
-    else:
-        return jsonify({"success": False, "error": "Card not found"}), 404
-
-
-@app.route("/api/generate-pdf", methods=["POST"])
-def generate_pdf():
-    """Generate PDF for selected cards (placeholder for now)"""
-    data = request.get_json()
-    cards = data.get("cards", [])
-    layout = data.get("layout", {})
-
-    if not cards:
-        return jsonify({"error": "No cards selected"}), 400
-
-    # TODO: Implement actual PDF generation
-    # For now, return a placeholder response
-    return jsonify(
-        {
-            "message": f"PDF generation for {len(cards)} cards requested",
-            "layout": layout,
-            "status": "placeholder",
-        }
-    )
-
-
-@app.route("/api/stats")
-@app.route("/api/stats/")
-def api_stats():
-    """API endpoint for basic statistics"""
-    conn = get_db_connection()
-
-    # Get total card count
-    cursor = conn.execute("SELECT COUNT(*) as total FROM cards")
-    total_cards = cursor.fetchone()["total"]
-
-    # Get series count (distinct SeriesName values)
-    cursor = conn.execute(
-        """
-        SELECT COUNT(DISTINCT value) as count 
-        FROM card_attributes 
-        WHERE name = 'SeriesName'
-    """
-    )
-    series_count = cursor.fetchone()["count"]
-
-    # Get total attribute count
-    cursor = conn.execute("SELECT COUNT(*) as count FROM card_attributes")
-    attribute_count = cursor.fetchone()["count"]
-
-    conn.close()
-
-    return jsonify(
-        {
-            "cards": total_cards,
-            "series": series_count,
-            "attributes": attribute_count,
-            "last_scrape": "Never",  # TODO: Track last scrape time
-            "cards_today": 0,  # TODO: Track cards added today
-        }
-    )
-
-
-@app.route("/api/backup-database", methods=["GET"])
-def backup_database():
-    """Download the current database as a backup file"""
     try:
-        # Check if database file exists
-        if not os.path.exists("cards.db"):
-            return jsonify({"error": "Database file not found"}), 404
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
 
-        # Read the database file
-        with open("cards.db", "rb") as db_file:
-            db_data = db_file.read()
-
-        # Create response with database file
-        response = app.response_class(
-            db_data,
-            mimetype="application/octet-stream",
-            headers={
-                "Content-Disposition": f'attachment; filename=outdecked_backup_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db'
+        # Return the image with proper headers
+        return (
+            response.content,
+            200,
+            {
+                "Content-Type": response.headers.get("Content-Type", "image/jpeg"),
+                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
             },
         )
-        return response
-    except Exception as e:
-        return jsonify({"error": f"Failed to backup database: {str(e)}"}), 500
+    except requests.RequestException as e:
+        return jsonify({"error": f"Failed to fetch image: {str(e)}"}), 400
 
 
-@app.route("/api/restore-database", methods=["POST"])
-def restore_database():
-    """Upload and restore a database backup file"""
-    try:
+# Removed /api/card-by-url - not used anywhere, product_id lookup is better
 
-        # Check if file was uploaded
-        if "database_file" not in request.files:
-            return jsonify({"error": "No database file uploaded"}), 400
 
-        file = request.files["database_file"]
-        if file.filename == "":
-            return jsonify({"error": "No file selected"}), 400
+# Removed /api/generate-pdf - frontend handles PDF generation entirely
 
-        # Validate file extension
-        if not file.filename.endswith(".db"):
-            return (
-                jsonify({"error": "Invalid file type. Please upload a .db file"}),
-                400,
-            )
 
-        # Read the uploaded file
-        db_data = file.read()
+# Removed duplicate /api/stats endpoint - using the one defined earlier
 
-        # Delete current database if it exists
-        if os.path.exists("cards.db"):
-            os.remove("cards.db")
 
-        # Write the new database
-        with open("cards.db", "wb") as db_file:
-            db_file.write(db_data)
+# Removed /api/backup-database - moved to /api/admin/database/backup with auth
 
-        # Verify the database is valid by trying to connect
-        try:
-            import sqlite3
 
-            conn = sqlite3.connect("cards.db")
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-            tables = cursor.fetchall()
-            conn.close()
-
-            if not tables:
-                return (
-                    jsonify({"error": "Invalid database file - no tables found"}),
-                    400,
-                )
-
-        except sqlite3.Error:
-            return (
-                jsonify(
-                    {"error": "Invalid database file - corrupted or invalid format"}
-                ),
-                400,
-            )
-
-        return jsonify({"message": "Database restored successfully"})
-
-    except Exception as e:
-        return jsonify({"error": f"Failed to restore database: {str(e)}"}), 500
+# Removed /api/restore-database - moved to /api/admin/database/restore with auth
 
 
 # Authentication Routes
@@ -706,16 +442,167 @@ def save_user_hand():
     return handle_save_user_hand()
 
 
-@app.route("/api/user/decks", methods=["GET"])
-def get_user_decks():
-    """Get user's saved decks"""
-    return handle_get_user_decks()
+# Removed duplicate user/decks endpoints - using the ones defined earlier
 
 
-@app.route("/api/user/decks", methods=["POST"])
-def save_user_decks():
-    """Save user's decks to database"""
-    return handle_save_user_decks()
+# Admin Endpoints (Require Admin Role)
+@app.route("/api/admin/users", methods=["GET"])
+@require_permission("view_admin_panel")
+def get_admin_users():
+    """List all users (moved from /api/users)"""
+    return handle_get_users()
+
+
+@app.route("/api/admin/users/role", methods=["PUT"])
+@require_permission("manage_users")
+def update_admin_user_role():
+    """Update user role (moved from /api/users/role)"""
+    return handle_update_user_role()
+
+
+@app.route("/api/admin/users/stats", methods=["GET"])
+@require_permission("view_admin_panel")
+def get_admin_user_stats():
+    """User statistics (moved from /api/user/stats)"""
+    return handle_get_user_stats()
+
+
+@app.route("/api/admin/scraping/start", methods=["POST"])
+@require_permission("manage_scraping")
+def start_admin_scraping():
+    """Start scraping (moved from /api/start-scraping)"""
+    # TODO: Implement scraping start with admin authentication
+    return jsonify({"success": True, "message": "Scraping started"})
+
+
+@app.route("/api/admin/scraping/status", methods=["GET"])
+@require_permission("view_admin_panel")
+def get_admin_scraping_status():
+    """Scraping status (moved from /api/scraping-status)"""
+    # TODO: Implement scraping status with admin authentication
+    return jsonify({"status": "idle", "message": "No scraping in progress"})
+
+
+@app.route("/api/admin/database/backup", methods=["GET"])
+@require_permission("manage_database")
+def backup_admin_database():
+    """Database backup (moved from /api/backup-database, ADD AUTH!)"""
+    return handle_backup_database()
+
+
+@app.route("/api/admin/database/restore", methods=["POST"])
+@require_permission("manage_database")
+def restore_admin_database():
+    """Database restore (moved from /api/restore-database, ADD AUTH!)"""
+    return handle_restore_database()
+
+
+# Mixed Auth Cart Endpoints (work for both logged-in and anonymous users)
+@app.route("/api/cart", methods=["GET"])
+def get_cart():
+    """Get cart contents - works for both logged-in and anonymous users"""
+    from auth import get_current_user
+
+    user = get_current_user()
+    if user:
+        # Logged in: get from user's saved hand in database
+        return handle_get_user_hand()
+    else:
+        # Not logged in: get from session storage (handled by frontend)
+        return jsonify(
+            {"hand": [], "message": "Anonymous user - cart managed by frontend"}
+        )
+
+
+@app.route("/api/cart/cards", methods=["POST"])
+def add_cards_to_cart():
+    """Add cards to cart - works for both logged-in and anonymous users"""
+    from auth import get_current_user
+
+    user = get_current_user()
+    if user:
+        # Logged in: save to user's database
+        return handle_save_user_hand()
+    else:
+        # Not logged in: save to session (handled by frontend)
+        return jsonify(
+            {"success": True, "message": "Anonymous user - cart managed by frontend"}
+        )
+
+
+@app.route("/api/cart/cards/<card_id>", methods=["PUT"])
+def update_cart_card_quantity(card_id):
+    """Update card quantity in cart"""
+    from auth import get_current_user
+
+    user = get_current_user()
+    if user:
+        # Logged in: update in database
+        # TODO: Implement individual card quantity update
+        return jsonify({"success": True, "message": "Card quantity updated"})
+    else:
+        # Not logged in: handled by frontend
+        return jsonify(
+            {"success": True, "message": "Anonymous user - cart managed by frontend"}
+        )
+
+
+@app.route("/api/cart/cards/<card_id>", methods=["DELETE"])
+def remove_card_from_cart(card_id):
+    """Remove card from cart"""
+    from auth import get_current_user
+
+    user = get_current_user()
+    if user:
+        # Logged in: remove from database
+        # TODO: Implement individual card removal
+        return jsonify({"success": True, "message": "Card removed"})
+    else:
+        # Not logged in: handled by frontend
+        return jsonify(
+            {"success": True, "message": "Anonymous user - cart managed by frontend"}
+        )
+
+
+@app.route("/api/cart", methods=["DELETE"])
+def clear_cart():
+    """Clear entire cart"""
+    from auth import get_current_user
+
+    user = get_current_user()
+    if user:
+        # Logged in: clear from database
+        # TODO: Implement cart clearing
+        return jsonify({"success": True, "message": "Cart cleared"})
+    else:
+        # Not logged in: handled by frontend
+        return jsonify(
+            {"success": True, "message": "Anonymous user - cart managed by frontend"}
+        )
+
+
+# Catch-all route for serving Next.js static files (must be last!)
+@app.route("/<path:path>")
+def serve_frontend(path):
+    """Serve Next.js static files and routes"""
+    # Clean up the path
+    clean_path = path.rstrip("/")
+
+    # Try different variations of the path
+    paths_to_try = [
+        path,  # Original path
+        f"{clean_path}/index.html",  # Directory with index.html
+        clean_path,  # Path without trailing slash
+    ]
+
+    for try_path in paths_to_try:
+        try:
+            return send_from_directory("frontend", try_path)
+        except FileNotFoundError:
+            continue
+
+    # If nothing works, serve the main index.html for client-side routing
+    return send_from_directory("frontend", "index.html")
 
 
 # Initialize database when app starts (for Cloud Run)

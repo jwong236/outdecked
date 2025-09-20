@@ -58,6 +58,9 @@ export function useDeckOperations() {
       setDeckCards([]);
       setHasUnsavedChanges(false);
       
+      // Navigate to the new deck URL to prevent re-creation
+      router.replace(`/deckbuilder/${newDeck.id}`);
+      
       // Apply default filters to the search
       setTimeout(() => {
         // This will trigger the default filter application in useSearchLogic

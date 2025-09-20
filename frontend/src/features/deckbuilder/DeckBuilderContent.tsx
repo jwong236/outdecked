@@ -55,12 +55,15 @@ export function DeckBuilderContent() {
     hasInitialized.current = true;
     isLoadingRef.current = true;
     
-    if (deckId === 'new') {
+    // Handle different deck ID scenarios
+    if (deckId === 'new' || deckId === 'deckbuilder') {
       // Check if there's a current deck being worked on
       const currentDeck = dataManager.getCurrentDeck();
       if (currentDeck) {
-        // Redirect to the current deck being edited
-        router.replace(`/deckbuilder/${currentDeck.id}`);
+        // Only redirect if we're not already on the correct URL
+        if (deckId !== currentDeck.id) {
+          router.replace(`/deckbuilder/${currentDeck.id}`);
+        }
         return;
       }
       
@@ -68,6 +71,7 @@ export function DeckBuilderContent() {
       const seriesFromUrl = searchParams.get('series');
       createNewDeck(seriesFromUrl || undefined).catch(console.error);
     } else {
+      // Load specific deck by ID
       loadDeck(deckId);
     }
     

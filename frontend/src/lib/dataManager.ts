@@ -1,4 +1,5 @@
 import { Card } from '@/types/card';
+import { apiConfig } from './apiConfig';
 
 // Card reference for efficient storage
 export interface CardReference {
@@ -231,7 +232,7 @@ class DataManager {
         // Removed sessionStorage.clear() to preserve hand data
       }
       
-      const response = await fetch('/api/decks', {
+      const response = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
         headers: {
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache'
@@ -364,7 +365,7 @@ class DataManager {
       const backendDeck = this.convertFrontendDeckToBackend(newDeck);
       console.log('🔧 DataManager.createDeck: Converted to backend format:', backendDeck);
       
-      const response = await fetch('/api/decks', {
+      const response = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -662,7 +663,7 @@ class DataManager {
       // Save each deck individually using the proper /api/decks endpoint
       // This ensures backend validation is applied
       for (const deck of decks) {
-        const response = await fetch('/api/decks', {
+        const response = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -698,12 +699,12 @@ class DataManager {
    */
   async loadDecksFromDatabase(): Promise<Deck[]> {
     try {
-      const response = await fetch('/api/decks', {
+      const response = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-        },
-        credentials: 'include',
+          'Accept': 'application/json',
+        }
       });
 
       if (response.ok) {
@@ -716,8 +717,12 @@ class DataManager {
       } else if (response.status === 401) {
         // User not logged in - keep current sessionStorage decks
         return this.getDecks();
+      } else if (response.status === 404) {
+        // No decks found - this is normal for new users
+        console.log('No decks found in database (404) - this is normal for new users');
+        return [];
       } else {
-        console.error('Failed to load decks from database:', response.statusText);
+        console.error('Failed to load decks from database:', response.status, response.statusText);
       }
     } catch (error) {
       console.log('Could not load decks from database (user not logged in or network error)');
@@ -756,12 +761,12 @@ class DataManager {
    */
   private async saveHandToDatabase(items: HandItem[]): Promise<void> {
     try {
-      const response = await fetch('/api/user/hand', {
+      const response = await fetch(apiConfig.getApiUrl('/api/user/hand'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ hand: items }),
       });
 
@@ -769,8 +774,12 @@ class DataManager {
         // If user is not logged in, this is expected - just use sessionStorage
         if (response.status === 401) {
           return;
+        } else if (response.status === 404) {
+          // API endpoint not found - this might be normal for some endpoints
+          console.log('Hand save endpoint not found (404) - using sessionStorage only');
+          return;
         }
-        console.error('Failed to save hand to database:', response.statusText);
+        console.error('Failed to save hand to database:', response.status, response.statusText);
       }
     } catch (error) {
       // Network error or user not logged in - this is fine, sessionStorage will handle it
@@ -783,8 +792,10 @@ class DataManager {
    */
   async loadHandFromDatabase(): Promise<void> {
     try {
-      const response = await fetch('/api/user/hand', {
-        credentials: 'include',
+      const response = await fetch(apiConfig.getApiUrl('/api/user/hand'), {
+        headers: {
+          'Accept': 'application/json',
+        }
       });
 
       if (response.ok) {
@@ -796,8 +807,12 @@ class DataManager {
       } else if (response.status === 401) {
         // User not logged in - keep current sessionStorage hand
         return;
+      } else if (response.status === 404) {
+        // No hand found - this is normal for new users
+        console.log('No hand found in database (404) - this is normal for new users');
+        return;
       } else {
-        console.error('Failed to load hand from database:', response.statusText);
+        console.error('Failed to load hand from database:', response.status, response.statusText);
       }
     } catch (error) {
       console.log('Could not load hand from database (user not logged in or network error)');

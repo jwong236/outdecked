@@ -5,7 +5,7 @@ import { Card } from '@/types/card';
 import { CartGrid } from '@/features/cart/CartGrid';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
-import { dataManager, Deck, HandItem } from '@/lib/dataManager';
+import { dataManager, Deck, HandItem } from '../../lib/dataManager';
 import { useAuth } from '@/features/auth/AuthContext';
 
 export function CartPage() {
@@ -498,7 +498,7 @@ export function CartPage() {
                           <div className="flex-shrink-0">
                             {deck.cover ? (
                               <img
-                                src={deck.cover.startsWith('http') ? deck.cover : `/api/proxy-image?url=${encodeURIComponent(deck.cover)}`}
+                                src={deck.cover.startsWith('http') ? deck.cover : `/api/images?url=${encodeURIComponent(deck.cover)}`}
                                 alt={`${deck.name} cover`}
                                 className="w-32 h-44 rounded-lg border border-white/20 object-cover"
                                 onError={(e) => {

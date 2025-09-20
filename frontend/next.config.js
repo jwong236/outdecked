@@ -2,7 +2,8 @@
 const path = require('path');
 
 const nextConfig = {
-  output: 'export', // Static export for Flask serving
+  // Only enable static export in production
+  ...(process.env.NODE_ENV === 'production' && { output: 'export' }),
   trailingSlash: true,
   eslint: {
     ignoreDuringBuilds: true,

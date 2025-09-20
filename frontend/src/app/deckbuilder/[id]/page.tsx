@@ -4,10 +4,9 @@ import { DeckBuilderContent } from '@/features/deckbuilder/DeckBuilderContent';
 
 // Required for static export with dynamic routes
 export async function generateStaticParams() {
-  // Return a placeholder ID for static export
-  // This will be handled by client-side routing for actual deck IDs
+  // Generate only one static route - all deck IDs will be handled client-side
   return [
-    { id: 'placeholder' }
+    { id: 'deckbuilder' } // Single catch-all route
   ];
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiConfig } from '../../lib/apiConfig';
 
 interface User {
   id: number;
@@ -40,9 +41,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch('/api/auth/me', {
-        credentials: 'include',
+      const url = apiConfig.getApiUrl('/api/auth/me');
+      console.log('Attempting to fetch:', url); // Debug log
+      
+      // Try a simple fetch first without credentials
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        }
       });
+      
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
       
       if (response.ok) {
         const data = await response.json();
@@ -54,9 +66,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
         const { dataManager } = await import('../../lib/dataManager');
         await dataManager.loadHandFromDatabase();
         await dataManager.loadDecksFromDatabase();
+      } else if (response.status === 401) {
+        // 401 is expected when not logged in - this is not an error
+        console.log('User not authenticated (401) - this is normal');
+        setUser(null);
+      } else {
+        // Other error statuses
+        console.error('Unexpected response status:', response.status);
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      });
     } finally {
       setIsLoading(false);
     }
@@ -64,13 +89,27 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const loadUserPreferences = async () => {
     try {
-      const response = await fetch('/api/user/preferences', {
-        credentials: 'include',
+      const url = apiConfig.getApiUrl('/api/user/preferences');
+      console.log('Loading user preferences:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+        }
       });
+      
+      console.log('Preferences response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
         setPreferences(data.preferences);
+      } else if (response.status === 404) {
+        // 404 is normal for new users who don't have preferences yet
+        console.log('No user preferences found (404) - this is normal for new users');
+        setPreferences({});
+      } else {
+        console.log('Unexpected response status for preferences:', response.status);
+        setPreferences({});
       }
     } catch (error) {
       console.error('Failed to load preferences:', error);
@@ -79,17 +118,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const login = async (username: string, password: string): Promise<boolean> => {
     try {
-      const response = await fetch('/api/auth/login', {
+      const url = apiConfig.getApiUrl('/api/auth/login');
+      console.log('Attempting login:', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ username, password }),
       });
+      
+      console.log('Login response status:', response.status);
+      console.log('Login response ok:', response.ok);
 
       if (response.ok) {
         const data = await response.json();
+        console.log('Login successful:', data);
         setUser(data.user);
         await loadUserPreferences();
         
@@ -99,8 +145,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await dataManager.loadDecksFromDatabase();
         
         return true;
+      } else {
+        console.log('Login failed with status:', response.status);
+        const errorData = await response.json().catch(() => ({}));
+        console.log('Login error data:', errorData);
+        return false;
       }
-      return false;
     } catch (error) {
       console.error('Login failed:', error);
       return false;
@@ -109,14 +159,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const register = async (username: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
-      const response = await fetch('/api/auth/register', {
+      const url = apiConfig.getApiUrl('/api/auth/register');
+      console.log('Attempting registration:', url);
+      
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ username, email, password }),
       });
+      
+      console.log('Register response status:', response.status);
 
       if (response.ok) {
         // After successful registration, automatically log the user in
@@ -138,9 +193,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async (): Promise<void> => {
     try {
-      await fetch('/api/auth/logout', {
+      const url = apiConfig.getApiUrl('/api/auth/logout');
+      console.log('Attempting logout:', url);
+      
+      await fetch(url, {
         method: 'POST',
-        credentials: 'include',
+        headers: {
+          'Accept': 'application/json',
+        },
       });
     } catch (error) {
       console.error('Logout failed:', error);
@@ -149,7 +209,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setPreferences({});
       
       // Clear hand and decks when logging out
-      const { dataManager } = await import('@/lib/dataManager');
+      const { dataManager } = await import('../../lib/dataManager');
       dataManager.clearHand();
       dataManager.clearDecks();
     }
@@ -157,12 +217,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const updatePreferences = async (newPreferences: Record<string, string>): Promise<boolean> => {
     try {
-      const response = await fetch('/api/user/preferences', {
+      const response = await fetch(apiConfig.getApiUrl('/api/user/preferences'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include',
         body: JSON.stringify({ preferences: newPreferences }),
       });
 

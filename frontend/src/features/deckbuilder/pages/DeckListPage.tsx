@@ -9,6 +9,7 @@ import { PageTitle } from '@/components/shared/PageTitle';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
 import { useSeriesValues } from '@/lib/hooks';
 import { useSearchStore } from '@/stores/searchStore';
+import { apiConfig } from '../../../lib/apiConfig';
 import Link from 'next/link';
 
 export function DeckListPage() {
@@ -70,7 +71,7 @@ export function DeckListPage() {
 
   const loadAvailableGames = async () => {
     try {
-      const response = await fetch('/api/games');
+      const response = await fetch(apiConfig.getApiUrl('/api/games'));
       if (response.ok) {
         const games = await response.json();
         console.log('All games from API:', games); // Debug log
@@ -196,8 +197,12 @@ export function DeckListPage() {
         const newDeck = await dataManager.createDeck(newDeckName.trim(), newDeckGame, newDeckVisibility, newDeckSeries, filterSettings);
         console.log('DeckListPage.confirmCreateDeck completed, got deck:', { id: newDeck.id, name: newDeck.name });
         setShowCreateModal(false);
+        
+        // Navigate to the new deck
+        console.log('Navigating to deck:', `/deckbuilder/${newDeck.id}`);
+        router.push(`/deckbuilder/${newDeck.id}`);
       
-      // Set default filters based on the selected series
+        // Set default filters based on the selected series
       // Always start with base default filters
       const baseFilters = [
         {
@@ -284,11 +289,8 @@ export function DeckListPage() {
       setNewDeckGame('Union Arena');
       setNewDeckSeries('');
       setNewDeckVisibility('private');
-      // Clear current deck and redirect to the new deck
+      // Clear current deck
       dataManager.clearCurrentDeck();
-      
-      // Redirect to the new deck (series will be loaded from deck.defaultSeries)
-      router.push(`/deckbuilder/${newDeck.id}`);
       } catch (error) {
         console.error('Error creating deck:', error);
         // Still close the modal even if there was an error
@@ -364,7 +366,7 @@ export function DeckListPage() {
                   <div className="flex-shrink-0 relative">
                     {deck.cover ? (
                       <img
-                        src={deck.cover.startsWith('http') ? deck.cover : `/api/proxy-image?url=${encodeURIComponent(deck.cover)}`}
+                        src={deck.cover.startsWith('http') ? deck.cover : `/api/images?url=${encodeURIComponent(deck.cover)}`}
                         alt={`${deck.name} cover`}
                         className="w-40 h-auto rounded-lg border border-white/20"
                         onError={(e) => {
@@ -770,7 +772,7 @@ export function DeckListPage() {
                     className="relative group"
                   >
                     <img
-                      src={deckCard.image_url.startsWith('http') ? deckCard.image_url : `/api/proxy-image?url=${encodeURIComponent(deckCard.image_url)}`}
+                      src={deckCard.image_url.startsWith('http') ? deckCard.image_url : `/api/images?url=${encodeURIComponent(deckCard.image_url)}`}
                       alt={deckCard.name}
                       className="w-full h-auto rounded-lg border-2 border-transparent group-hover:border-indigo-400 transition-colors"
                       onError={(e) => {
