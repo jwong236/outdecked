@@ -42,14 +42,6 @@ export function DeckListPage() {
       return;
     }
     
-    // Check if there's a current deck being worked on
-    const currentDeck = dataManager.getCurrentDeck();
-    if (currentDeck) {
-      // Redirect to the current deck being edited
-      router.push(`/deckbuilder?deckId=${currentDeck.id}`);
-      return;
-    }
-    
     loadDecks();
     loadAvailableGames();
   }, [authLoading, user, router]);
@@ -74,13 +66,11 @@ export function DeckListPage() {
       const response = await fetch(apiConfig.getApiUrl('/api/games'));
       if (response.ok) {
         const games = await response.json();
-        console.log('All games from API:', games); // Debug log
         // Filter to only show Union Arena for now (only supported game)
         const supportedGames = games.filter((game: {name: string, display: string}) => 
           game.name.toLowerCase().includes('union arena') || 
           game.display.toLowerCase().includes('union arena')
         );
-        console.log('Filtered games:', supportedGames); // Debug log
         setAvailableGames(supportedGames);
       }
     } catch (error) {
@@ -90,9 +80,7 @@ export function DeckListPage() {
 
   const loadDecks = async () => {
     try {
-      console.log('Loading decks...');
       const savedDecks = await dataManager.getDecks();
-      console.log('Loaded decks:', savedDecks.length, savedDecks.map(d => ({ id: d.id, name: d.name })));
       setDecks(savedDecks);
     } catch (error) {
       console.error('Error loading decks:', error);
@@ -145,17 +133,14 @@ export function DeckListPage() {
 
   const confirmDelete = async () => {
     if (deckToDelete) {
-      console.log('Deleting deck:', deckToDelete.id, deckToDelete.name);
       try {
         await dataManager.deleteDeck(deckToDelete.id);
-        console.log('Deck deleted successfully, reloading...');
       } catch (error) {
         console.error('Error deleting deck:', error);
         
         // If we get a 404, the deck doesn't exist in the database anyway
         // So we should remove it from the UI regardless
         if (error instanceof Error && error.message.includes('404')) {
-          console.log('Deck not found in database (404), removing from UI anyway');
         }
       }
       
@@ -177,7 +162,6 @@ export function DeckListPage() {
 
   const confirmCreateDeck = async () => {
     if (newDeckName.trim()) {
-      console.log('DeckListPage.confirmCreateDeck called with:', { name: newDeckName.trim(), game: newDeckGame, visibility: newDeckVisibility, series: newDeckSeries });
       try {
         // Create deck with all settings in one API call
         const filterSettings = {
@@ -195,11 +179,9 @@ export function DeckListPage() {
         };
         
         const newDeck = await dataManager.createDeck(newDeckName.trim(), newDeckGame, newDeckVisibility, newDeckSeries, filterSettings);
-        console.log('DeckListPage.confirmCreateDeck completed, got deck:', { id: newDeck.id, name: newDeck.name });
         setShowCreateModal(false);
         
         // Navigate to the new deck
-        console.log('Navigating to deck:', `/deckbuilder?deckId=${newDeck.id}`);
         router.push(`/deckbuilder?deckId=${newDeck.id}`);
       
         // Set default filters based on the selected series
@@ -289,8 +271,6 @@ export function DeckListPage() {
       setNewDeckGame('Union Arena');
       setNewDeckSeries('');
       setNewDeckVisibility('private');
-      // Clear current deck
-      dataManager.clearCurrentDeck();
       } catch (error) {
         console.error('Error creating deck:', error);
         // Still close the modal even if there was an error
@@ -374,7 +354,6 @@ export function DeckListPage() {
                           e.currentTarget.style.display = 'none';
                         }}
                         onLoad={() => {
-                          console.log('🖼️ Successfully loaded deck cover:', deck.cover, 'for deck:', deck.name);
                         }}
                       />
                     ) : (
@@ -559,10 +538,9 @@ export function DeckListPage() {
                     <Link
                       href={`/deckbuilder?deckId=${deck.id}`}
                       className="w-full px-3 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-sm transition-colors text-center block mt-auto"
-                      onClick={() => dataManager.clearCurrentDeck()}
                     >
                       Edit Deck
-          </Link>
+                    </Link>
         </div>
                 </div>
               </div>

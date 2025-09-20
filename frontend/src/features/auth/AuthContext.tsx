@@ -130,6 +130,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           'Accept': 'application/json',
         },
         body: JSON.stringify({ username, password }),
+        credentials: 'include',
       });
       
       console.log('Login response status:', response.status);

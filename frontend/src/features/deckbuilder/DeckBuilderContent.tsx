@@ -56,13 +56,8 @@ export function DeckBuilderContent() {
     
     // Handle different deck ID scenarios
     if (deckId === 'new' || !deckId) {
-      // Check if there's a current deck being worked on
-      const currentDeck = dataManager.getCurrentDeck();
-      if (currentDeck) {
-        // Redirect to the current deck
-        router.replace(`/deckbuilder?deckId=${currentDeck.id}`);
-        return;
-      }
+            // For new deck creation, don't check for existing current deck
+            // This prevents redirecting to old decks when creating new ones
       
       // Get series from URL parameters
       const seriesFromUrl = searchParams.get('series');
@@ -78,30 +73,28 @@ export function DeckBuilderContent() {
     }, 100);
   }, [deckId, user, router, createNewDeck, loadDeck, setShowSignInModal, authLoading]);
 
-  // Save deck when component unmounts or page is being unloaded
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      console.log('🔧 DeckBuilderContent: Page unloading, saving deck...');
-      if (currentDeck) {
-        // Save to database but keep sessionStorage for now
-        dataManager.updateDeck(currentDeck).catch(console.error);
-      }
-    };
+          // Save deck when component unmounts or page is being unloaded
+          useEffect(() => {
+            const handleBeforeUnload = () => {
+              if (currentDeck) {
+                // Save to database but don't update sessionStorage
+                dataManager.updateDeck(currentDeck, false).catch(console.error);
+              }
+            };
 
-    // Add beforeunload listener for browser navigation
-    window.addEventListener('beforeunload', handleBeforeUnload);
+            // Add event listeners
+            window.addEventListener('beforeunload', handleBeforeUnload);
 
-    return () => {
-      // This cleanup function runs when the component unmounts
-      console.log('🔧 DeckBuilderContent: Component unmounting, saving deck...');
-      if (currentDeck) {
-        // Save to database but keep sessionStorage for now
-        saveDeck().catch(console.error);
-      }
-      // Remove beforeunload listener
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [currentDeck, saveDeck]);
+            return () => {
+              // This cleanup function runs when the component unmounts
+              if (currentDeck) {
+                // Save to database but don't update sessionStorage
+                saveDeck(false).catch(console.error);
+              }
+              // Remove event listeners
+              window.removeEventListener('beforeunload', handleBeforeUnload);
+            };
+          }, [currentDeck, saveDeck]);
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">

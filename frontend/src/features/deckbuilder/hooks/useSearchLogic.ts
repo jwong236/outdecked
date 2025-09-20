@@ -8,7 +8,6 @@ import { dataManager } from '../../../lib/dataManager';
 
 export function useSearchLogic() {
   const { currentDeck } = useDeckBuilderSelectors();
-  const { setCurrentDeck } = useDeckBuilderActions();
   
   // Pagination state - use search store for consistency
   const { setPage, setPerPage } = useSearchStore();
@@ -103,6 +102,9 @@ export function useSearchLogic() {
   React.useEffect(() => {
     if (currentDeck?.defaultSeries) {
       setSeries(currentDeck.defaultSeries);
+    } else {
+      // Clear series if no deck or no default series
+      setSeries('');
     }
   }, [currentDeck?.defaultSeries, setSeries]);
 
@@ -196,7 +198,6 @@ export function useSearchLogic() {
   // Build color and card type filters from deck settings
   const deckColorFilters = useMemo(() => {
     const savedColors = currentDeck?.savedDefaultFilters?.colors || [];
-    console.log('🎨 Building deckColorFilters from savedColors:', savedColors);
     
     // Only apply color filters if there are actually colors selected
     // Empty array means "show all colors" (no filtering)
@@ -207,7 +208,6 @@ export function useSearchLogic() {
       displayText: `Color: ${color}`
     })) : [];
     
-    console.log('🎨 Generated deckColorFilters:', filters);
     return filters;
   }, [currentDeck?.savedDefaultFilters?.colors]);
 
@@ -237,18 +237,6 @@ export function useSearchLogic() {
     not_filters: [...internalNotFilters, ...deckCardTypeFilters] // Include card type exclusions
   };
 
-  // Debug logging to see what filters are being applied
-  console.log('🔍 SEARCH FILTERS DEBUG:', {
-    searchFilters,
-    internalNotFilters,
-    deckCardTypeFilters,
-    deckColorFilters,
-    currentDeck: currentDeck?.id,
-    printTypeFilters,
-    cardTypeFilters,
-    rarityFilters,
-    colorFilters
-  });
   
 
   // Filters for UI display (no default filter pills)
@@ -301,7 +289,7 @@ export function useSearchLogic() {
       
       return newFilters;
     });
-  }, [currentDeck, printTypeOptionsData, setCurrentDeck]);
+  }, [currentDeck, printTypeOptionsData]);
 
   const handleCardTypeChange = useCallback((value: string, checked: boolean) => {
     setCardTypeFilters(prev => {
@@ -337,7 +325,7 @@ export function useSearchLogic() {
       
       return newFilters;
     });
-  }, [currentDeck, cardTypeOptionsData, setCurrentDeck]);
+  }, [currentDeck, cardTypeOptionsData]);
 
   const handleRarityChange = useCallback((value: string, checked: boolean) => {
     setRarityFilters(prev => {
@@ -378,7 +366,7 @@ export function useSearchLogic() {
       
       return newFilters;
     });
-  }, [currentDeck, rarityOptionsData, setCurrentDeck]);
+  }, [currentDeck, rarityOptionsData]);
 
   const handleColorChange = useCallback((value: string, checked: boolean) => {
     setColorFilters(prev => {
@@ -403,13 +391,15 @@ export function useSearchLogic() {
       
       return newFilters;
     });
-  }, [currentDeck, setCurrentDeck]);
+  }, [currentDeck]);
 
   const handleSeriesChange = useCallback((series: string) => {
+    console.log('🔄 handleSeriesChange called with series:', series);
     setSeries(series);
     
     // Also update the deck's defaultSeries if we have a current deck
     if (currentDeck) {
+      console.log('🔄 Updating deck defaultSeries from', currentDeck.defaultSeries, 'to', series);
       const updatedDeck = {
         ...currentDeck,
         defaultSeries: series
@@ -420,7 +410,7 @@ export function useSearchLogic() {
       
       // Don't update context state during render - let the deck loading handle this
     }
-  }, [setSeries, currentDeck, setCurrentDeck]);
+  }, [setSeries, currentDeck]);
 
   const handleSortChange = useCallback((sort: string) => {
     setSort(sort);
@@ -438,15 +428,6 @@ export function useSearchLogic() {
   // Search hooks - use empty filters (no filtering applied)
   const { data: searchData, isLoading: searchLoading, error } = useSearchCards(searchFilters);
   
-  // Debug logging to see search results and filters
-  console.log('🔍 SEARCH RESULTS DEBUG:', {
-    filtersApplied: searchFilters,
-    totalCardsFound: searchData?.pagination?.total_cards || 0,
-    cardsOnThisPage: searchData?.cards?.length || 0,
-    isLoading: searchLoading,
-    error: error,
-    hasResults: !!searchData?.cards?.length
-  });
   
   const { data: seriesData } = useSeriesValues();
   const { data: colorData } = useColorValues();
@@ -557,7 +538,7 @@ export function useSearchLogic() {
     sortOptions,
     
     // Current values
-    currentSeries: currentDeck?.defaultSeries || '',
+    currentSeries: filters.series || '',
     currentColor: '',
     currentCardType: '',
     currentSort: 'name',

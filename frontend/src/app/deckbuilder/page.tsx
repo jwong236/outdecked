@@ -10,6 +10,7 @@ function DeckBuilderContentWrapper() {
   const searchParams = useSearchParams();
   const deckId = searchParams.get('deckId');
 
+
   // If deckId is provided, show the deck builder interface
   if (deckId) {
     return (

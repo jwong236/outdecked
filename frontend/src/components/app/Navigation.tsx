@@ -103,11 +103,7 @@ export function Navigation() {
               </Link>
               
               <Link 
-                href="/deckbuilder" 
-                onClick={() => {
-                  // Clear current deck when navigating to deck builder from navbar
-                  dataManager.clearCurrentDeck();
-                }}
+                href="/deckbuilder"
                 className={`flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition-colors ${
                   isActive('/deckbuilder') 
                     ? 'bg-blue-600 text-white' 
@@ -269,11 +265,7 @@ export function Navigation() {
             Search Cards
           </Link>
           <Link 
-            href="/deckbuilder" 
-            onClick={() => {
-              // Clear current deck when navigating to deck builder from navbar
-              dataManager.clearCurrentDeck();
-            }}
+            href="/deckbuilder"
             className={`block px-3 py-2 rounded-md text-base font-medium ${
               isActive('/deckbuilder') ? 'bg-blue-600 text-white' : 'text-gray-300 hover:text-white hover:bg-gray-700'
             }`}

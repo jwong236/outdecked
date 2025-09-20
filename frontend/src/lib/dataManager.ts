@@ -101,7 +101,6 @@ class DataManager {
       if (typeof window === 'undefined') return [];
       const data = sessionStorage.getItem(STORAGE_KEYS.HAND);
       const result = data ? JSON.parse(data) : [];
-      console.log('🛒 DataManager: getHand() called, returning:', result);
       return result;
     } catch (error) {
       console.error('Error loading hand:', error);
@@ -116,8 +115,6 @@ class DataManager {
     try {
       if (typeof window === 'undefined') return;
       
-      console.log('🛒 DataManager: setHand() called with items:', items);
-      console.log('🛒 DataManager: Saving to sessionStorage with key:', STORAGE_KEYS.HAND);
       
       // Always save to sessionStorage as backup
       sessionStorage.setItem(STORAGE_KEYS.HAND, JSON.stringify(items));
@@ -151,20 +148,15 @@ class DataManager {
    * Add card to hand or update quantity
    */
   addToHand(card: Card, quantity: number = 1): void {
-    console.log('🛒 DataManager: Adding to hand:', card.name, 'quantity:', quantity);
     const hand = this.getHand();
-    console.log('🛒 DataManager: Current hand before add:', hand);
     const existingIndex = hand.findIndex(item => item.card_url === card.card_url);
     
     if (existingIndex >= 0) {
       hand[existingIndex].quantity += quantity;
-      console.log('🛒 DataManager: Updated existing card quantity:', hand[existingIndex]);
     } else {
       hand.push({ ...card, quantity });
-      console.log('🛒 DataManager: Added new card to hand:', { ...card, quantity });
     }
     
-    console.log('🛒 DataManager: Hand after add:', hand);
     this.setHand(hand);
   }
 
@@ -242,11 +234,9 @@ class DataManager {
       if (response.ok) {
         const data = await response.json();
         if (data.success && Array.isArray(data.decks)) {
-          console.log('🔵 DEBUG: Raw API response decks:', data.decks.map(d => ({ id: d.id, name: d.name })));
           
           // Convert backend format to frontend format
           const convertedDecks = data.decks.map(this.convertBackendDeckToFrontend.bind(this));
-          console.log('🔵 DEBUG: Converted decks:', convertedDecks.map(d => ({ id: d.id, name: d.name })));
           
           // Deduplicate by ID to prevent any duplication issues
           const uniqueDecks = convertedDecks.reduce((acc: Deck[], deck: Deck) => {
@@ -256,7 +246,6 @@ class DataManager {
             return acc;
           }, []);
           
-          console.log('🔵 DEBUG: Final unique decks:', uniqueDecks.map(d => ({ id: d.id, name: d.name })));
           return uniqueDecks;
         }
       }
@@ -311,6 +300,7 @@ class DataManager {
   setCurrentDeck(deck: Deck): void {
     try {
       if (typeof window === 'undefined') return;
+      console.log('🟢 SESSION: Creating currentDeck in sessionStorage:', { id: deck.id, name: deck.name });
       sessionStorage.setItem(STORAGE_KEYS.CURRENT_DECK, JSON.stringify(deck));
     } catch (error) {
       console.error('Error saving current deck:', error);
@@ -323,6 +313,7 @@ class DataManager {
   clearCurrentDeck(): void {
     try {
       if (typeof window === 'undefined') return;
+      console.log('🔴 SESSION: Deleting currentDeck from sessionStorage');
       sessionStorage.removeItem(STORAGE_KEYS.CURRENT_DECK);
     } catch (error) {
       console.error('Error clearing current deck:', error);
@@ -333,7 +324,6 @@ class DataManager {
    * Create new deck (save to API only)
    */
   async createDeck(name?: string, game?: string, visibility?: 'private' | 'public' | 'unlisted', defaultSeries?: string, filterSettings?: { defaultFilters: any, savedDefaultFilters: any }): Promise<Deck> {
-    console.log('🔧 DataManager.createDeck called with:', { name, game, visibility, defaultSeries, filterSettings });
     
     const counter = this.getDeckCounter();
     const deckName = name || `Deck ${counter + 1}`;
@@ -360,11 +350,9 @@ class DataManager {
       updatedAt: new Date()
     };
     
-    console.log('🔧 DataManager.createDeck: Created newDeck object:', newDeck);
     
     try {
       const backendDeck = this.convertFrontendDeckToBackend(newDeck);
-      console.log('🔧 DataManager.createDeck: Converted to backend format:', backendDeck);
       
       const response = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
         method: 'POST',
@@ -375,16 +363,13 @@ class DataManager {
         body: JSON.stringify(backendDeck)
       });
       
-      console.log('🔧 DataManager.createDeck: API response status:', response.status);
       
       if (response.ok) {
         const data = await response.json();
-        console.log('🔧 DataManager.createDeck: API response data:', data);
         
         if (data.success && data.deck) {
           // Use the deck data returned from the API (with proper ID, timestamps, etc.)
           const apiDeck = this.convertBackendDeckToFrontend(data.deck);
-          console.log('🔧 DataManager.createDeck: Converted API deck to frontend format:', apiDeck);
           this.incrementDeckCounter();
           return apiDeck;
         } else {
@@ -411,9 +396,9 @@ class DataManager {
   }
 
   /**
-   * Update entire deck (save to both API and sessionStorage)
+   * Update entire deck (save to both API and optionally sessionStorage)
    */
-  async updateDeck(deck: Deck): Promise<void> {
+  async updateDeck(deck: Deck, updateSession: boolean = true): Promise<void> {
     try {
       const updatedDeck = { ...deck, updatedAt: new Date() };
       
@@ -430,9 +415,11 @@ class DataManager {
         throw new Error(`API save failed: ${response.status}`);
       }
       
-      // Also save to sessionStorage for immediate UI updates
-      this.setCurrentDeck(updatedDeck);
-      console.log('✅ Deck saved to database and sessionStorage successfully');
+      // Also save to sessionStorage for immediate UI updates (only if requested)
+      if (updateSession) {
+        this.setCurrentDeck(updatedDeck);
+      }
+      console.log('✅ Deck saved to database');
     } catch (error) {
       console.error('Error updating deck:', error);
       throw error;
@@ -694,7 +681,6 @@ class DataManager {
       }
     } catch (error) {
       // Network error or user not logged in - this is fine, sessionStorage will handle it
-      console.log('Decks saved to sessionStorage only (user not logged in or network error)');
     }
   }
 
@@ -724,13 +710,11 @@ class DataManager {
         return this.getDecks();
       } else if (response.status === 404) {
         // No decks found - this is normal for new users
-        console.log('No decks found in database (404) - this is normal for new users');
         return [];
       } else {
         console.error('Failed to load decks from database:', response.status, response.statusText);
       }
     } catch (error) {
-      console.log('Could not load decks from database (user not logged in or network error)');
     }
     
     // Fallback to sessionStorage
@@ -750,7 +734,6 @@ class DataManager {
    * Notify components of hand updates
    */
   private notifyHandUpdate(): void {
-    console.log('🛒 DataManager: Dispatching cartUpdated event');
     window.dispatchEvent(new CustomEvent('cartUpdated'));
   }
 
@@ -782,14 +765,12 @@ class DataManager {
           return;
         } else if (response.status === 404) {
           // API endpoint not found - this might be normal for some endpoints
-          console.log('Hand save endpoint not found (404) - using sessionStorage only');
           return;
         }
         console.error('Failed to save hand to database:', response.status, response.statusText);
       }
     } catch (error) {
       // Network error or user not logged in - this is fine, sessionStorage will handle it
-      console.log('Hand saved to sessionStorage only (user not logged in or network error)');
     }
   }
 
@@ -816,13 +797,11 @@ class DataManager {
         return;
       } else if (response.status === 404) {
         // No hand found - this is normal for new users
-        console.log('No hand found in database (404) - this is normal for new users');
         return;
       } else {
         console.error('Failed to load hand from database:', response.status, response.statusText);
       }
     } catch (error) {
-      console.log('Could not load hand from database (user not logged in or network error)');
     }
   }
 
@@ -831,19 +810,28 @@ class DataManager {
    */
   async deleteDeck(deckId: string): Promise<void> {
     try {
-      console.log('🔴 DEBUG: Attempting to delete deck with ID:', deckId);
       const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${deckId}`), { 
         method: 'DELETE',
         credentials: 'include',
       });
       
       const responseData = await response.json();
-      console.log('🔴 DEBUG: Delete response status:', response.status);
-      console.log('🔴 DEBUG: Delete response data:', responseData);
       
       if (!response.ok) {
         throw new Error(`API delete failed: ${response.status} - ${responseData.error || 'Unknown error'}`);
       }
+      
+      // Remove from sessionStorage after successful deletion
+      const currentDecks = await this.getDecks();
+      const updatedDecks = currentDecks.filter(deck => deck.id !== deckId);
+      sessionStorage.setItem(STORAGE_KEYS.DECKS, JSON.stringify(updatedDecks));
+      
+      // Also clear current deck if it's the one being deleted
+      const currentDeck = this.getCurrentDeck();
+      if (currentDeck && currentDeck.id === deckId) {
+        this.clearCurrentDeck();
+      }
+      
     } catch (error) {
       console.error('Error deleting deck:', error);
       throw error;

@@ -10,7 +10,7 @@ import { dataManager } from '../../../../lib/dataManager';
 
 export function DeckBuilderSettingsModal() {
   const { currentDeck, modals } = useDeckBuilderSelectors();
-  const { setShowAdvancedFiltersModal, setCurrentDeck } = useDeckBuilderActions();
+  const { setShowAdvancedFiltersModal } = useDeckBuilderActions();
   
   const { 
     seriesOptions,
@@ -37,8 +37,8 @@ export function DeckBuilderSettingsModal() {
         ...currentDeck,
         visibility: visibility as 'private' | 'public' | 'unlisted'
       };
-      // Update the current deck state (session only - will save on navigation)
-      setCurrentDeck(updatedDeck);
+      // Save to database immediately
+      dataManager.updateDeck(updatedDeck);
     }
   };
 
@@ -58,8 +58,8 @@ export function DeckBuilderSettingsModal() {
         defaultFilters: updatedFilters
       };
       
-      // Update the current deck state (session only - will save on navigation)
-      setCurrentDeck(updatedDeck);
+      // Save to database immediately
+      dataManager.updateDeck(updatedDeck);
       
       // Apply the preset to the corresponding dropdown
       if (filter === 'basicPrintsOnly' && value) {
@@ -272,8 +272,8 @@ export function DeckBuilderSettingsModal() {
                       
                       console.log('🎨 Updated deck with colors:', updatedDeck.savedDefaultFilters.colors);
                       
-                      // Update the current deck state (session only - will save on navigation)
-                      setCurrentDeck(updatedDeck);
+                      // Save to database immediately
+                      dataManager.updateDeck(updatedDeck);
                     }
                   }}
                   className="w-full"

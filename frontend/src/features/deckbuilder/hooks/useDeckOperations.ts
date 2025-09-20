@@ -29,9 +29,18 @@ export function useDeckOperations() {
     updateDeckCardQuantity
   } = useDeckBuilderActions();
 
+  // Create session (single source of truth for currentDeck in sessionStorage)
+  const createSession = useCallback((deck: Deck) => {
+    setCurrentDeck(deck);
+    setDeckName(deck.name);
+    setOriginalDeckName(deck.name);
+    setDeckCards([]);
+    setHasUnsavedChanges(false);
+    dataManager.setCurrentDeck(deck);
+  }, [setCurrentDeck, setDeckName, setOriginalDeckName, setDeckCards, setHasUnsavedChanges]);
+
   // Create new deck (save to database via API)
   const createNewDeck = useCallback(async (series?: string) => {
-    console.log('useDeckOperations.createNewDeck called with series:', series);
     try {
       // Use dataManager.createDeck() which saves to API with default filter settings
       const filterSettings = {
@@ -49,17 +58,69 @@ export function useDeckOperations() {
       };
       
       const newDeck = await dataManager.createDeck('New Deck', 'Union Arena', 'private', series || '', filterSettings);
-      console.log('useDeckOperations.createNewDeck completed, got deck:', { id: newDeck.id, name: newDeck.name });
       
-      // Set the deck in the UI state
-      setCurrentDeck(newDeck);
-      setDeckName('New Deck');
-      setOriginalDeckName('New Deck');
-      setDeckCards([]);
-      setHasUnsavedChanges(false);
+      // Navigate to the new deck URL to prevent re-creation
+      router.replace(`/deckbuilder?deckId=${newDeck.id}`);
       
-        // Navigate to the new deck URL to prevent re-creation
-        router.replace(`/deckbuilder?deckId=${newDeck.id}`);
+      // Inline load logic for efficiency
+      const deck = await dataManager.getDeck(newDeck.id);
+      if (deck) {
+        // Sync series with search store
+        if (deck.defaultSeries) {
+          setSeries(deck.defaultSeries);
+        } else {
+          setSeries('');
+        }
+        
+        // Create session (single source of truth)
+        createSession(deck);
+        
+        // Convert deck cards to Card format for display
+        const deckCardData: Card[] = deck.cards.map(deckItem => {
+          const baseCard = {
+            id: deckItem.id || 0,
+            product_id: deckItem.product_id || 0,
+            name: deckItem.name ?? '',
+            clean_name: deckItem.clean_name || null,
+            image_url: deckItem.image_url ?? null,
+            card_url: deckItem.card_url,
+            game: deckItem.game ?? '',
+            category_id: deckItem.category_id || 0,
+            group_id: deckItem.group_id || 0,
+            group_name: deckItem.group_name,
+            group_abbreviation: deckItem.group_abbreviation,
+            image_count: deckItem.image_count || 0,
+            is_presale: deckItem.is_presale || false,
+            released_on: deckItem.released_on || '',
+            presale_note: deckItem.presale_note || '',
+            modified_on: deckItem.modified_on || '',
+            price: deckItem.price || 0,
+            low_price: deckItem.low_price || null,
+            mid_price: deckItem.mid_price || null,
+            high_price: deckItem.high_price || null,
+            created_at: deckItem.created_at || '',
+            quantity: deckItem.quantity
+          };
+
+          // Add dynamic attributes only if they exist
+          const dynamicAttrs: any = {};
+          if (deckItem.SeriesName) dynamicAttrs.SeriesName = deckItem.SeriesName;
+          if (deckItem.Rarity) dynamicAttrs.Rarity = deckItem.Rarity;
+          if (deckItem.Number) dynamicAttrs.Number = deckItem.Number;
+          if (deckItem.CardType) dynamicAttrs.CardType = deckItem.CardType;
+          if (deckItem.RequiredEnergy) dynamicAttrs.RequiredEnergy = deckItem.RequiredEnergy;
+          if (deckItem.ActionPointCost) dynamicAttrs.ActionPointCost = deckItem.ActionPointCost;
+          if (deckItem.ActivationEnergy) dynamicAttrs.ActivationEnergy = deckItem.ActivationEnergy;
+          if (deckItem.Description) dynamicAttrs.Description = deckItem.Description;
+          if (deckItem.GeneratedEnergy) dynamicAttrs.GeneratedEnergy = deckItem.GeneratedEnergy;
+          if (deckItem.BattlePointBP) dynamicAttrs.BattlePointBP = deckItem.BattlePointBP;
+          if (deckItem.Trigger) dynamicAttrs.Trigger = deckItem.Trigger;
+          if (deckItem.Affinities) dynamicAttrs.Affinities = deckItem.Affinities;
+
+          return { ...baseCard, ...dynamicAttrs };
+        });
+        setDeckCards(deckCardData);
+      }
       
       // Apply default filters to the search
       setTimeout(() => {
@@ -68,31 +129,9 @@ export function useDeckOperations() {
       }, 100);
     } catch (error) {
       console.error('Error creating new deck:', error);
-      // Fallback: create a temporary deck in sessionStorage only
-      const tempDeck: Deck = {
-        id: `deck-${Date.now()}`,
-        name: 'New Deck',
-        game: 'Union Arena',
-        visibility: 'private',
-        cards: [],
-        defaultSeries: series || '',
-        defaultFilters: {
-          basicPrintsOnly: true,
-          noActionPoints: true,
-          baseRarityOnly: true
-        },
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
-      setCurrentDeck(tempDeck);
-      setDeckName('New Deck');
-      setOriginalDeckName('New Deck');
-      setDeckCards([]);
-      setHasUnsavedChanges(false);
-      // Save temp deck to sessionStorage for UI state
-      dataManager.setCurrentDeck(tempDeck);
+      // Just show error, don't create fake session
     }
-  }, [setCurrentDeck, setDeckName, setOriginalDeckName, setDeckCards, setHasUnsavedChanges]);
+  }, [router, setSeries, createSession, setDeckCards]);
 
   // Load deck
   const loadDeck = useCallback(async (id: string) => {
@@ -100,18 +139,15 @@ export function useDeckOperations() {
       // Load specific deck from API
       const deck = await dataManager.getDeck(id);
       if (deck) {
-        setCurrentDeck(deck);
-        setDeckName(deck.name);
-        setOriginalDeckName(deck.name);
-        setHasUnsavedChanges(false);
-        
-        // Save this as the current deck being worked on in sessionStorage
-        dataManager.setCurrentDeck(deck);
-        
         // Sync series with search store if deck has a default series
         if (deck.defaultSeries) {
           setSeries(deck.defaultSeries);
+        } else {
+          setSeries('');
         }
+        
+        // Create session (single source of truth)
+        createSession(deck);
         
         // Convert deck cards to Card format for display (optimized)
         const deckCardData: Card[] = deck.cards.map(deckItem => {
@@ -167,7 +203,7 @@ export function useDeckOperations() {
       console.error('Error loading deck:', error);
       router.push('/deckbuilder');
     }
-  }, [setCurrentDeck, setDeckName, setOriginalDeckName, setHasUnsavedChanges, setDeckCards, router]);
+  }, [setSeries, createSession, setDeckCards, router]);
 
   // Save deck name
   const saveDeckName = useCallback(() => {
@@ -179,10 +215,11 @@ export function useDeckOperations() {
       updatedAt: new Date()
     };
     
-    setCurrentDeck(updatedDeck);
+    // Save to database immediately
+    dataManager.updateDeck(updatedDeck);
     setOriginalDeckName(deckName);
     setHasUnsavedChanges(false);
-  }, [currentDeck, deckName, setCurrentDeck, setOriginalDeckName, setHasUnsavedChanges]);
+  }, [currentDeck, deckName, setOriginalDeckName, setHasUnsavedChanges]);
 
   // Handle deck name change
   const handleDeckNameChange = useCallback((newName: string) => {
@@ -196,11 +233,14 @@ export function useDeckOperations() {
   }, [updateDeckCardQuantity]);
 
   // Save deck to database (call when user is done making changes)
-  const saveDeck = useCallback(async () => {
+  const saveDeck = useCallback(async (updateSession: boolean = true) => {
     if (currentDeck) {
       try {
-        await dataManager.updateDeck(currentDeck);
+        await dataManager.updateDeck(currentDeck, updateSession);
         console.log('Deck saved to database');
+        
+        // Clear session immediately after saving to database
+        dataManager.clearCurrentDeck();
       } catch (error) {
         console.error('Error saving deck:', error);
       }
@@ -326,9 +366,10 @@ export function useDeckOperations() {
         ...currentDeck,
         cover: mostExpensiveCard.image_url
       };
-      setCurrentDeck(updatedDeck);
+      // Save to database immediately
+      dataManager.updateDeck(updatedDeck);
     }
-  }, [currentDeck, setCurrentDeck]);
+  }, [currentDeck]);
 
   // Handle cover selection
   const handleCoverSelection = useCallback((cardImageUrl: string) => {
@@ -342,9 +383,10 @@ export function useDeckOperations() {
       cover: cardImageUrl
     };
     console.log('🖼️ Updated deck with cover:', updatedDeck.cover);
-    setCurrentDeck(updatedDeck);
+    // Save to database immediately
+    dataManager.updateDeck(updatedDeck);
     setShowCoverSelectionModal(false);
-  }, [currentDeck, setCurrentDeck, setShowCoverSelectionModal]);
+  }, [currentDeck, setShowCoverSelectionModal]);
 
   // Clear deck
   const handleClearDeck = useCallback(() => {
@@ -358,16 +400,41 @@ export function useDeckOperations() {
   const backToDeckList = useCallback(() => {
     // Save current deck to database before clearing session
     if (currentDeck) {
-      dataManager.updateDeck(currentDeck).then(() => {
+      dataManager.updateDeck(currentDeck, false).then(() => {
         // Clear sessionStorage only after successful save
         dataManager.clearCurrentDeck();
-      }).catch(console.error);
+        // Clear React state as well
+        setCurrentDeck(null);
+        setDeckName('');
+        setOriginalDeckName('');
+        setDeckCards([]);
+        setHasUnsavedChanges(false);
+        // Navigate after clearing
+        router.push('/deckbuilder');
+      }).catch((error) => {
+        console.error('Error saving deck:', error);
+        // Even if save fails, clear session and navigate
+        dataManager.clearCurrentDeck();
+        setCurrentDeck(null);
+        setDeckName('');
+        setOriginalDeckName('');
+        setDeckCards([]);
+        setHasUnsavedChanges(false);
+        router.push('/deckbuilder');
+      });
     } else {
       // Clear sessionStorage even if no current deck
       dataManager.clearCurrentDeck();
+      // Clear React state as well
+      setCurrentDeck(null);
+      setDeckName('');
+      setOriginalDeckName('');
+      setDeckCards([]);
+      setHasUnsavedChanges(false);
+      // Navigate immediately
+      router.push('/deckbuilder');
     }
-    router.push('/deckbuilder');
-  }, [router, currentDeck]);
+  }, [router, currentDeck, setCurrentDeck, setDeckName, setOriginalDeckName, setDeckCards, setHasUnsavedChanges]);
 
   // Prepare deck cards for PDF generation
   const deckCardsForPdf = useMemo(() => {
