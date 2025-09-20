@@ -212,7 +212,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setPreferences({});
       
       // Clear hand and decks when logging out
-      const { dataManager } = await import('@/lib/dataManager');
+      const { dataManager } = await import('../../lib/dataManager');
       dataManager.clearHand();
       dataManager.clearDecks();
     }
