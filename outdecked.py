@@ -129,12 +129,12 @@ def scraping():
 @app.route("/deckbuilder/")
 def deckbuilder():
     # Serve the main deckbuilder page - handles both deck list and individual deck editing via query parameters
-    return send_from_directory("frontend", "deckbuilder/index.html")
+    return send_from_directory("frontend", "deckbuilder.html")
 
 
 @app.route("/auth")
 def auth():
-    return send_from_directory("frontend", "auth/index.html")
+    return send_from_directory("frontend", "auth.html")
 
 
 # User Deck Management (Require Auth)

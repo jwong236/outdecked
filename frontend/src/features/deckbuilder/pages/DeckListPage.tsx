@@ -46,7 +46,7 @@ export function DeckListPage() {
     const currentDeck = dataManager.getCurrentDeck();
     if (currentDeck) {
       // Redirect to the current deck being edited
-      router.push(`/deckbuilder/${currentDeck.id}`);
+      router.push(`/deckbuilder?deckId=${currentDeck.id}`);
       return;
     }
     
