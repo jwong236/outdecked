@@ -213,6 +213,7 @@ def search():
 
 # Public API - Card Search and Information
 @app.route("/api/cards")
+@app.route("/api/search")  # Legacy endpoint for backward compatibility
 def api_cards():
     """Search cards (renamed from /api/search)"""
     return handle_api_search()
@@ -233,12 +234,14 @@ def get_card_by_id(card_id):
 
 
 @app.route("/api/cards/attributes")
+@app.route("/api/filter-fields")  # Legacy endpoint for backward compatibility
 def api_cards_attributes():
     """List all available card attributes (renamed from /api/filter-fields)"""
     return handle_filter_fields()
 
 
 @app.route("/api/cards/attributes/<field>")
+@app.route("/api/filter-values/<field>")  # Legacy endpoint for backward compatibility
 def api_cards_attribute_values(field):
     """Get distinct values for specific attribute (renamed from /api/filter-values/<field>)"""
     game = request.args.get("game")
