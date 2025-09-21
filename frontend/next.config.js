@@ -2,8 +2,7 @@
 const path = require('path');
 
 const nextConfig = {
-  // Disable static export for now to fix build issues
-  // ...(process.env.NODE_ENV === 'production' && { output: 'export' }),
+  ...(process.env.NODE_ENV === 'production' && { output: 'export' }),
   trailingSlash: false,
   eslint: {
     ignoreDuringBuilds: true,
