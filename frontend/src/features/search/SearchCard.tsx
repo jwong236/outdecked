@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { Card } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
+import { getProductImageIcon } from '@/lib/imageUtils';
 
 export interface SearchCardProps {
   card: Card;
@@ -82,9 +83,9 @@ export function SearchCard({
     >
       {/* Card Image */}
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-gray-100">
-        {card.image_url ? (
+        {card.product_id ? (
           <Image
-            src={card.image_url}
+            src={getProductImageIcon(card.product_id)}
             alt={card.name}
             fill
             priority={priority}

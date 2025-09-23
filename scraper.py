@@ -165,7 +165,6 @@ class TCGCSVScraper:
             card_data = {
                 "name": product_name,
                 "clean_name": product.get("cleanName", ""),
-                "image_url": f"https://tcgplayer-cdn.tcgplayer.com/product/{product_id}_in_1000x1000.jpg",
                 "card_url": product.get(
                     "url", f"https://www.tcgplayer.com/product/{product_id}"
                 ),

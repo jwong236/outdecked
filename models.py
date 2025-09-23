@@ -39,15 +39,20 @@ DECK_TEMPLATE = {
     "id": "",  # Unique identifier
     "name": "",  # User-defined deck name
     "game": "",  # Game type (Union Arena, Pokemon, etc.)
+    "description": "",  # Optional deck description
+    "visibility": "private",  # Deck visibility (public/private/unlisted)
     "cards": [],  # Array of card objects
     "created_date": "",  # ISO timestamp
     "last_modified": "",  # ISO timestamp
     "total_cards": 0,  # Count of cards in deck
     "is_legal": False,  # Deck validation status
-    "description": "",  # Optional deck description
-    "defaultSeries": "",  # Default series for deck
-    "defaultFilters": {},  # Default filter presets
-    "savedDefaultFilters": {},  # Saved filter selections
+    "preferences": {  # Search preferences
+        "series": "",  # Default series for deck
+        "color": "",  # Default color filter
+        "cardTypes": [],  # Array of selected card types (all except Action Point)
+        "printTypes": [],  # Array of selected print types (Base only)
+        "rarities": [],  # Array of selected rarities (base rarities only)
+    },
 }
 
 # Card in deck structure template

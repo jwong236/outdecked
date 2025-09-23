@@ -60,6 +60,7 @@ from deck_builder import (
     handle_update_deck,
     handle_delete_deck,
     handle_get_deck,
+    handle_get_decks_batch,
     handle_add_card_to_deck,
     handle_remove_card_from_deck,
     handle_update_card_quantity,
@@ -156,6 +157,12 @@ def get_user_deck(deck_id):
     return handle_get_deck(deck_id)
 
 
+@app.route("/api/user/decks/batch", methods=["POST"])
+def get_user_decks_batch():
+    """Get multiple decks by IDs"""
+    return handle_get_decks_batch()
+
+
 @app.route("/api/user/decks/<deck_id>", methods=["PUT"])
 def update_user_deck(deck_id):
     """Update deck (moved from /api/decks/{id})"""
@@ -172,6 +179,12 @@ def delete_user_deck(deck_id):
 def add_card_to_user_deck(deck_id):
     """Add card to deck"""
     return handle_add_card_to_deck(deck_id)
+
+
+@app.route("/api/user/decks/<deck_id>/cards/batch", methods=["POST"])
+def add_cards_to_user_deck(deck_id):
+    """Add multiple cards to deck"""
+    return handle_add_cards_to_deck(deck_id)
 
 
 @app.route("/api/user/decks/<deck_id>/cards/<card_id>", methods=["PUT"])
@@ -232,6 +245,62 @@ def get_card_by_id(card_id):
         return jsonify({"error": "Card not found"}), 404
 
 
+@app.route("/api/cards/batch", methods=["POST"])
+def get_cards_batch():
+    """Get multiple cards by product IDs with full attribute data"""
+    try:
+        data = request.get_json()
+        product_ids = data.get("product_ids", [])
+
+        if not product_ids:
+            return jsonify([])
+
+        conn = get_db_connection()
+
+        # Create placeholders for the IN clause
+        placeholders = ",".join(["?" for _ in product_ids])
+
+        # Get cards with full attribute data (same structure as search endpoint)
+        query = (
+            f"SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, "
+            f"GROUP_CONCAT(cm.name || ':' || cm.value, '|||') as metadata, "
+            f"COALESCE(cp.market_price, cp.mid_price) as price "
+            f"FROM cards c "
+            f"LEFT JOIN groups g ON c.group_id = g.id "
+            f"LEFT JOIN card_attributes cm ON c.id = cm.card_id "
+            f"LEFT JOIN card_prices cp ON c.id = cp.card_id "
+            f"WHERE c.product_id IN ({placeholders}) "
+            f"GROUP BY c.id"
+        )
+
+        cursor = conn.execute(query, product_ids)
+        rows = cursor.fetchall()
+        conn.close()
+
+        # Convert to list of dictionaries and parse metadata
+        cards = []
+        for row in rows:
+            card = dict(row)
+
+            # Parse metadata string into individual attributes
+            if card.get("metadata"):
+                metadata_pairs = card["metadata"].split("|||")
+                for pair in metadata_pairs:
+                    if ":" in pair:
+                        name, value = pair.split(":", 1)
+                        card[name] = value
+
+            # Remove the raw metadata string
+            if "metadata" in card:
+                del card["metadata"]
+
+            cards.append(card)
+
+        return jsonify(cards)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/cards/attributes")
 def api_cards_attributes():
     """List all available card attributes (renamed from /api/filter-fields)"""
@@ -243,6 +312,40 @@ def api_cards_attribute_values(field):
     """Get distinct values for specific attribute (renamed from /api/filter-values/<field>)"""
     game = request.args.get("game")
     return handle_filter_values(field, game)
+
+
+@app.route("/api/cards/colors/<series>")
+def api_cards_colors_for_series(series):
+    """Get available colors for a specific series"""
+    game = request.args.get("game", "Union Arena")
+    conn = get_db_connection()
+
+    try:
+        # Query to get distinct colors for cards in the specified series
+        query = """
+        SELECT DISTINCT ca.value as color
+        FROM cards c
+        JOIN card_attributes ca ON c.id = ca.card_id
+        WHERE c.game = ? 
+        AND ca.name = 'ActivationEnergy'
+        AND EXISTS (
+            SELECT 1 FROM card_attributes ca2 
+            WHERE ca2.card_id = c.id 
+            AND ca2.name = 'SeriesName' 
+            AND ca2.value = ?
+        )
+        ORDER BY ca.value
+        """
+
+        cursor = conn.execute(query, (game, series))
+        colors = [row[0] for row in cursor.fetchall()]
+        conn.close()
+
+        return jsonify(colors)
+
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/games")
@@ -261,7 +364,7 @@ def get_games():
 # Removed /api/print-type-values - not used by frontend
 
 
-@app.route("/api/stats")
+@app.route("/api/analytics")
 def get_stats():
     """Get basic application statistics"""
     conn = get_db_connection()
@@ -315,7 +418,7 @@ def list_routes():
     return "<pre>" + "\n".join(sorted(output)) + "</pre>"
 
 
-@app.route("/api/stats/games")
+@app.route("/api/analytics/games")
 def get_game_stats():
     """Get game-specific statistics (renamed from /api/game-stats)"""
     conn = get_db_connection()
@@ -341,15 +444,22 @@ def get_game_stats():
     return jsonify(stats)
 
 
-@app.route("/api/images")
-def get_image():
-    """Fetch and return image content (renamed from /api/proxy-image)"""
-    url = request.args.get("url")
-    if not url:
-        return jsonify({"error": "URL parameter is required"}), 400
+@app.route("/api/images/product/<int:product_id>")
+def get_product_image(product_id):
+    """Get TCGPlayer product image with specified size"""
+    size = request.args.get("size", "1000x1000")  # Default to 1000x1000
+
+    # Validate size parameter (basic validation)
+    if not size or "x" not in size:
+        size = "1000x1000"
+
+    # Construct TCGPlayer CDN URL
+    image_url = (
+        f"https://tcgplayer-cdn.tcgplayer.com/product/{product_id}_in_{size}.jpg"
+    )
 
     try:
-        response = requests.get(url, timeout=10)
+        response = requests.get(image_url, timeout=10)
         response.raise_for_status()
 
         # Return the image with proper headers
@@ -357,12 +467,13 @@ def get_image():
             response.content,
             200,
             {
-                "Content-Type": response.headers.get("Content-Type", "image/jpeg"),
-                "Cache-Control": "public, max-age=3600",  # Cache for 1 hour
+                "Content-Type": "image/jpeg",
+                "Cache-Control": "public, max-age=86400",  # Cache for 24 hours
+                "Access-Control-Allow-Origin": "*",  # Allow CORS
             },
         )
     except requests.RequestException as e:
-        return jsonify({"error": f"Failed to fetch image: {str(e)}"}), 400
+        return jsonify({"error": f"Failed to fetch product image: {str(e)}"}), 400
 
 
 # Removed /api/card-by-url - not used anywhere, product_id lookup is better
@@ -407,15 +518,15 @@ def get_current_user():
 
 
 # User Management Routes
-@app.route("/api/user/preferences", methods=["GET"])
-@app.route("/api/user/preferences/", methods=["GET"])
+@app.route("/api/users/me/preferences", methods=["GET"])
+@app.route("/api/users/me/preferences/", methods=["GET"])
 def get_user_preferences():
     """Get user preferences"""
     return handle_get_user_preferences()
 
 
-@app.route("/api/user/preferences", methods=["PUT"])
-@app.route("/api/user/preferences/", methods=["PUT"])
+@app.route("/api/users/me/preferences", methods=["PUT"])
+@app.route("/api/users/me/preferences/", methods=["PUT"])
 def update_user_preferences():
     """Update user preferences"""
     return handle_update_user_preferences()
@@ -443,13 +554,13 @@ def get_user_stats():
 
 
 # Hand Persistence Routes
-@app.route("/api/user/hand", methods=["GET"])
+@app.route("/api/users/me/hand", methods=["GET"])
 def get_user_hand():
     """Get user's saved hand"""
     return handle_get_user_hand()
 
 
-@app.route("/api/user/hand", methods=["POST"])
+@app.route("/api/users/me/hand", methods=["POST"])
 def save_user_hand():
     """Save user's hand to database"""
     return handle_save_user_hand()
@@ -511,7 +622,7 @@ def restore_admin_database():
 
 
 # Mixed Auth Cart Endpoints (work for both logged-in and anonymous users)
-@app.route("/api/cart", methods=["GET"])
+@app.route("/api/users/me/cart", methods=["GET"])
 def get_cart():
     """Get cart contents - works for both logged-in and anonymous users"""
     from auth import get_current_user
@@ -527,7 +638,7 @@ def get_cart():
         )
 
 
-@app.route("/api/cart/cards", methods=["POST"])
+@app.route("/api/users/me/cart/cards", methods=["POST"])
 def add_cards_to_cart():
     """Add cards to cart - works for both logged-in and anonymous users"""
     from auth import get_current_user
@@ -543,7 +654,7 @@ def add_cards_to_cart():
         )
 
 
-@app.route("/api/cart/cards/<card_id>", methods=["PUT"])
+@app.route("/api/users/me/cart/cards/<card_id>", methods=["PUT"])
 def update_cart_card_quantity(card_id):
     """Update card quantity in cart"""
     from auth import get_current_user
@@ -560,7 +671,7 @@ def update_cart_card_quantity(card_id):
         )
 
 
-@app.route("/api/cart/cards/<card_id>", methods=["DELETE"])
+@app.route("/api/users/me/cart/cards/<card_id>", methods=["DELETE"])
 def remove_card_from_cart(card_id):
     """Remove card from cart"""
     from auth import get_current_user
@@ -577,7 +688,7 @@ def remove_card_from_cart(card_id):
         )
 
 
-@app.route("/api/cart", methods=["DELETE"])
+@app.route("/api/users/me/cart", methods=["DELETE"])
 def clear_cart():
     """Clear entire cart"""
     from auth import get_current_user

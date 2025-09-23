@@ -5,8 +5,8 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { dataManager } from '../../lib/dataManager';
 import { useAuth } from '@/features/auth/AuthContext';
+import { useSessionStore } from '@/stores/sessionStore';
 import { 
   HomeIcon, 
   MagnifyingGlassIcon, 
@@ -21,12 +21,12 @@ import {
 
 export function Navigation() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [cartCount, setCartCount] = useState(0);
   const [buttonPosition, setButtonPosition] = useState({ top: 0, right: 0 });
   const [isHydrated, setIsHydrated] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, isLoading } = useAuth();
+  const { handCart } = useSessionStore();
 
   const isActive = (path: string) => pathname === path;
 
@@ -51,21 +51,34 @@ export function Navigation() {
     setIsHydrated(true);
   }, []);
 
+  // Close profile dropdown when clicking outside or scrolling
   useEffect(() => {
-    const updateCartCount = () => {
-      const totalItems = dataManager.getHandTotalItems();
-      setCartCount(totalItems);
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      if (!target.closest('.profile-dropdown')) {
+        setIsProfileOpen(false);
+      }
     };
 
-    updateCartCount();
-    
-    // Listen for cart updates
-    window.addEventListener('cartUpdated', updateCartCount);
-    
-    return () => {
-      window.removeEventListener('cartUpdated', updateCartCount);
+    const handleScroll = () => {
+      setIsProfileOpen(false);
     };
-  }, []);
+
+    if (isProfileOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('scroll', handleScroll, true);
+      window.addEventListener('scroll', handleScroll, true);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [isProfileOpen]);
+
+  // Calculate cart count from sessionStore
+  const cartCount = handCart.handItems.reduce((total, item) => total + item.quantity, 0);
 
   return (
     <nav className="bg-slate-800/95 backdrop-blur-md shadow-lg">
@@ -158,7 +171,7 @@ export function Navigation() {
               </div>
             ) : user ? (
               // Authenticated user - show profile dropdown
-              <div className="relative">
+              <div className="relative profile-dropdown">
                 <button
                   ref={updateButtonPosition}
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
@@ -173,7 +186,7 @@ export function Navigation() {
 
                 {isProfileOpen && typeof window !== 'undefined' && createPortal(
                   <div 
-                    className="fixed w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50"
+                    className="fixed w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50 profile-dropdown"
                     style={{
                       top: `${buttonPosition.top}px`,
                       right: `${buttonPosition.right}px`

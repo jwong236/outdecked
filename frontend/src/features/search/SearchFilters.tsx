@@ -19,13 +19,15 @@ export function SearchFilters() {
   const { data: colorData } = useColorValues();
 
   const sortOptions = [
-    { value: '', label: 'Default' },
-    { value: 'name', label: 'Name A-Z' },
+    { value: 'name_asc', label: 'Default' },
+    { value: 'name_asc', label: 'Name A-Z' },
     { value: 'name_desc', label: 'Name Z-A' },
-    { value: 'price', label: 'Price Low-High' },
+    { value: 'price_asc', label: 'Price Low-High' },
     { value: 'price_desc', label: 'Price High-Low' },
-    { value: 'rarity', label: 'Rarity' },
-    { value: 'number', label: 'Card Number' },
+    { value: 'rarity_asc', label: 'Rarity Low-High' },
+    { value: 'rarity_desc', label: 'Rarity High-Low' },
+    { value: 'number_asc', label: 'Card Number Low-High' },
+    { value: 'number_desc', label: 'Card Number High-Low' },
   ];
 
   // Prepare dropdown options

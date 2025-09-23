@@ -26,7 +26,7 @@ export default function HomePage() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await fetch(apiConfig.getApiUrl('/api/stats'));
+        const response = await fetch(apiConfig.getApiUrl('/api/analytics'));
         if (response.ok) {
           const data = await response.json();
           setStats({

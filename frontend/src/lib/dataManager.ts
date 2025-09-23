@@ -51,24 +51,18 @@ export interface Deck {
   id: string;
   name: string;
   game: string;
-  visibility: 'private' | 'public' | 'unlisted';
   cards: CardReference[];
   cover?: string; // URL of the cover card image
-  defaultSeries?: string; // Default series filter for the deck
   createdAt: Date;
   updatedAt: Date;
-  // Default filters for the deck (persistent)
-  defaultFilters?: {
-    basicPrintsOnly: boolean;
-    noActionPoints: boolean;
-    baseRarityOnly: boolean;
-  };
-  // Saved default filter selections (persistent)
-  savedDefaultFilters?: {
+  // Deck preferences (persistent)
+  preferences?: {
+    visibility: 'private' | 'public' | 'unlisted'; // Deck visibility
+    defaultSeries?: string; // Default series filter for the deck
+    defaultColorFilter?: string; // Single color filter for search
     printTypes: string[]; // Selected print types
     cardTypes: string[];  // Selected card types
-    rarities: string[];   // Selected rarities to exclude
-    colors: string[];     // Selected colors
+    rarities: string[];   // Selected rarities
   };
   // Backend validation fields
   is_legal?: boolean; // Backend validation status
@@ -266,14 +260,18 @@ class DataManager {
       id: backendDeck.id,
       name: backendDeck.name,
       game: backendDeck.game,
-      visibility: backendDeck.visibility || 'private',
       cards: backendDeck.cards || [],
       cover: backendDeck.cover,
-      defaultSeries: backendDeck.defaultSeries,
       createdAt: new Date(backendDeck.created_date),
       updatedAt: new Date(backendDeck.last_modified),
-      defaultFilters: backendDeck.defaultFilters,
-      savedDefaultFilters: backendDeck.savedDefaultFilters,
+      preferences: {
+        visibility: backendDeck.visibility || 'private',
+        defaultSeries: backendDeck.defaultSeries || '',
+        defaultColorFilter: backendDeck.savedDefaultFilters?.defaultColorFilter || '',
+        printTypes: backendDeck.savedDefaultFilters?.printTypes || [],
+        cardTypes: backendDeck.savedDefaultFilters?.cardTypes || [],
+        rarities: backendDeck.savedDefaultFilters?.rarities || []
+      },
       is_legal: backendDeck.is_legal,
       validation_errors: backendDeck.validation_errors,
       total_cards: backendDeck.total_cards
@@ -323,7 +321,7 @@ class DataManager {
   /**
    * Create new deck (save to API only)
    */
-  async createDeck(name?: string, game?: string, visibility?: 'private' | 'public' | 'unlisted', defaultSeries?: string, filterSettings?: { defaultFilters: any, savedDefaultFilters: any }): Promise<Deck> {
+  async createDeck(name?: string, game?: string, visibility?: 'private' | 'public' | 'unlisted', defaultSeries?: string, filterSettings?: { preferences: any }): Promise<Deck> {
     
     const counter = this.getDeckCounter();
     const deckName = name || `Deck ${counter + 1}`;
@@ -332,19 +330,14 @@ class DataManager {
       id: `deck_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: deckName,
       game: game || 'Union Arena',
-      visibility: visibility || 'private',
       cards: [],
-      defaultSeries: defaultSeries,
-      defaultFilters: filterSettings?.defaultFilters || {
-        basicPrintsOnly: true,
-        noActionPoints: true,
-        baseRarityOnly: true
-      },
-      savedDefaultFilters: filterSettings?.savedDefaultFilters || {
-        printTypes: [],
-        cardTypes: [],
-        rarities: [],
-        colors: []
+      preferences: filterSettings?.preferences || {
+        visibility: visibility || 'private',
+        defaultSeries: defaultSeries || '',
+        defaultColorFilter: '',
+        printTypes: ['Base'], // Default: Basic Prints Only
+        cardTypes: ['Action Point'], // Default: No Action Points
+        rarities: ['Common', 'Uncommon', 'Rare', 'Super Rare'] // Default: Base Rarity Only
       },
       createdAt: new Date(),
       updatedAt: new Date()
@@ -434,12 +427,18 @@ class DataManager {
       id: frontendDeck.id,
       name: frontendDeck.name,
       game: frontendDeck.game,
-      visibility: frontendDeck.visibility,
+      visibility: frontendDeck.preferences?.visibility || 'private',
       cards: frontendDeck.cards,
       cover: frontendDeck.cover,
-      defaultSeries: frontendDeck.defaultSeries,
-      defaultFilters: frontendDeck.defaultFilters,
-      savedDefaultFilters: frontendDeck.savedDefaultFilters,
+      defaultSeries: frontendDeck.preferences?.defaultSeries || '',
+      defaultFilters: {}, // No longer used
+      savedDefaultFilters: {
+        printTypes: frontendDeck.preferences?.printTypes || [],
+        cardTypes: frontendDeck.preferences?.cardTypes || [],
+        rarities: frontendDeck.preferences?.rarities || [],
+        colors: [], // No longer used
+        defaultColorFilter: frontendDeck.preferences?.defaultColorFilter || ''
+      },
       is_legal: frontendDeck.is_legal,
       validation_errors: frontendDeck.validation_errors,
       total_cards: frontendDeck.total_cards
@@ -627,8 +626,8 @@ class DataManager {
     try {
       if (typeof window === 'undefined') return;
       
-      // Clear from sessionStorage only
-      sessionStorage.setItem(STORAGE_KEYS.DECKS, JSON.stringify([]));
+      // SessionStorage now handled by sessionStore - don't create old keys
+      // sessionStorage.setItem(STORAGE_KEYS.DECKS, JSON.stringify([]));
     } catch (error) {
       console.error('Error clearing decks:', error);
     }
@@ -639,8 +638,8 @@ class DataManager {
    */
   private _setDecks(decks: Deck[]): void {
     if (typeof window === 'undefined') return;
-    // Always save to sessionStorage as backup
-    sessionStorage.setItem(STORAGE_KEYS.DECKS, JSON.stringify(decks));
+    // SessionStorage now handled by sessionStore - don't create old keys
+    // sessionStorage.setItem(STORAGE_KEYS.DECKS, JSON.stringify(decks));
     
     // If user is logged in, also save to database
     this.saveDecksToDatabase(decks);
@@ -665,9 +664,9 @@ class DataManager {
             name: deck.name,
             game: deck.game,
             cards: deck.cards,
-            visibility: deck.visibility,
+            visibility: deck.preferences?.visibility || 'private',
             cover: deck.cover,
-            defaultSeries: deck.defaultSeries
+            defaultSeries: deck.preferences?.defaultSeries || ''
           }),
         });
 
@@ -749,7 +748,7 @@ class DataManager {
    */
   private async saveHandToDatabase(items: HandItem[]): Promise<void> {
     try {
-      const response = await fetch(apiConfig.getApiUrl('/api/user/hand'), {
+      const response = await fetch(apiConfig.getApiUrl('/api/users/me/hand'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -779,7 +778,7 @@ class DataManager {
    */
   async loadHandFromDatabase(): Promise<void> {
     try {
-      const response = await fetch(apiConfig.getApiUrl('/api/user/hand'), {
+      const response = await fetch(apiConfig.getApiUrl('/api/users/me/hand'), {
         headers: {
           'Accept': 'application/json',
         },

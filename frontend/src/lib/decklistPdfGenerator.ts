@@ -1,9 +1,8 @@
 // No need for jsPDF anymore - we'll use canvas for PNG generation
-import { apiConfig } from './apiConfig';
 
 export interface DeckCard {
   name: string;
-  image_url: string;
+  image_url_large: string;
   quantity: number;
   CardType: string;
   RequiredEnergy: string;
@@ -170,11 +169,19 @@ function groupCardsByType(cards: DeckCard[]): Record<string, DeckCard[]> {
   return orderedGroups;
 }
 
-// Helper function to load image as base64 using backend proxy (same as proxy printer)
+// Helper function to load image as base64 using backend proxy
 const loadImageAsBase64 = async (url: string): Promise<string> => {
   try {
-    // Try to fetch through our backend proxy
-    const proxyUrl = `${apiConfig.getApiUrl('/api/images')}?url=${encodeURIComponent(url)}`;
+    // Extract product_id from TCGPlayer URL
+    const tcgplayerMatch = url.match(/tcgplayer-cdn\.tcgplayer\.com\/product\/(\d+)/);
+    if (!tcgplayerMatch) {
+      throw new Error(`Invalid TCGPlayer URL: ${url}`);
+    }
+    
+    const productId = tcgplayerMatch[1];
+    const proxyUrl = `/api/images/product/${productId}?size=1000x1000`;
+    
+    console.log(`🖼️ Fetching image from: ${proxyUrl}`);
     const response = await fetch(proxyUrl);
     
     if (!response.ok) {
@@ -296,7 +303,8 @@ export async function generateDecklistImage(options: DecklistImageOptions): Prom
         
       try {
         // Use proxy method to get base64 image
-        const base64Image = await loadImageAsBase64(card.image_url);
+        console.log(`🖼️ Loading image for ${card.name}: ${card.image_url_large}`);
+        const base64Image = await loadImageAsBase64(card.image_url_large);
         
         // Create image element
         const img = new Image();

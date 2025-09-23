@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/types/card';
-import { dataManager } from '../../../lib/dataManager';
+import { useSessionStore } from '@/stores/sessionStore';
 
 interface QuantityControlProps {
   card: Card;
@@ -35,18 +35,20 @@ export function QuantityControl({
     ? (context === 'deck' ? '4-button' : '2-button')
     : buttonLayout;
 
+  // Get sessionStore functions for hand and printList contexts
+  const { handCart, addToHand, updateHandQuantity, removeFromHand, proxyPrinter, setPrintList } = useSessionStore();
+
   // Get current quantity for this specific card
   const getCurrentQuantity = () => {
     if (context === 'printList') {
-      const printList = dataManager.getPrintList();
-      const existingItem = printList.find(item => item.card_url === card.card_url);
+      const existingItem = proxyPrinter.printList.find(item => item.product_id === card.product_id);
       return existingItem ? existingItem.quantity : 0;
     } else if (context === 'deck') {
       // For deck context, use the quantity from the card prop or local state
       return card.quantity || localQuantity;
     } else {
-      const hand = dataManager.getHand();
-      const existingItem = hand.find(item => item.card_url === card.card_url);
+      // Hand context - use sessionStore
+      const existingItem = handCart.handItems.find(item => item.product_id === card.product_id);
       return existingItem ? existingItem.quantity : 0;
     }
   };
@@ -54,26 +56,24 @@ export function QuantityControl({
   // Update quantity using appropriate method
   const updateQuantity = (change: number) => {
     if (context === 'printList') {
-      if (effectiveQuantity === 0 && change > 0) {
-        // Adding new card to print list
-        dataManager.addToPrintList([{ ...card, quantity: change }]);
-      } else {
-        // Update print list quantity
-        const printList = dataManager.getPrintList();
-        const existingIndex = printList.findIndex(item => item.card_url === card.card_url);
-        
-        if (existingIndex >= 0) {
-          const newQuantity = printList[existingIndex].quantity + change;
-          if (newQuantity <= 0) {
-            // Remove from print list
-            const updatedList = printList.filter(item => item.card_url !== card.card_url);
-            dataManager.setPrintList(updatedList);
-          } else {
-            // Update quantity
-            printList[existingIndex].quantity = newQuantity;
-            dataManager.setPrintList(printList);
-          }
+      const currentPrintList = [...proxyPrinter.printList];
+      const existingIndex = currentPrintList.findIndex(item => item.product_id === card.product_id);
+      
+      if (existingIndex >= 0) {
+        const newQuantity = currentPrintList[existingIndex].quantity + change;
+        if (newQuantity <= 0) {
+          // Remove from print list
+          const updatedList = currentPrintList.filter(item => item.product_id !== card.product_id);
+          setPrintList(updatedList);
+        } else {
+          // Update quantity
+          currentPrintList[existingIndex].quantity = newQuantity;
+          setPrintList(currentPrintList);
         }
+      } else if (change > 0) {
+        // Adding new card to print list
+        currentPrintList.push({ product_id: card.product_id, quantity: change });
+        setPrintList(currentPrintList);
       }
     } else if (context === 'deck') {
       // For deck context, use the callback function
@@ -81,23 +81,35 @@ export function QuantityControl({
         onQuantityChange(card, change);
       }
     } else {
-      // Hand context
+      // Hand context - use sessionStore
       console.log('🛒 QuantityControl: Updating hand quantity for', card.name, 'change:', change, 'effectiveQuantity:', effectiveQuantity);
       if (effectiveQuantity === 0 && change > 0) {
         // Adding new card to hand
         console.log('🛒 QuantityControl: Adding new card to hand:', card.name);
-        dataManager.addToHand(card, change);
+        addToHand(card.product_id, change);
       } else {
         // Updating existing card quantity
         console.log('🛒 QuantityControl: Updating existing card quantity:', card.name);
-        dataManager.updateHandQuantity(card.card_url!, change);
+        const newQuantity = effectiveQuantity + change;
+        if (newQuantity <= 0) {
+          removeFromHand(card.product_id);
+        } else {
+          updateHandQuantity(card.product_id, newQuantity);
+        }
       }
     }
     
     // Update local state for non-deck contexts
     if (context !== 'deck') {
-      const newQuantity = getCurrentQuantity();
-      setLocalQuantity(newQuantity);
+      // For hand context, calculate the new quantity directly since we know the change
+      if (context === 'hand') {
+        const newQuantity = effectiveQuantity + change;
+        setLocalQuantity(Math.max(0, newQuantity)); // Ensure it doesn't go below 0
+      } else {
+        // For other contexts, get from the data source
+        const newQuantity = getCurrentQuantity();
+        setLocalQuantity(newQuantity);
+      }
     }
   };
 
@@ -116,10 +128,9 @@ export function QuantityControl({
       };
       
       if (context === 'printList') {
-        window.addEventListener('printListUpdated', handleUpdate);
-        return () => {
-          window.removeEventListener('printListUpdated', handleUpdate);
-        };
+        // For printList context, we don't need event listeners since we're using sessionStore directly
+        // The component will re-render when proxyPrinter.printList changes
+        return;
       } else {
         window.addEventListener('cartUpdated', handleUpdate);
         return () => {
@@ -128,6 +139,13 @@ export function QuantityControl({
       }
     }
   }, [card.quantity, context]);
+
+  // Sync local state when sessionStore changes (for hand context)
+  useEffect(() => {
+    if (context === 'hand') {
+      setLocalQuantity(getCurrentQuantity());
+    }
+  }, [handCart.handItems, context]);
 
   const sizeClasses = {
     sm: {
@@ -156,7 +174,7 @@ export function QuantityControl({
       case 'deck':
         return 'Add to Deck';
       case 'printList':
-        return 'Add to Hand';
+        return 'Add to Print';
       case 'hand':
       default:
         return 'Add to Hand';

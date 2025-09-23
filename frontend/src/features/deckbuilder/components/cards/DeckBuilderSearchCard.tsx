@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
+import { getProductImageIcon } from '@/lib/imageUtils';
 import { Card } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
 
@@ -50,9 +51,9 @@ export function DeckBuilderSearchCard({
     >
       {/* Card Image */}
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-gray-800">
-        {card.image_url ? (
+        {card.product_id ? (
           <Image
-            src={card.image_url}
+            src={getProductImageIcon(card.product_id)}
             alt={card.name}
             fill
             className="object-cover group-hover:scale-105 transition-transform duration-300"

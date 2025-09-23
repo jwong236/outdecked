@@ -21,7 +21,6 @@ def init_db():
             product_id INTEGER UNIQUE NOT NULL,
             name TEXT NOT NULL,
             clean_name TEXT,
-            image_url TEXT,
             card_url TEXT,
             game TEXT NOT NULL,
             category_id INTEGER,
@@ -148,12 +147,16 @@ def init_db():
         CREATE TABLE IF NOT EXISTS user_preferences (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
-            preference_key TEXT NOT NULL,
-            preference_value TEXT NOT NULL,
+            background TEXT DEFAULT 'background-1.jpg',
+            cards_per_page INTEGER DEFAULT 24,
+            default_sort TEXT DEFAULT 'name',
+            theme TEXT DEFAULT 'light',
+            default_print_types TEXT DEFAULT '["Base"]',
+            default_card_types TEXT DEFAULT '["Action Point"]',
+            default_rarities TEXT DEFAULT '["Common", "Uncommon", "Rare", "Super Rare"]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-            UNIQUE(user_id, preference_key)
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
         )
         """
     )
@@ -270,10 +273,19 @@ def create_default_owner():
     # Set default preferences for owner
     cursor.execute(
         """
-        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme, default_print_types, default_card_types, default_rarities)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """,
-        (user_id, "/backgrounds/background-1.jpg", 24, "name", "light"),
+        (
+            user_id,
+            "/backgrounds/background-1.jpg",
+            24,
+            "name",
+            "light",
+            '["Base"]',
+            '["Action Point"]',
+            '["Common", "Uncommon", "Rare", "Super Rare"]',
+        ),
     )
 
     conn.commit()
@@ -314,10 +326,19 @@ def create_test_user():
     # Set default preferences for test user
     cursor.execute(
         """
-        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme, default_print_types, default_card_types, default_rarities)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """,
-        (user_id, "/backgrounds/background-1.jpg", 24, "name", "light"),
+        (
+            user_id,
+            "/backgrounds/background-1.jpg",
+            24,
+            "name",
+            "light",
+            '["Base"]',
+            '["Action Point"]',
+            '["Common", "Uncommon", "Rare", "Super Rare"]',
+        ),
     )
 
     conn.commit()
@@ -443,7 +464,7 @@ def save_cards_to_db(cards):
                         # Update existing card with TCGCSV fields
                         cursor.execute(
                             """
-                            UPDATE cards SET name = ?, clean_name = ?, image_url = ?, card_url = ?, 
+                            UPDATE cards SET name = ?, clean_name = ?, card_url = ?, 
                                            group_id = ?, group_name = ?, print_type = ?, image_count = ?, 
                                            is_presale = ?, released_on = ?, presale_note = ?, modified_on = ?
                             WHERE product_id = ?
@@ -451,7 +472,6 @@ def save_cards_to_db(cards):
                             (
                                 card["name"],
                                 card.get("clean_name", ""),
-                                card.get("image_url", ""),
                                 card.get("card_url", ""),
                                 card.get("group_id"),
                                 card.get("series", ""),
@@ -469,16 +489,15 @@ def save_cards_to_db(cards):
                         # Insert new card with TCGCSV fields
                         cursor.execute(
                             """
-                            INSERT INTO cards (product_id, name, clean_name, image_url, card_url, game, 
+                            INSERT INTO cards (product_id, name, clean_name, card_url, game, 
                                              category_id, group_id, group_name, print_type, image_count, 
                                              is_presale, released_on, presale_note, modified_on)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 card["product_id"],
                                 card["name"],
                                 card.get("clean_name", ""),
-                                card.get("image_url", ""),
                                 card.get("card_url", ""),
                                 card["game"],
                                 card.get("category_id", 81),
@@ -579,7 +598,6 @@ def save_card_attributes_tcgcsv(cursor, card_id, card_data):
     skip_fields = [
         "name",
         "clean_name",
-        "image_url",
         "card_url",
         "game",
         "product_id",
@@ -655,7 +673,6 @@ def save_card_attributes(cursor, card_id, game, card_data):
         # Skip basic fields and price fields
         if field_name in [
             "name",
-            "image_url",
             "card_url",
             "game",
             "product_id",

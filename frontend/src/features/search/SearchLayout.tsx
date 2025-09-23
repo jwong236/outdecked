@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useSearchStore, getCurrentSeries, getCurrentColor, getCurrentCardType } from '@/stores/searchStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useSearchCards, useSeriesValues, useColorValues, useFilterFields } from '@/lib/hooks';
 import { useUrlState } from '@/lib/useUrlState';
 import { Card } from '@/types/card';
 import { SearchResponse } from '@/lib/api';
+import { useAuth } from '@/features/auth/AuthContext';
 import { FilterSection } from './FilterSection';
 import { QuickFilters } from './QuickFilters';
 import { AdvancedFiltersButton } from './AdvancedFiltersButton';
@@ -26,24 +27,27 @@ export function SearchLayout({
   showAdvancedFilters = true,
   resultsPerPage = 24
 }: SearchLayoutProps) {
+  const { user } = useAuth();
   const { 
-    filters, 
-    setQuery, 
-    setSeries, 
-    setColor, 
-    setCardType,
-    setSort,
-    setPage,
-    addAndFilter,
-    addOrFilter,
-    addNotFilter,
-    removeAndFilter,
-    removeOrFilter,
-    removeNotFilter,
+    searchPreferences,
+    setSearchPreferences,
+    addAdvancedFilter,
+    removeAdvancedFilter,
     clearAllFilters,
-    setPerPage,
-    initializeFromUrl,
-  } = useSearchStore();
+    setDefaultFilterToggle,
+    setPage,
+    setSort,
+    setSeries,
+    setCardType,
+    setColor,
+    getSeries,
+    getCardType,
+    getColor,
+    getFiltersForAPI,
+  } = useSessionStore();
+
+  // Override getQuery to use local state
+  const getQuery = () => query;
 
   const { getFiltersFromUrl, syncFiltersToUrl } = useUrlState();
 
@@ -51,26 +55,40 @@ export function SearchLayout({
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
   const [isNavigatingPages, setIsNavigatingPages] = useState<boolean>(false);
   const [showAdvancedFiltersModal, setShowAdvancedFiltersModal] = useState(false);
+  const [query, setQuery] = useState<string>(''); // Temporary UI state
 
-  // Initialize filters from URL on mount
+  // Search preferences are automatically loaded by sessionStore
+
+  // Initialize filters from URL on mount (only once)
   useEffect(() => {
     const urlFilters = getFiltersFromUrl();
     if (Object.keys(urlFilters).length > 0) {
-      initializeFromUrl(urlFilters);
+      // Apply URL filters to searchPreferences
+      if (urlFilters.query) setQuery(urlFilters.query);
+      if (urlFilters.series) setSeries(urlFilters.series);
+      if (urlFilters.color) setColor(urlFilters.color);
+      if (urlFilters.cardType) setCardType(urlFilters.cardType);
+      if (urlFilters.sort) setSort(urlFilters.sort);
+      if (urlFilters.page) setPage(urlFilters.page);
+      if (urlFilters.per_page) {
+        // Note: per_page is handled by the resultsPerPage useEffect below
+      }
     }
-  }, [getFiltersFromUrl, initializeFromUrl]);
+  }, []); // Empty dependency array - only run once on mount
 
   // Set results per page
   useEffect(() => {
-    setPerPage(resultsPerPage);
-  }, [resultsPerPage, setPerPage]);
+    if (searchPreferences.per_page !== resultsPerPage) {
+      setSearchPreferences({ ...searchPreferences, per_page: resultsPerPage });
+    }
+  }, [resultsPerPage, setSearchPreferences, searchPreferences]);
 
   // Sync filters to URL whenever they change
   useEffect(() => {
-    syncFiltersToUrl(filters);
-  }, [filters, syncFiltersToUrl]);
+    syncFiltersToUrl(getFiltersForAPI());
+  }, [searchPreferences, syncFiltersToUrl, getFiltersForAPI]);
 
-  const { data: searchData, isLoading, error } = useSearchCards(filters);
+  const { data: searchData, isLoading, error } = useSearchCards(getFiltersForAPI());
   const { data: seriesData } = useSeriesValues();
   const { data: colorData } = useColorValues();
   const { data: filterFields } = useFilterFields();
@@ -122,12 +140,12 @@ export function SearchLayout({
     } else if (index >= searchResponse?.cards.length && searchResponse?.pagination.has_next) {
       // Navigate to next page - will show first card of next page
       setIsNavigatingPages(true);
-      setPage(filters.page + 1);
+      setPage(searchPreferences.page + 1);
       setSelectedCardIndex(0); // Will be first card of next page
     } else if (index < 0 && searchResponse?.pagination.has_prev) {
       // Navigate to previous page - will show last card of previous page
       setIsNavigatingPages(true);
-      setPage(filters.page - 1);
+      setPage(searchPreferences.page - 1);
       setSelectedCardIndex(-1); // Will be set to last card when data loads
     }
   };
@@ -147,28 +165,19 @@ export function SearchLayout({
         setCardType('');
         break;
       case 'sort':
-        setSort('');
+        setSort('name_asc'); // Reset to default sort
         break;
       case 'and':
-        // Find and remove the specific AND filter
-        const andIndex = filters.and_filters.findIndex(f => 
-          value ? f.displayText === value : false
-        );
-        if (andIndex !== -1) removeAndFilter(andIndex);
-        break;
       case 'or':
-        // Find and remove the specific OR filter
-        const orIndex = filters.or_filters.findIndex(f => 
-          value ? f.displayText === value : false
-        );
-        if (orIndex !== -1) removeOrFilter(orIndex);
-        break;
       case 'not':
-        // Find and remove the specific NOT filter
-        const notIndex = filters.not_filters.findIndex(f => 
-          value ? f.displayText === value : false
-        );
-        if (notIndex !== -1) removeNotFilter(notIndex);
+        // Find and remove the specific advanced filter
+        const filterIndex = searchPreferences.advancedFilters.findIndex(compactFilter => {
+          const type = compactFilter[0] as '&' | '|' | '!';
+          const [field, filterValue] = compactFilter.slice(1).split('=');
+          const displayText = `${field}: ${filterValue}`;
+          return value ? displayText === value : false;
+        });
+        if (filterIndex !== -1) removeAdvancedFilter(filterIndex);
         break;
     }
   };
@@ -205,8 +214,7 @@ export function SearchLayout({
   ];
 
   const sortOptions = [
-    { value: '', label: 'Default' },
-    { value: 'name', label: 'Name A-Z' },
+    { value: 'name_asc', label: 'Default' },
     { value: 'name_desc', label: 'Name Z-A' },
     { value: 'price_asc', label: 'Price Low-High' },
     { value: 'price_desc', label: 'Price High-Low' },
@@ -218,7 +226,7 @@ export function SearchLayout({
     { value: 'required_energy_desc', label: 'Required Energy High-Low' },
   ];
 
-  const hasActiveAdvancedFilters = filters.and_filters.length > 0 || filters.or_filters.length > 0 || filters.not_filters.length > 0;
+  const hasActiveAdvancedFilters = searchPreferences.advancedFilters.length > 0;
 
   return (
     <div className={`min-h-screen ${className}`}>
@@ -229,13 +237,13 @@ export function SearchLayout({
           <div className="p-4 pt-6 space-y-6">
             {/* Main Filters */}
             <FilterSection
-              series={getCurrentSeries()}
+              series={getSeries()}
               onSeriesChange={setSeries}
-              color={getCurrentColor()}
+              color={getColor()}
               onColorChange={setColor}
-              cardType={getCurrentCardType()}
+              cardType={getCardType()}
               onCardTypeChange={setCardType}
-              sort={filters.sort || ''}
+              sort={searchPreferences.sort}
               onSortChange={setSort}
               seriesOptions={seriesOptions}
               colorOptions={colorOptions}
@@ -243,13 +251,8 @@ export function SearchLayout({
               sortOptions={sortOptions}
             />
 
-            {/* Quick Filters */}
-            <QuickFilters
-              onAddAndFilter={addAndFilter}
-              onAddOrFilter={addOrFilter}
-              onAddNotFilter={addNotFilter}
-              currentFilters={filters}
-            />
+            {/* Default Filters */}
+            <QuickFilters />
 
             {/* Advanced Filters Button */}
             <AdvancedFiltersButton
@@ -261,7 +264,6 @@ export function SearchLayout({
 
             {/* Active Filters */}
             <ActiveFilters
-              filters={filters}
               onRemoveFilter={handleRemoveFilter}
               onRemoveMultipleFilters={handleRemoveMultipleFilters}
               onClearAll={handleClearAllFilters}
@@ -285,7 +287,7 @@ export function SearchLayout({
               <input
                 id="search"
                 type="text"
-                value={filters.query || ''}
+                value={getQuery()}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Enter card name..."
                 className="w-full rounded-lg border border-white/30 bg-white/20 py-2 px-3 text-white placeholder-white/70 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 sm:text-sm transition-colors duration-200"
@@ -350,17 +352,17 @@ export function SearchLayout({
             
             <div className="overflow-y-auto max-h-[60vh]">
               <AdvancedFilters
-                andFilters={filters.and_filters}
-                orFilters={filters.or_filters}
-                notFilters={filters.not_filters}
-                onAddAndFilter={addAndFilter}
-                onAddOrFilter={addOrFilter}
-                onAddNotFilter={addNotFilter}
-                onRemoveAndFilter={removeAndFilter}
-                onRemoveOrFilter={removeOrFilter}
-                onRemoveNotFilter={removeNotFilter}
+                andFilters={[]}
+                orFilters={[]}
+                notFilters={[]}
+                onAddAndFilter={addAdvancedFilter}
+                onAddOrFilter={addAdvancedFilter}
+                onAddNotFilter={addAdvancedFilter}
+                onRemoveAndFilter={removeAdvancedFilter}
+                onRemoveOrFilter={removeAdvancedFilter}
+                onRemoveNotFilter={removeAdvancedFilter}
                 availableFields={filterFields || []}
-                game={filters.game}
+                game={searchPreferences.game}
               />
             </div>
           </div>

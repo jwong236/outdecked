@@ -2,12 +2,12 @@
 
 import React, { useCallback, useMemo, useState } from 'react';
 import { useSearchStore } from '@/stores/searchStore';
-import { useSearchCards, useSeriesValues, useColorValues, useFilterFields, useFilterValues } from '@/lib/hooks';
-import { useDeckBuilderSelectors, useDeckBuilderActions } from '../DeckBuilderContext';
-import { dataManager } from '../../../lib/dataManager';
+import { useSessionStore } from '@/stores/sessionStore';
+import { useSearchCards, useSeriesValues, useColorValues, useFilterFields, useFilterValues, useColorsForSeries } from '@/lib/hooks';
 
 export function useSearchLogic() {
-  const { currentDeck } = useDeckBuilderSelectors();
+  const { deckBuilder } = useSessionStore();
+  const currentDeck = deckBuilder.currentDeck;
   
   // Pagination state - use search store for consistency
   const { setPage, setPerPage } = useSearchStore();
@@ -17,76 +17,84 @@ export function useSearchLogic() {
   const { data: rarityOptionsData } = useFilterValues('Rarity');
   const { data: colorOptionsData } = useFilterValues('ActivationEnergy');
   const { data: printTypeOptionsData } = useFilterValues('PrintType');
+  
+  // Series-specific colors (only when a series is selected)
+  const currentSeries = currentDeck?.preferences?.defaultSeries || '';
+  const { data: seriesSpecificColors } = useColorsForSeries(currentSeries, !!currentSeries);
 
   // Initialize filter states dynamically based on API data
   const [cardTypeFilters, setCardTypeFilters] = useState<Record<string, boolean>>({});
   const [rarityFilters, setRarityFilters] = useState<Record<string, boolean>>({});
   const [colorFilters, setColorFilters] = useState<Record<string, boolean>>({});
   const [printTypeFilters, setPrintTypeFilters] = useState<Record<string, boolean>>({});
+  
+  // Current color selection for search - initialize with deck's saved color filter
+  const [currentSearchColor, setCurrentSearchColor] = useState<string>(currentDeck?.preferences?.defaultColorFilter || '');
 
-  // Initialize filter states when API data is available and apply default filters
+  // Initialize filter states when API data is available and apply saved preferences
   React.useEffect(() => {
-    if (cardTypeOptionsData) {
+    if (cardTypeOptionsData && currentDeck) {
+      console.log('🔄 Initializing card type filters:', {
+        deckId: currentDeck.id,
+        excludedCardTypes: currentDeck.preferences?.cardTypes,
+        cardTypeOptionsData
+      });
+      
       const initialCardTypeFilters: Record<string, boolean> = {};
+      const excludedCardTypes = currentDeck.preferences?.cardTypes || [];
+      
       cardTypeOptionsData.forEach(option => {
-        // Apply "No Action Points" default filter if enabled
-        if (currentDeck?.defaultFilters?.noActionPoints && option === 'Action Point') {
-          initialCardTypeFilters[option] = false; // Uncheck Action Points
-        } else {
-          initialCardTypeFilters[option] = true; // Check all others
-        }
+        // Card types in preferences are EXCLUDED, so we check if NOT in the excluded list
+        initialCardTypeFilters[option] = !excludedCardTypes.includes(option);
       });
       setCardTypeFilters(initialCardTypeFilters);
     }
-  }, [cardTypeOptionsData, currentDeck?.defaultFilters?.noActionPoints, currentDeck?.savedDefaultFilters?.cardTypes]);
+  }, [cardTypeOptionsData, currentDeck?.preferences?.cardTypes, currentDeck?.id]); // Only depend on deck ID, not entire deck object
 
   React.useEffect(() => {
-    if (rarityOptionsData) {
+    if (rarityOptionsData && currentDeck) {
+      console.log('🔄 Initializing rarity filters:', {
+        deckId: currentDeck.id,
+        savedRarities: currentDeck.preferences?.rarities,
+        rarityOptionsData
+      });
+      
       const initialRarityFilters: Record<string, boolean> = {};
+      const savedRarities = currentDeck.preferences?.rarities || [];
       
       rarityOptionsData.forEach(option => {
-        // Apply "Base Rarity Only" default filter if enabled
-        if (currentDeck?.defaultFilters?.baseRarityOnly) {
-          // Only check base rarities (without numbers), uncheck all special rarities
-          const isBaseRarity = option === 'Common' || option === 'Uncommon' || option === 'Rare' || option === 'Super Rare';
-          initialRarityFilters[option] = isBaseRarity;
-        } else {
-          // Check all rarities if base rarity filter is disabled
-          initialRarityFilters[option] = true;
-        }
+        // Check if this rarity is in the saved preferences
+        initialRarityFilters[option] = savedRarities.includes(option);
       });
       setRarityFilters(initialRarityFilters);
     }
-  }, [rarityOptionsData, currentDeck?.defaultFilters?.baseRarityOnly, currentDeck?.savedDefaultFilters?.rarities]);
+  }, [rarityOptionsData, currentDeck?.preferences?.rarities, currentDeck?.id]); // Only depend on deck ID, not entire deck object
+
+  // Color filters are no longer used - we use defaultColorFilter instead
 
   React.useEffect(() => {
-    if (colorOptionsData) {
-      const initialColorFilters: Record<string, boolean> = {};
-      colorOptionsData.forEach(option => {
-        initialColorFilters[option] = true; // All checked by default
+    if (printTypeOptionsData && currentDeck) {
+      console.log('🔄 Initializing print type filters:', {
+        deckId: currentDeck.id,
+        savedPrintTypes: currentDeck.preferences?.printTypes,
+        printTypeOptionsData
       });
-      setColorFilters(initialColorFilters);
-    }
-  }, [colorOptionsData]);
-
-  React.useEffect(() => {
-    if (printTypeOptionsData) {
+      
       const initialPrintTypeFilters: Record<string, boolean> = {};
+      const savedPrintTypes = currentDeck.preferences?.printTypes || [];
+      
       printTypeOptionsData.forEach(option => {
-        // Apply "Basic Prints Only" default filter if enabled
-        if (currentDeck?.defaultFilters?.basicPrintsOnly && option !== 'Base') {
-          initialPrintTypeFilters[option] = false; // Uncheck non-base prints
-        } else {
-          initialPrintTypeFilters[option] = true; // Check all if basic prints filter is disabled
-        }
+        // Check if this print type is in the saved preferences
+        initialPrintTypeFilters[option] = savedPrintTypes.includes(option);
       });
       setPrintTypeFilters(initialPrintTypeFilters);
     }
-  }, [printTypeOptionsData, currentDeck?.defaultFilters?.basicPrintsOnly, currentDeck?.savedDefaultFilters?.printTypes]);
+  }, [printTypeOptionsData, currentDeck?.preferences?.printTypes, currentDeck?.id]); // Only depend on deck ID, not entire deck object
 
   // Search store (keep for search functionality)
   const {
-    filters,
+    searchPreferences,
+    page,
     setQuery,
     setSeries,
     setColor,
@@ -95,18 +103,38 @@ export function useSearchLogic() {
   } = useSearchStore();
 
   // Get current pagination values
-  const currentPage = filters.page;
-  const itemsPerPage = filters.per_page;
+  const currentPage = page;
+  const itemsPerPage = searchPreferences.per_page;
 
-  // Load series from deck's defaultSeries when deck is loaded
+  // Load all deck preferences when deck is loaded (local to deck builder only)
   React.useEffect(() => {
-    if (currentDeck?.defaultSeries) {
-      setSeries(currentDeck.defaultSeries);
+    if (currentDeck) {
+      console.log('🔄 Loading deck preferences:', {
+        deckId: currentDeck.id,
+        preferences: currentDeck.preferences
+      });
+      
+      // Load series preference
+      if (currentDeck.preferences?.defaultSeries) {
+        setSeries(currentDeck.preferences.defaultSeries);
+      } else {
+        setSeries('');
+      }
+      
+      // Load color preference
+      if (currentDeck.preferences?.defaultColorFilter) {
+        setCurrentSearchColor(currentDeck.preferences.defaultColorFilter);
+      } else {
+        setCurrentSearchColor('');
+      }
+      
+      // Load other filter preferences will be handled by the existing effects below
     } else {
-      // Clear series if no deck or no default series
+      // Clear all preferences if no deck
       setSeries('');
+      setCurrentSearchColor('');
     }
-  }, [currentDeck?.defaultSeries, setSeries]);
+  }, [currentDeck, setSeries]);
 
   // Internal filters for search (includes default filter exclusions)
   const internalNotFilters = useMemo(() => {
@@ -195,44 +223,29 @@ export function useSearchLogic() {
     );
   }, [rarityFilters, rarityOptionsData]);
 
-  // Build color and card type filters from deck settings
-  const deckColorFilters = useMemo(() => {
-    const savedColors = currentDeck?.savedDefaultFilters?.colors || [];
-    
-    // Only apply color filters if there are actually colors selected
-    // Empty array means "show all colors" (no filtering)
-    const filters = savedColors.length > 0 ? savedColors.map(color => ({
-      type: 'and' as const,
-      field: 'ActivationEnergy',
-      value: color,
-      displayText: `Color: ${color}`
-    })) : [];
-    
-    return filters;
-  }, [currentDeck?.savedDefaultFilters?.colors]);
-
+  // Build card type filters from deck settings
   const deckCardTypeFilters = useMemo(() => {
-    const savedCardTypes = currentDeck?.savedDefaultFilters?.cardTypes || [];
+    const savedCardTypes = currentDeck?.preferences?.cardTypes || [];
     // Only apply card type exclusions if there are actually card types to exclude
-    return savedCardTypes.length > 0 ? savedCardTypes.map(cardType => ({
+    return savedCardTypes.length > 0 ? savedCardTypes.map((cardType: string) => ({
       type: 'not' as const,
       field: 'CardType',
       value: cardType,
       displayText: `CardType: ${cardType}`
     })) : [];
-  }, [currentDeck?.savedDefaultFilters?.cardTypes]);
+  }, [currentDeck?.preferences?.cardTypes]);
 
   // Filters for actual search (includes default filter exclusions)
   const searchFilters = {
-    query: filters.query || '', // Use query from search store
+    query: '', // Deck builder doesn't use query
     game: 'Union Arena',
-    series: filters.series, // Use series from search store (set by useEffect)
-    color: '',
+    series: currentDeck?.preferences?.defaultSeries || '', // Use series from deck preferences
+    color: currentSearchColor, // Use current search color selection
     cardType: '',
-    sort: filters.sort,
-    page: filters.page,
-    per_page: filters.per_page,
-    and_filters: deckColorFilters, // Include color filters from deck settings
+    sort: 'name_asc', // Default sort
+    page: 1, // Default page
+    per_page: 24, // Default per page
+    and_filters: [], // No color filters from deck settings (using defaultColorFilter instead)
     or_filters: [],
     not_filters: [...internalNotFilters, ...deckCardTypeFilters] // Include card type exclusions
   };
@@ -241,12 +254,12 @@ export function useSearchLogic() {
 
   // Filters for UI display (no default filter pills)
   const uiFilters = {
-    query: filters.query || '', // Show actual query in UI
+    query: '', // Deck builder doesn't use query
     game: 'Union Arena',
-    series: currentDeck?.defaultSeries || '',
+    series: currentDeck?.preferences?.defaultSeries || '',
     color: '',
     cardType: '',
-    sort: filters.sort,
+    sort: 'name_asc', // Default sort
     page: currentPage,
     per_page: itemsPerPage,
     and_filters: [],
@@ -268,22 +281,24 @@ export function useSearchLogic() {
       if (currentDeck) {
         const updatedDeck = {
           ...currentDeck,
-          defaultFilters: {
-            basicPrintsOnly: matchesPreset,
-            noActionPoints: currentDeck.defaultFilters?.noActionPoints || false,
-            baseRarityOnly: currentDeck.defaultFilters?.baseRarityOnly || false
-          },
-          // Save current filter states
-          savedDefaultFilters: {
+          preferences: {
+            ...currentDeck.preferences,
+            visibility: currentDeck.preferences?.visibility || 'private',
+            defaultSeries: currentDeck.preferences?.defaultSeries || '',
+            defaultColorFilter: currentDeck.preferences?.defaultColorFilter || '',
             printTypes: Object.keys(newFilters).filter(key => newFilters[key]),
-            cardTypes: currentDeck.savedDefaultFilters?.cardTypes || [],
-            rarities: currentDeck.savedDefaultFilters?.rarities || [],
-            colors: currentDeck.savedDefaultFilters?.colors || []
+            cardTypes: currentDeck.preferences?.cardTypes || [],
+            rarities: currentDeck.preferences?.rarities || []
           }
         };
         
         // Save to database immediately
-        dataManager.updateDeck(updatedDeck).catch(console.error);
+        fetch(`/api/user/decks/${currentDeck.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify(updatedDeck)
+        }).catch(console.error);
         // Don't update context state during render - let the deck loading handle this
       }
       
@@ -295,122 +310,179 @@ export function useSearchLogic() {
     setCardTypeFilters(prev => {
       const newFilters = { ...prev, [value]: checked };
       
-      // Check if this change makes it match the No Action Points preset
-      const actionPointUnchecked = !newFilters['Action Point'];
-      const othersChecked = cardTypeOptionsData?.filter(opt => opt !== 'Action Point').every(opt => newFilters[opt]) ?? true;
-      const matchesPreset = actionPointUnchecked && othersChecked;
-      
-      // Update deck's default filter if needed
+      // Save current filter states to deck preferences
       if (currentDeck) {
+        // Card types in preferences are EXCLUDED, so we save the unchecked ones
+        const excludedCardTypes = Object.keys(newFilters).filter(key => !newFilters[key]);
+        
         const updatedDeck = {
           ...currentDeck,
-          defaultFilters: {
-            basicPrintsOnly: currentDeck.defaultFilters?.basicPrintsOnly || false,
-            noActionPoints: matchesPreset,
-            baseRarityOnly: currentDeck.defaultFilters?.baseRarityOnly || false
-          },
-          // Save current filter states
-          savedDefaultFilters: {
-            printTypes: currentDeck.savedDefaultFilters?.printTypes || [],
-            cardTypes: Object.keys(newFilters).filter(key => newFilters[key]),
-            rarities: currentDeck.savedDefaultFilters?.rarities || [],
-            colors: currentDeck.savedDefaultFilters?.colors || []
+          preferences: {
+            ...currentDeck.preferences,
+            visibility: currentDeck.preferences?.visibility || 'private',
+            defaultSeries: currentDeck.preferences?.defaultSeries || '',
+            defaultColorFilter: currentDeck.preferences?.defaultColorFilter || '',
+            printTypes: currentDeck.preferences?.printTypes || [],
+            cardTypes: excludedCardTypes,
+            rarities: currentDeck.preferences?.rarities || []
           }
         };
         
         // Save to database immediately
-        dataManager.updateDeck(updatedDeck).catch(console.error);
-        // Don't update context state during render - let the deck loading handle this
-      }
-      
-      return newFilters;
-    });
-  }, [currentDeck, cardTypeOptionsData]);
-
-  const handleRarityChange = useCallback((value: string, checked: boolean) => {
-    setRarityFilters(prev => {
-      const newFilters = { ...prev, [value]: checked };
-      
-      // Check if this change makes it match the Base Rarity Only preset
-      const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
-      const baseRaritiesChecked = baseRarities.every(baseRarity => 
-        rarityOptionsData?.some(opt => opt.startsWith(baseRarity) && !opt.includes('1-Star') && !opt.includes('2-Star') && !opt.includes('3-Star') && !opt.includes('Ultra Rare') && !opt.includes('Union Rare') && newFilters[opt])
-      ) ?? false;
-      const specialRaritiesUnchecked = rarityOptionsData?.filter(opt => 
-        opt.includes('1-Star') || opt.includes('2-Star') || opt.includes('3-Star') || opt.includes('Ultra Rare') || opt.includes('Union Rare')
-      ).every(opt => !newFilters[opt]) ?? true;
-      const matchesPreset = baseRaritiesChecked && specialRaritiesUnchecked;
-      
-      // Update deck's default filter if needed
-      if (currentDeck) {
-        const updatedDeck = {
-          ...currentDeck,
-          defaultFilters: {
-            basicPrintsOnly: currentDeck.defaultFilters?.basicPrintsOnly || false,
-            noActionPoints: currentDeck.defaultFilters?.noActionPoints || false,
-            baseRarityOnly: matchesPreset
-          },
-          // Save current filter states
-          savedDefaultFilters: {
-            printTypes: currentDeck.savedDefaultFilters?.printTypes || [],
-            cardTypes: currentDeck.savedDefaultFilters?.cardTypes || [],
-            rarities: Object.keys(newFilters).filter(key => newFilters[key]),
-            colors: currentDeck.savedDefaultFilters?.colors || []
+        try {
+          const response = await fetch(`/api/user/decks/${updatedDeck.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(updatedDeck),
+          });
+          
+          if (!response.ok) {
+            console.error('Failed to save deck preferences');
           }
-        };
-        
-        // Save to database immediately
-        dataManager.updateDeck(updatedDeck).catch(console.error);
-        // Don't update context state during render - let the deck loading handle this
-      }
-      
-      return newFilters;
-    });
-  }, [currentDeck, rarityOptionsData]);
-
-  const handleColorChange = useCallback((value: string, checked: boolean) => {
-    setColorFilters(prev => {
-      const newFilters = { ...prev, [value]: checked };
-      
-      // Save current filter states to deck
-      if (currentDeck) {
-        const updatedDeck = {
-          ...currentDeck,
-          savedDefaultFilters: {
-            printTypes: currentDeck.savedDefaultFilters?.printTypes || [],
-            cardTypes: currentDeck.savedDefaultFilters?.cardTypes || [],
-            rarities: currentDeck.savedDefaultFilters?.rarities || [],
-            colors: Object.keys(newFilters).filter(key => newFilters[key])
-          }
-        };
-        
-        // Save to database immediately
-        dataManager.updateDeck(updatedDeck).catch(console.error);
-        // Don't update context state during render - let the deck loading handle this
+        } catch (error) {
+          console.error('Error saving deck preferences:', error);
+        }
       }
       
       return newFilters;
     });
   }, [currentDeck]);
 
-  const handleSeriesChange = useCallback((series: string) => {
+  const handleRarityChange = useCallback((value: string, checked: boolean) => {
+    setRarityFilters(prev => {
+      const newFilters = { ...prev, [value]: checked };
+      
+      // Save current filter states to deck preferences
+      if (currentDeck) {
+        const updatedDeck = {
+          ...currentDeck,
+          preferences: {
+            ...currentDeck.preferences,
+            visibility: currentDeck.preferences?.visibility || 'private',
+            defaultSeries: currentDeck.preferences?.defaultSeries || '',
+            defaultColorFilter: currentDeck.preferences?.defaultColorFilter || '',
+            printTypes: currentDeck.preferences?.printTypes || [],
+            cardTypes: currentDeck.preferences?.cardTypes || [],
+            rarities: Object.keys(newFilters).filter(key => newFilters[key])
+          }
+        };
+        
+        // Save to database immediately
+        try {
+          const response = await fetch(`/api/user/decks/${updatedDeck.id}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            credentials: 'include',
+            body: JSON.stringify(updatedDeck),
+          });
+          
+          if (!response.ok) {
+            console.error('Failed to save deck preferences');
+          }
+        } catch (error) {
+          console.error('Error saving deck preferences:', error);
+        }
+      }
+      
+      return newFilters;
+    });
+  }, [currentDeck]);
+
+  // handleColorChange removed - we use handleSearchColorChange instead
+
+  const handleSeriesChange = useCallback(async (series: string) => {
     console.log('🔄 handleSeriesChange called with series:', series);
-    setSeries(series);
     
-    // Also update the deck's defaultSeries if we have a current deck
+    // Update the deck's defaultSeries if we have a current deck
     if (currentDeck) {
-      console.log('🔄 Updating deck defaultSeries from', currentDeck.defaultSeries, 'to', series);
+      console.log('🔄 Updating deck defaultSeries from', currentDeck.preferences?.defaultSeries, 'to', series);
       const updatedDeck = {
         ...currentDeck,
-        defaultSeries: series
+        preferences: {
+          ...currentDeck.preferences,
+          visibility: currentDeck.preferences?.visibility || 'private',
+          defaultSeries: series,
+          defaultColorFilter: currentDeck.preferences?.defaultColorFilter || '',
+          printTypes: currentDeck.preferences?.printTypes || [],
+          cardTypes: currentDeck.preferences?.cardTypes || [],
+          rarities: currentDeck.preferences?.rarities || []
+        }
       };
       
       // Save to database immediately
-      dataManager.updateDeck(updatedDeck);
+      try {
+        const response = await fetch(`/api/user/decks/${updatedDeck.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(updatedDeck),
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to save deck preferences');
+        }
+      } catch (error) {
+        console.error('Error saving deck preferences:', error);
+      }
       
-      // Don't update context state during render - let the deck loading handle this
+      // Also update the search store for this deck's search context
+      setSeries(series);
     }
   }, [setSeries, currentDeck]);
+
+  const handleSearchColorChange = useCallback(async (color: string) => {
+    console.log('🎨 Search color changed to:', color);
+    setCurrentSearchColor(color);
+    
+    // Save color filter to deck's preferences
+    if (currentDeck) {
+      console.log('🎨 Saving color filter to deck:', {
+        deckId: currentDeck.id,
+        color: color,
+        currentPreferences: currentDeck.preferences
+      });
+      
+      const updatedDeck = {
+        ...currentDeck,
+        preferences: {
+          ...currentDeck.preferences,
+          visibility: currentDeck.preferences?.visibility || 'private',
+          defaultSeries: currentDeck.preferences?.defaultSeries || '',
+          defaultColorFilter: color,
+          printTypes: currentDeck.preferences?.printTypes || [],
+          cardTypes: currentDeck.preferences?.cardTypes || [],
+          rarities: currentDeck.preferences?.rarities || []
+        }
+      };
+      
+      // Save to database
+      try {
+        const response = await fetch(`/api/user/decks/${updatedDeck.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify(updatedDeck),
+        });
+        
+        if (response.ok) {
+          console.log('🎨 Color filter saved to database');
+        } else {
+          console.error('Failed to save color filter');
+        }
+      } catch (error) {
+        console.error('Error saving color filter:', error);
+      }
+    }
+  }, [currentDeck]);
 
   const handleSortChange = useCallback((sort: string) => {
     setSort(sort);
@@ -425,10 +497,13 @@ export function useSearchLogic() {
     setPerPage(itemsPerPage);
   }, [setPerPage]);
 
-  // Search hooks - use empty filters (no filtering applied)
-  const { data: searchData, isLoading: searchLoading, error } = useSearchCards(searchFilters);
+  // Search hooks - only search when deck is loaded and filters are ready
+  const isDeckReady = !!(currentDeck && currentDeck.preferences);
+  const { data: searchData, isLoading: searchLoading, error } = useSearchCards(searchFilters, isDeckReady);
   
   
+  // Color loading is now handled in the main deck loading effect above
+
   const { data: seriesData } = useSeriesValues();
   const { data: colorData } = useColorValues();
   const { data: filterFields } = useFilterFields();
@@ -439,10 +514,14 @@ export function useSearchLogic() {
     ...(seriesData || []).map(series => ({ value: series, label: series }))
   ], [seriesData]);
 
-  const colorOptions = useMemo(() => [
-    { value: '', label: 'All Colors' },
-    ...(colorData || []).map(color => ({ value: color, label: color }))
-  ], [colorData]);
+  const colorOptions = useMemo(() => {
+    // Use series-specific colors if available, otherwise use all colors
+    const colorsToUse = seriesSpecificColors || colorOptionsData || [];
+    return [
+      { value: '', label: 'All Colors' },
+      ...colorsToUse.map(color => ({ value: color, label: color }))
+    ];
+  }, [seriesSpecificColors, colorOptionsData]);
 
   // Note: cardTypeOptions is now loaded dynamically from API
 
@@ -469,6 +548,8 @@ export function useSearchLogic() {
 
   const collapsibleRarityOptions = useMemo(() => {
     if (!rarityOptionsData) return [];
+    
+    // Use the API order (already correct)
     return rarityOptionsData.map(option => ({
       value: option,
       label: option,
@@ -477,13 +558,14 @@ export function useSearchLogic() {
   }, [rarityOptionsData, rarityFilters]);
 
   const collapsibleColorOptions = useMemo(() => {
-    if (!colorOptionsData) return [];
-    return colorOptionsData.map(option => ({
+    const colorsToUse = seriesSpecificColors || colorOptionsData || [];
+    if (!colorsToUse.length) return [];
+    return colorsToUse.map(option => ({
       value: option,
       label: option,
       checked: colorFilters[option] || false
     }));
-  }, [colorOptionsData, colorFilters]);
+  }, [seriesSpecificColors, colorOptionsData, colorFilters]);
 
   const collapsiblePrintTypeOptions = useMemo(() => {
     if (!printTypeOptionsData) return [];
@@ -499,7 +581,7 @@ export function useSearchLogic() {
     const cards = searchData?.cards || [];
     return cards.map(card => {
       // Find if this card exists in the current deck
-      const deckCard = currentDeck?.cards?.find(deckCard => deckCard.card_url === card.card_url);
+      const deckCard = currentDeck?.cards?.find((deckCard: any) => deckCard.card_url === card.card_url);
       return {
         ...card,
         quantity: deckCard?.quantity || 0  // Set quantity property for QuantityControl
@@ -518,8 +600,8 @@ export function useSearchLogic() {
   const handleSearch = useCallback(() => {
     // The search is automatically triggered by the useSearchCards hook when filters change
     // This function can be used for additional search logic if needed
-    console.log('Search triggered with query:', filters.query);
-  }, [filters.query]);
+    console.log('Search triggered with query:', '');
+  }, []);
 
   return {
     // State
@@ -535,11 +617,12 @@ export function useSearchLogic() {
     
     // Options
     seriesOptions,
+    colorOptions,
     sortOptions,
     
     // Current values
-    currentSeries: filters.series || '',
-    currentColor: '',
+    currentSeries: currentDeck?.preferences?.defaultSeries || '',
+    currentColor: currentSearchColor,
     currentCardType: '',
     currentSort: 'name',
     
@@ -547,7 +630,8 @@ export function useSearchLogic() {
     handlePrintTypeChange,
     handleCardTypeChange,
     handleRarityChange,
-    handleColorChange,
+    // handleColorChange removed - we use handleSearchColorChange instead
+    handleSearchColorChange,
     handleSeriesChange,
     handleSortChange,
     handlePageChange,

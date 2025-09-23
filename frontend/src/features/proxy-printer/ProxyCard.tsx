@@ -4,8 +4,8 @@ import React from 'react';
 import Image from 'next/image';
 import { Card } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
-import { dataManager } from '../../lib/dataManager';
 import { apiConfig } from '../../lib/apiConfig';
+import { useSessionStore } from '@/stores/sessionStore';
 
 export interface ProxyCardProps {
   card: Card;
@@ -57,18 +57,17 @@ export function ProxyCard({
     detailed: 'p-4',
   };
 
-  const handleCardClick = (e: React.MouseEvent) => {
-    // Don't trigger card click if clicking on quantity control
-    if ((e.target as HTMLElement).closest('.quantity-control')) {
-      return;
+  // Handle card click to show full-size image
+  const handleCardClick = () => {
+    if (onClick) {
+      onClick(card);
     }
-    onClick?.(card);
   };
 
-  // Get current quantity from print list
+  // Get current quantity from sessionStore print list
+  const { proxyPrinter } = useSessionStore();
   const getCurrentQuantity = () => {
-    const printList = dataManager.getPrintList();
-    const existingItem = printList.find(item => item.card_url === card.card_url);
+    const existingItem = proxyPrinter.printList.find(item => item.product_id === card.product_id);
     return existingItem ? existingItem.quantity : 0;
   };
 
@@ -77,28 +76,28 @@ export function ProxyCard({
   // Helper function to get proxied image URL
   const getProxiedImageUrl = (imageUrl: string) => {
     if (!imageUrl) return '/placeholder-card.png';
-    return `${apiConfig.getApiUrl('/api/images')}?url=${encodeURIComponent(imageUrl)}`;
+    
+    // Extract product_id from TCGPlayer URL
+    const tcgplayerMatch = imageUrl.match(/tcgplayer-cdn\.tcgplayer\.com\/product\/(\d+)/);
+    if (tcgplayerMatch) {
+      const productId = tcgplayerMatch[1];
+      return `/api/images/product/${productId}?size=1000x1000`;
+    }
+    
+    // Fallback to direct URL (shouldn't happen for TCGPlayer images)
+    return imageUrl;
   };
 
   return (
     <div 
       className={`${baseClasses} ${variantClasses[variant]} ${className}`}
       onClick={handleCardClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onClick?.(card);
-        }
-      }}
-      aria-label={`View details for ${card.name}`}
     >
       {/* Card Image */}
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-gray-100">
         {card.image_url ? (
           <Image
-            src={getProxiedImageUrl(card.image_url)}
+            src={card.image_url}
             alt={card.name}
             fill
             priority={priority}
@@ -131,46 +130,18 @@ export function ProxyCard({
           </div>
         )}
         
-        {/* Hover Overlay */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-300" />
+        {/* No quantity badge - quantity is shown in the control below */}
       </div>
 
-      {/* Card Info */}
-      <div className="space-y-2">
-        {/* Card Name */}
-        <div className="h-12 flex flex-col justify-between">
-          <h3 className="font-semibold text-white text-sm leading-tight group-hover:text-blue-300 transition-colors duration-200">
-            <span className="line-clamp-1">{card.name}</span>
-          </h3>
-          {card.clean_name && card.clean_name !== card.name && (
-            <p className="text-xs text-gray-300 line-clamp-1">{card.clean_name}</p>
-          )}
-        </div>
-
-        {/* Quantity Control Only */}
-        <div className="pt-1 border-t border-white/10">
-          <div className="flex items-center justify-center">
-            <div className="quantity-control">
-              <QuantityControl 
-                card={card} 
-                variant="button"
-                context="printList"
-                buttonLayout="auto"
-                size="sm"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Click Indicator */}
-      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-        <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center">
-          <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
-        </div>
+      {/* Quantity Control */}
+      <div className="flex items-center justify-center pt-2">
+        <QuantityControl 
+          card={card} 
+          variant="button"
+          context="printList"
+          buttonLayout="auto"
+          size="sm"
+        />
       </div>
     </div>
   );

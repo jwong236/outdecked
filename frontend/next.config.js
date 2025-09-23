@@ -4,11 +4,20 @@ const path = require('path');
 const nextConfig = {
   ...(process.env.NODE_ENV === 'production' && { output: 'export' }),
   trailingSlash: false,
+  reactStrictMode: false, // Disable React Strict Mode to prevent double rendering in development
   eslint: {
     ignoreDuringBuilds: true,
   },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://localhost:5000/api/:path*',
+      },
+    ];
   },
   images: {
     unoptimized: true,
@@ -18,6 +27,14 @@ const nextConfig = {
         hostname: 'tcgplayer-cdn.tcgplayer.com',
         port: '',
         pathname: '/product/**',
+      },
+    ],
+    localPatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '3000',
+        pathname: '/api/images/**',
       },
     ],
   },

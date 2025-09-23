@@ -2,19 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { dataManager, Deck } from '../../../lib/dataManager';
+import { Deck } from '@/types/card';
 import { analyzeDeck } from '@/lib/deckValidation';
 import { useAuth } from '@/features/auth/AuthContext';
 import { PageTitle } from '@/components/shared/PageTitle';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
 import { useSeriesValues } from '@/lib/hooks';
 import { useSearchStore } from '@/stores/searchStore';
+import { useSessionStore } from '@/stores/sessionStore';
+import { fetchDecksBatch } from '@/lib/deckUtils';
 import { apiConfig } from '../../../lib/apiConfig';
 import Link from 'next/link';
 
 export function DeckListPage() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
+  const { deckBuilder, setDeckList, setCurrentDeck } = useSessionStore();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -33,7 +36,14 @@ export function DeckListPage() {
   const { data: seriesData } = useSeriesValues();
   
   // Search store for setting default series and filters
-  const { setSeries, setDefaultFilters } = useSearchStore();
+  const { setSeries, addAdvancedFilter } = useSearchStore();
+
+  // Handle edit deck - just redirect to deck builder page
+  const handleEditDeck = (deckId: string) => {
+    console.log('🃏 Edit Deck clicked for:', deckId);
+    // Just redirect to deck builder page - DeckBuilderContent will handle loading the deck data
+    router.push(`/deckbuilder?deckId=${deckId}`);
+  };
 
   useEffect(() => {
     // Check authentication first
@@ -44,7 +54,7 @@ export function DeckListPage() {
     
     loadDecks();
     loadAvailableGames();
-  }, [authLoading, user, router]);
+  }, [authLoading, user, router, deckBuilder.deckList]);
 
   // Click-away listener for dropdown menus
   useEffect(() => {
@@ -79,9 +89,17 @@ export function DeckListPage() {
   };
 
   const loadDecks = async () => {
+    if (deckBuilder.deckList.length === 0) {
+      setDecks([]);
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const savedDecks = await dataManager.getDecks();
-      setDecks(savedDecks);
+      console.log('🃏 DeckListPage: Loading full deck data for IDs:', deckBuilder.deckList);
+      const fullDecks = await fetchDecksBatch(deckBuilder.deckList);
+      console.log('🃏 DeckListPage: Loaded full deck data:', fullDecks);
+      setDecks(fullDecks);
     } catch (error) {
       console.error('Error loading decks:', error);
       setDecks([]);
@@ -98,10 +116,28 @@ export function DeckListPage() {
   const handleRenameDeck = async (deck: Deck) => {
     const newName = prompt('Enter new deck name:', deck.name);
     if (newName && newName.trim() && newName !== deck.name) {
-      const updatedDeck = { ...deck, name: newName.trim(), updatedAt: new Date() };
       try {
-        await dataManager.updateDeck(updatedDeck);
-        await loadDecks();
+        // Update deck via API
+        const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${deck.id}`), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: newName.trim(),
+            updatedAt: new Date().toISOString()
+          }),
+        });
+
+        const responseData = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(`Failed to rename deck: ${responseData.error || 'Unknown error'}`);
+        }
+
+        console.log('✅ Deck renamed successfully');
+        // The UI will automatically update when loadDecks() is called due to the useEffect dependency
       } catch (error) {
         console.error('Error renaming deck:', error);
       }
@@ -116,14 +152,28 @@ export function DeckListPage() {
   const handleCoverSelection = async (cardImageUrl: string) => {
     if (!deckForCoverChange) return;
     
-    const updatedDeck = {
-      ...deckForCoverChange,
-      cover: cardImageUrl,
-      updatedAt: new Date()
-    };
     try {
-      await dataManager.updateDeck(updatedDeck);
-      await loadDecks();
+      // Update deck cover via API
+      const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${deckForCoverChange.id}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          cover: cardImageUrl,
+          updatedAt: new Date().toISOString()
+        }),
+      });
+
+      const responseData = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update deck cover: ${responseData.error || 'Unknown error'}`);
+      }
+
+      console.log('✅ Deck cover updated successfully');
+      // The UI will automatically update when loadDecks() is called due to the useEffect dependency
     } catch (error) {
       console.error('Error updating deck cover:', error);
     }
@@ -134,18 +184,34 @@ export function DeckListPage() {
   const confirmDelete = async () => {
     if (deckToDelete) {
       try {
-        await dataManager.deleteDeck(deckToDelete.id);
+        // Delete from database via API
+        const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${deckToDelete.id}`), { 
+          method: 'DELETE',
+          credentials: 'include',
+        });
+        
+        const responseData = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(`API delete failed: ${response.status} - ${responseData.error || 'Unknown error'}`);
+        }
+        
+        // Update sessionStore to remove the deck ID
+        const updatedDeckIds = deckBuilder.deckList.filter(id => id !== deckToDelete.id);
+        setDeckList(updatedDeckIds);
+        
+        console.log('✅ Deck deleted successfully from database and sessionStore');
       } catch (error) {
         console.error('Error deleting deck:', error);
         
         // If we get a 404, the deck doesn't exist in the database anyway
-        // So we should remove it from the UI regardless
+        // So we should remove it from the sessionStore regardless
         if (error instanceof Error && error.message.includes('404')) {
+          const updatedDeckIds = deckBuilder.deckList.filter(id => id !== deckToDelete.id);
+          setDeckList(updatedDeckIds);
+          console.log('✅ Deck removed from sessionStore (was already deleted from database)');
         }
       }
-      
-      // Always reload the deck list after deletion attempt
-      await loadDecks();
     }
     setShowDeleteModal(false);
     setDeckToDelete(null);
@@ -178,7 +244,40 @@ export function DeckListPage() {
           }
         };
         
-        const newDeck = await dataManager.createDeck(newDeckName.trim(), newDeckGame, newDeckVisibility, newDeckSeries, filterSettings);
+        // Create deck via API
+        const response = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: newDeckName.trim(),
+            game: newDeckGame,
+            description: '',
+            visibility: newDeckVisibility,
+            preferences: {
+              series: newDeckSeries,
+              color: '',
+              printTypes: ['Base'],
+              cardTypes: ['Character', 'Event', 'Site'], // All EXCEPT "Action Point"
+              rarities: ['Common', 'Uncommon', 'Rare', 'Super Rare'] // Base rarities only
+            }
+          }),
+        });
+
+        const responseData = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(`Failed to create deck: ${responseData.error || 'Unknown error'}`);
+        }
+
+        const newDeck = responseData.deck;
+        
+        // Update sessionStore to include the new deck ID
+        const updatedDeckIds = [...deckBuilder.deckList, newDeck.id];
+        setDeckList(updatedDeckIds);
+        
         setShowCreateModal(false);
         
         // Navigate to the new deck
@@ -254,17 +353,13 @@ export function DeckListPage() {
       
       if (newDeckSeries) {
         setSeries(newDeckSeries); // Set series in search store
-        setDefaultFilters([
-          ...baseFilters,
-          {
-            type: 'and',
-            field: 'SeriesName',
-            value: newDeckSeries,
-            displayText: `SeriesName: ${newDeckSeries}`,
-          }
-        ]);
-      } else {
-        setDefaultFilters(baseFilters);
+        // Add the series filter as an advanced filter
+        addAdvancedFilter({
+          type: 'and',
+          field: 'SeriesName',
+          value: newDeckSeries,
+          displayText: `SeriesName: ${newDeckSeries}`,
+        });
       }
       
       setNewDeckName('');
@@ -346,7 +441,7 @@ export function DeckListPage() {
                   <div className="flex-shrink-0 relative">
                     {deck.cover ? (
                       <img
-                        src={deck.cover.startsWith('http') ? deck.cover : `/api/images?url=${encodeURIComponent(deck.cover)}`}
+                        src={deck.cover}
                         alt={`${deck.name} cover`}
                         className="w-40 h-auto rounded-lg border border-white/20"
                         onError={(e) => {
@@ -525,22 +620,22 @@ export function DeckListPage() {
                           deck.visibility === 'unlisted' ? 'text-yellow-400' :
                           'text-white'
                         }`}>
-                          {deck.visibility}
+                          {deck.visibility || 'private'}
                         </span>
                       </div>
                       <div className="flex justify-between">
                         <span>Updated:</span>
-                        <span>{formatDate(deck.updatedAt)}</span>
+                        <span>{formatDate(deck.last_modified || deck.updatedAt || deck.created_at || new Date())}</span>
                       </div>
         </div>
 
                     {/* Edit Button */}
-                    <Link
-                      href={`/deckbuilder?deckId=${deck.id}`}
+                    <button
+                      onClick={() => handleEditDeck(deck.id)}
                       className="w-full px-3 py-2 bg-sky-500 hover:bg-sky-600 text-white rounded-lg text-sm transition-colors text-center block mt-auto"
                     >
                       Edit Deck
-                    </Link>
+                    </button>
         </div>
                 </div>
               </div>
@@ -750,7 +845,7 @@ export function DeckListPage() {
                     className="relative group"
                   >
                     <img
-                      src={deckCard.image_url.startsWith('http') ? deckCard.image_url : `/api/images?url=${encodeURIComponent(deckCard.image_url)}`}
+                      src={deckCard.image_url}
                       alt={deckCard.name}
                       className="w-full h-auto rounded-lg border-2 border-transparent group-hover:border-indigo-400 transition-colors"
                       onError={(e) => {

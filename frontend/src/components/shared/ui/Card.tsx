@@ -1,5 +1,6 @@
 import { Card as CardType } from '@/types/card';
 import Image from 'next/image';
+import { getProductImageIcon } from '@/lib/imageUtils';
 
 interface CardProps {
   card: CardType;
@@ -18,7 +19,7 @@ export function Card({ card, onClick }: CardProps) {
     >
       <div className="relative aspect-[3/4] rounded-t-lg overflow-hidden">
         <Image
-          src={card.image_url || '/placeholder-card.png'}
+          src={card.product_id ? getProductImageIcon(card.product_id) : '/placeholder-card.png'}
           alt={card.name}
           fill
           className="object-cover"

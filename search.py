@@ -34,7 +34,7 @@ def handle_api_search():
     per_page = int(request.args.get("per_page", 20))
     search_query = request.args.get("q", "").strip()
     sort_by = request.args.get("sort", "")
-    anime = request.args.get("anime", "").strip()  # For series filtering
+    series = request.args.get("series", "").strip()  # For series filtering
     color = request.args.get("color", "").strip()  # For color filtering
     card_type = request.args.get("cardType", "").strip()  # For card type filtering
 
@@ -50,12 +50,12 @@ def handle_api_search():
         search_param = f"%{search_query}%"
         params.extend([search_param, search_param])
 
-    # Handle anime (series) filter
-    if anime:
+    # Handle series filter
+    if series:
         where_conditions.append(
             "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'SeriesName') = ?"
         )
-        params.append(anime)
+        params.append(series)
 
     # Handle color filter
     if color:
@@ -268,7 +268,6 @@ def handle_api_search():
             "product_id": card.get("product_id", 0),
             "name": card["name"],
             "clean_name": card.get("clean_name"),
-            "image_url": card["image_url"],
             "card_url": card["card_url"],
             "game": card["game"],
             "category_id": card.get("category_id", 0),
@@ -401,12 +400,29 @@ def handle_filter_values(field, game=None):
             individual_affinities.update(affinities)
         return jsonify(sorted(list(individual_affinities)))
 
+    # Special handling for Trigger - extract just the trigger type (first word in brackets)
+    if field == "Trigger":
+        trigger_types = set()
+        for value in raw_values:
+            # Extract text between first set of brackets
+            if "[" in value and "]" in value:
+                start = value.find("[") + 1
+                end = value.find("]")
+                if start < end:
+                    trigger_text = value[start:end].strip()
+                    # Take only the first word (e.g., "Active", "Color", "Draw", etc.)
+                    first_word = trigger_text.split()[0] if trigger_text else ""
+                    if first_word:
+                        # Normalize case - capitalize first letter, lowercase the rest
+                        normalized_word = first_word.capitalize()
+                        trigger_types.add(normalized_word)
+        return jsonify(sorted(list(trigger_types)))
+
     # Special handling for numeric fields - sort numerically instead of alphabetically
     numeric_fields = [
         "RequiredEnergy",
         "ActionPointCost",
         "BattlePointBP",
-        "GeneratedEnergy",
     ]
 
     if field in numeric_fields:
@@ -425,7 +441,11 @@ def handle_filter_values(field, game=None):
             for val in numeric_values:
                 if val == float("inf"):
                     continue  # Skip invalid numeric values
-                result.append(str(val))
+                # Convert to int first to remove decimal places, then to string
+                if val.is_integer():
+                    result.append(str(int(val)))
+                else:
+                    result.append(str(val))
 
             return jsonify(result)
         except:

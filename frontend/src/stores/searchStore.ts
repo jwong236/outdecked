@@ -1,372 +1,418 @@
 import { create } from 'zustand';
 import { SearchFilters, FilterOption } from '@/types/card';
+import { apiClient } from '@/lib/api';
 
 interface SearchState {
-  // Search state
-  filters: SearchFilters;
-  defaultFilters: FilterOption[];
+  // Search preferences (stored in sessionStorage) - SINGLE SOURCE OF TRUTH
+  searchPreferences: {
+    // Account-level search preferences
+    sort: string;
+    per_page: number;
+    
+    // Default filter toggles
+    defaultFilters: {
+      basicPrintsOnly: boolean;
+      noActionPoints: boolean;
+      baseRarityOnly: boolean;
+    };
+    
+    // User-added filters stored in session
+    advancedFilters: string[]; // format: "&field=value", "|field=value", "!field=value"
+  };
+  
+  // Temporary UI state (not persisted)
+  query: string;
+  page: number;
+  
+  // UI state (not persisted)
   isLoading: boolean;
   error: string | null;
+  userPreferencesLoaded: boolean;
   
   // Actions
-  setQuery: (query: string) => void;
-  setGame: (game: string) => void;
-  setSeries: (series: string) => void;
-  setColor: (color: string) => void;
-  setCardType: (cardType: string) => void;
-  setSort: (sort: string) => void;
   setPage: (page: number) => void;
   setPerPage: (perPage: number) => void;
   
-  // Filter management
-  addAndFilter: (filter: FilterOption) => void;
-  addOrFilter: (filter: FilterOption) => void;
-  addNotFilter: (filter: FilterOption) => void;
-  removeAndFilter: (index: number) => void;
-  removeOrFilter: (index: number) => void;
-  removeNotFilter: (index: number) => void;
+  // Advanced filter management
+  addAdvancedFilter: (filter: FilterOption) => void;
+  removeAdvancedFilter: (index: number) => void;
   clearAllFilters: () => void;
   
-  // Default filter management
-  addDefaultFilter: (filter: FilterOption) => void;
-  removeDefaultFilter: (filter: FilterOption) => void;
-  clearDefaultFilters: () => void;
-  setDefaultFilters: (filters: FilterOption[]) => void;
+  // Helper functions to work with common filters
+  setQuery: (query: string) => void;
+  setSeries: (series: string) => void;
+  setCardType: (cardType: string) => void;
+  setSort: (sort: string) => void;
+  setColor: (color: string) => void;
   
-  // URL synchronization
-  initializeFromUrl: (urlFilters: Partial<SearchFilters>) => void;
+  // Helper getters to extract values from session
+  getQuery: () => string;
+  getSeries: () => string;
+  getCardType: () => string;
+  getSort: () => string;
+  getColor: () => string;
   
-  syncToUrl: () => void;
+  // Default filter toggles
+  setDefaultFilterToggle: (toggleName: keyof SearchState['searchPreferences']['defaultFilters'], enabled: boolean) => void;
   
-  // Loading states
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
+  // User preferences management (only account-level preferences saved to database)
+  loadUserPreferences: () => Promise<void>;
+  saveUserPreferences: () => Promise<void>;
+  setUserPreferencesLoaded: (loaded: boolean) => void;
   
-  // Reset
-  resetFilters: () => void;
+  // Session management
+  loadSearchPreferences: () => void;
+  saveSearchPreferences: () => void;
+  
+  // API integration
+  getFiltersForAPI: () => SearchFilters;
 }
 
-const initialFilters: SearchFilters = {
-  query: '',
-  game: 'Union Arena',
-  series: '',
-  color: '',
-  cardType: '',
-  sort: 'required_energy_desc',
-  page: 1,
-  per_page: 25,
-  and_filters: [],
-  or_filters: [],
-  not_filters: [],
+// Helper functions for compact filter format
+const compactToFilter = (compact: string): FilterOption => {
+  const type = compact[0] as '&' | '|' | '!';
+  const [field, value] = compact.slice(1).split('=');
+  return {
+    type: type === '&' ? 'and' : type === '|' ? 'or' : 'not',
+    field,
+    value,
+    displayText: `${field}: ${value}`,
+  };
 };
 
-// Base default filters that should always be present
-const baseDefaultFilters = [
-  {
-    type: 'and',
-    field: 'PrintType',
-    value: 'Base',
-    displayText: 'PrintType: Base',
-  },
-  {
-    type: 'not',
-    field: 'CardType',
-    value: 'Action Point',
-    displayText: 'CardType: Action Point',
-  },
-  // Base Rarity Only filters - exclude all non-base rarities
-  {
-    type: 'not',
-    field: 'Rarity',
-    value: 'Common 1-Star',
-    displayText: 'Rarity: Common 1-Star',
-  },
-  {
-    type: 'not',
-    field: 'Rarity',
-    value: 'Rare 1-Star',
-    displayText: 'Rarity: Rare 1-Star',
-  },
-  {
-    type: 'not',
-    field: 'Rarity',
-    value: 'Rare 2-Star',
-    displayText: 'Rarity: Rare 2-Star',
-  },
-  {
-    type: 'not',
-    field: 'Rarity',
-    value: 'Super Rare 1-Star',
-    displayText: 'Rarity: Super Rare 1-Star',
-  },
-  {
-    type: 'not',
-    field: 'Rarity',
-    value: 'Super Rare 2-Star',
-    displayText: 'Rarity: Super Rare 2-Star',
-  },
-  {
-    type: 'not',
-    field: 'Rarity',
-    value: 'Super Rare 3-Star',
-    displayText: 'Rarity: Super Rare 3-Star',
-  },
-  {
-    type: 'not',
-    field: 'Rarity',
-    value: 'Uncommon 1-Star',
-    displayText: 'Rarity: Uncommon 1-Star',
-  },
-  {
-    type: 'not',
-    field: 'Rarity',
-    value: 'Union Rare',
-    displayText: 'Rarity: Union Rare',
-  }
-];
+const filterToCompact = (filter: FilterOption): string => {
+  const type = filter.type === 'and' ? '&' : filter.type === 'or' ? '|' : '!';
+  return `${type}${filter.field}=${filter.value}`;
+};
 
-export const useSearchStore = create<SearchState>((set) => ({
-  filters: initialFilters,
-  defaultFilters: baseDefaultFilters,
+// Default search preferences (all ON by default)
+const defaultSearchPreferences = {
+  // Account-level search preferences
+  sort: 'name',
+  per_page: 20,
+  
+  // Default filter toggles
+  defaultFilters: {
+    basicPrintsOnly: true,
+    noActionPoints: true,
+    baseRarityOnly: true,
+  },
+  
+  // User-added filters stored in session
+  advancedFilters: [] // format: "&field=value", "|field=value", "!field=value"
+};
+
+export const useSearchStore = create<SearchState>((set, get) => ({
+  searchPreferences: defaultSearchPreferences,
+  // Temporary UI state (not persisted)
+  query: '',
+  page: 1,
+  // UI state (not persisted)
   isLoading: false,
   error: null,
+  userPreferencesLoaded: false,
 
-  // Basic filter setters
-  setQuery: (query: string) => 
-    set((state) => ({ 
-      filters: { ...state.filters, query, page: 1 } 
-    })),
-
-  setGame: (game: string) => 
-    set((state) => ({ 
-      filters: { ...state.filters, game, page: 1 } 
-    })),
-
-  setSeries: (series: string) => 
-    set((state) => {
-      // Remove existing Series AND filters
-      const filteredAndFilters = state.filters.and_filters.filter(f => f.field !== 'SeriesName');
-      
-      // Add new Series AND filter if series is selected
-      const newAndFilters = series ? [
-        ...filteredAndFilters,
-        {
-          type: 'and' as const,
-          field: 'SeriesName',
-          value: series,
-          displayText: `SeriesName: ${series}`,
-        }
-      ] : filteredAndFilters;
-      
-      return { 
-        filters: { 
-          ...state.filters, 
-          series: series,  // Update the series field
-          and_filters: newAndFilters,
-          page: 1 
-        } 
-      };
-    }),
-
-  setColor: (color: string) => 
-    set((state) => {
-      // Remove existing ActivationEnergy AND filters
-      const filteredAndFilters = state.filters.and_filters.filter(f => f.field !== 'ActivationEnergy');
-      
-      // Add new ActivationEnergy AND filter if color is selected
-      const newAndFilters = color ? [
-        ...filteredAndFilters,
-        {
-          type: 'and' as const,
-          field: 'ActivationEnergy',
-          value: color,
-          displayText: `Color: ${color}`,
-        }
-      ] : filteredAndFilters;
-      
-      return { 
-        filters: { 
-          ...state.filters, 
-          color: color,  // Update the color field
-          and_filters: newAndFilters,
-          page: 1 
-        } 
-      };
-    }),
-
-  setCardType: (cardType: string) => 
-    set((state) => {
-      // Remove existing CardType AND filters
-      const filteredAndFilters = state.filters.and_filters.filter(f => f.field !== 'CardType');
-      
-      // Add new CardType AND filter if cardType is selected
-      const newAndFilters = cardType ? [
-        ...filteredAndFilters,
-        {
-          type: 'and' as const,
-          field: 'CardType',
-          value: cardType,
-          displayText: `CardType: ${cardType}`,
-        }
-      ] : filteredAndFilters;
-      
-      return { 
-        filters: { 
-          ...state.filters, 
-          cardType: cardType,  // Update the cardType field
-          and_filters: newAndFilters,
-          page: 1 
-        } 
-      };
-    }),
-
-  setSort: (sort: string) => 
-    set((state) => ({ 
-      filters: { ...state.filters, sort, page: 1 } 
-    })),
-
-  setPage: (page: number) => 
-    set((state) => ({ 
-      filters: { ...state.filters, page } 
-    })),
-
-  setPerPage: (perPage: number) => 
-    set((state) => ({ 
-      filters: { ...state.filters, per_page: perPage, page: 1 } 
-    })),
-
-  // Advanced filter management
-  addAndFilter: (filter: FilterOption) => 
-    set((state) => ({ 
-      filters: { 
-        ...state.filters, 
-        and_filters: [...state.filters.and_filters, filter],
-        page: 1
-      } 
-    })),
-
-  addOrFilter: (filter: FilterOption) => 
-    set((state) => ({ 
-      filters: { 
-        ...state.filters, 
-        or_filters: [...state.filters.or_filters, filter],
-        page: 1
-      } 
-    })),
-
-  addNotFilter: (filter: FilterOption) => 
-    set((state) => ({ 
-      filters: { 
-        ...state.filters, 
-        not_filters: [...state.filters.not_filters, filter],
-        page: 1
-      } 
-    })),
-
-  removeAndFilter: (index: number) => 
-    set((state) => ({ 
-      filters: { 
-        ...state.filters, 
-        and_filters: state.filters.and_filters.filter((_, i) => i !== index),
-        page: 1
-      } 
-    })),
-
-  removeOrFilter: (index: number) => 
-    set((state) => ({ 
-      filters: { 
-        ...state.filters, 
-        or_filters: state.filters.or_filters.filter((_, i) => i !== index),
-        page: 1
-      } 
-    })),
-
-  removeNotFilter: (index: number) => 
-    set((state) => ({ 
-      filters: { 
-        ...state.filters, 
-        not_filters: state.filters.not_filters.filter((_, i) => i !== index),
-        page: 1
-      } 
-    })),
-
-  clearAllFilters: () => 
-    set((state) => ({ 
-      filters: { 
-        ...state.filters, 
-        query: '',
-        series: '',
-        color: '',
-        cardType: '',
-        sort: '',
-        and_filters: [],
-        or_filters: [],
-        not_filters: [],
-        page: 1
-      } 
-    })),
-
-  // Loading states
-  setLoading: (loading: boolean) => set({ isLoading: loading }),
-  setError: (error: string | null) => set({ error }),
-
-  // URL synchronization
-  initializeFromUrl: (urlFilters: Partial<SearchFilters>) =>
-    set((state) => ({
-      filters: {
-        ...state.filters,
-        ...urlFilters,
-        // Only override arrays if they exist in URL filters, otherwise keep defaults
-        and_filters: urlFilters.and_filters !== undefined ? urlFilters.and_filters : state.filters.and_filters,
-        or_filters: urlFilters.or_filters !== undefined ? urlFilters.or_filters : state.filters.or_filters,
-        not_filters: urlFilters.not_filters !== undefined ? urlFilters.not_filters : state.filters.not_filters,
-      }
-    })),
-
-
-  syncToUrl: () => {
-    // This will be called by components that need to sync to URL
-    // The actual URL update logic is handled in the useUrlState hook
+  // Pagination
+  setPage: (page: number) => {
+    set({ page });
   },
 
-  // Reset
-  // Default filter management
-  addDefaultFilter: (filter: FilterOption) =>
+  setPerPage: (perPage: number) => {
+    set((state) => ({ 
+      searchPreferences: { ...state.searchPreferences, per_page: perPage, page: 1 } 
+    }));
+    get().saveSearchPreferences();
+  },
+
+  // Advanced filter management
+  addAdvancedFilter: (filter: FilterOption) => {
+    set((state) => {
+      const newAdvancedFilters = [...state.searchPreferences.advancedFilters, filterToCompact(filter)];
+      return {
+        searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvancedFilters, page: 1 }
+      };
+    });
+    get().saveSearchPreferences();
+  },
+
+  removeAdvancedFilter: (index: number) => {
+    set((state) => {
+      const newAdvancedFilters = state.searchPreferences.advancedFilters.filter((_, i) => i !== index);
+      return {
+        searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvancedFilters, page: 1 }
+      };
+    });
+    get().saveSearchPreferences();
+  },
+
+  clearAllFilters: () => {
     set((state) => ({
-      defaultFilters: [...state.defaultFilters, filter]
-    })),
+      searchPreferences: {
+        ...state.searchPreferences,
+        // Only clear advanced filters, keep everything else
+        advancedFilters: [],
+      },
+      // Reset temporary UI state
+      query: '',
+      page: 1,
+    }));
+    get().saveSearchPreferences();
+  },
 
-  removeDefaultFilter: (filter: FilterOption) =>
-    set((state) => ({
-      defaultFilters: state.defaultFilters.filter(
-        f => !(f.field === filter.field && f.value === filter.value && f.type === filter.type)
-      )
-    })),
+  // Helper functions to work with common filters
+  setQuery: (query: string) => {
+    set({ query, page: 1 });
+  },
 
-  clearDefaultFilters: () =>
-    set({ defaultFilters: [] }),
+  setSeries: (series: string) => {
+    const state = get();
+    // Remove existing series filter
+    const filteredAdvanced = state.searchPreferences.advancedFilters.filter(f => !f.startsWith('&SeriesName='));
+    // Add new series filter if not empty
+    const newAdvanced = series ? [...filteredAdvanced, `&SeriesName=${series}`] : filteredAdvanced;
+    
+    set((state) => ({ 
+      searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvanced, page: 1 } 
+    }));
+    get().saveSearchPreferences();
+  },
 
-  setDefaultFilters: (filters: FilterOption[]) =>
-    set({ defaultFilters: filters }),
+  setCardType: (cardType: string) => {
+    const state = get();
+    // Remove existing cardType filter
+    const filteredAdvanced = state.searchPreferences.advancedFilters.filter(f => !f.startsWith('&CardType='));
+    // Add new cardType filter if not empty
+    const newAdvanced = cardType ? [...filteredAdvanced, `&CardType=${cardType}`] : filteredAdvanced;
+    
+    set((state) => ({ 
+      searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvanced, page: 1 } 
+    }));
+    get().saveSearchPreferences();
+  },
 
-  resetFilters: () => set({ filters: initialFilters, error: null }),
+  setSort: (sort: string) => {
+    set((state) => ({ 
+      searchPreferences: { ...state.searchPreferences, sort, page: 1 } 
+    }));
+    get().saveSearchPreferences();
+  },
+
+  setColor: (color: string) => {
+    const state = get();
+    // Remove existing color filter
+    const filteredAdvanced = state.searchPreferences.advancedFilters.filter(f => !f.startsWith('&ActivationEnergy='));
+    // Add new color filter if not empty
+    const newAdvanced = color ? [...filteredAdvanced, `&ActivationEnergy=${color}`] : filteredAdvanced;
+    
+    set((state) => ({ 
+      searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvanced, page: 1 } 
+    }));
+    get().saveSearchPreferences();
+  },
+
+  // Helper getters to extract values from session
+  getQuery: () => {
+    const state = get();
+    return state.query;
+  },
+
+  getSeries: () => {
+    const state = get();
+    const seriesFilter = state.searchPreferences.advancedFilters.find(f => f.startsWith('&SeriesName='));
+    return seriesFilter ? seriesFilter.split('=')[1] : '';
+  },
+
+  getCardType: () => {
+    const state = get();
+    const cardTypeFilter = state.searchPreferences.advancedFilters.find(f => f.startsWith('&CardType='));
+    return cardTypeFilter ? cardTypeFilter.split('=')[1] : '';
+  },
+
+  getSort: () => {
+    const state = get();
+    return state.searchPreferences.sort;
+  },
+
+  getColor: () => {
+    const state = get();
+    const colorFilter = state.searchPreferences.advancedFilters.find(f => f.startsWith('&ActivationEnergy='));
+    return colorFilter ? colorFilter.split('=')[1] : '';
+  },
+
+  // Default filter toggles
+  setDefaultFilterToggle: (toggleName: keyof SearchState['searchPreferences']['defaultFilters'], enabled: boolean) => {
+    set((state) => {
+      const newDefaultFilters = { ...state.searchPreferences.defaultFilters, [toggleName]: enabled };
+      return {
+        searchPreferences: { ...state.searchPreferences, defaultFilters: newDefaultFilters }
+      };
+    });
+    get().saveSearchPreferences();
+  },
+
+  // User preferences management
+  loadUserPreferences: async () => {
+    try {
+      const response = await fetch('/api/users/me/preferences', {
+        credentials: 'include'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      const preferences = data.preferences;
+      
+      // Apply user preferences to search preferences (only account-level preferences)
+      set((state) => ({
+        searchPreferences: {
+          ...state.searchPreferences,
+          sort: preferences.default_sort || 'name',
+          per_page: preferences.cards_per_page || 20,
+        }
+      }));
+      
+      set({ userPreferencesLoaded: true });
+    } catch (error) {
+      console.error('Failed to load user preferences:', error);
+      set({ userPreferencesLoaded: true });
+    }
+  },
+
+  saveUserPreferences: async () => {
+    try {
+      const state = get();
+      const response = await fetch('/api/users/me/preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          preferences: {
+            default_sort: state.searchPreferences.sort,
+            cards_per_page: state.searchPreferences.per_page,
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error('Failed to save user preferences:', error);
+    }
+  },
+
+  setUserPreferencesLoaded: (loaded: boolean) => {
+    set({ userPreferencesLoaded: loaded });
+  },
+
+  // Session management
+  loadSearchPreferences: () => {
+    try {
+      const stored = sessionStorage.getItem('searchPreferences');
+      if (stored) {
+        const preferences = JSON.parse(stored);
+        set({ searchPreferences: preferences });
+      } else {
+        // Save default preferences to session
+        get().saveSearchPreferences();
+      }
+    } catch (error) {
+      console.error('Failed to load search preferences:', error);
+      // Save default preferences to session
+      get().saveSearchPreferences();
+    }
+  },
+
+  saveSearchPreferences: () => {
+    try {
+      const state = get();
+      sessionStorage.setItem('searchPreferences', JSON.stringify(state.searchPreferences));
+    } catch (error) {
+      console.error('Failed to save search preferences:', error);
+    }
+  },
+
+  // API integration - converts session preferences to API format
+  getFiltersForAPI: () => {
+    const state = get();
+    const { searchPreferences } = state;
+    
+    // Convert advanced filters to API format
+    const and_filters: FilterOption[] = [];
+    const or_filters: FilterOption[] = [];
+    const not_filters: FilterOption[] = [];
+    
+    searchPreferences.advancedFilters.forEach(compactFilter => {
+      const filter = compactToFilter(compactFilter);
+      if (filter.type === 'and') {
+        and_filters.push(filter);
+      } else if (filter.type === 'or') {
+        or_filters.push(filter);
+      } else if (filter.type === 'not') {
+        not_filters.push(filter);
+      }
+    });
+    
+    // Apply default filters as NOT filters (same logic as deck builder)
+    if (searchPreferences.defaultFilters.basicPrintsOnly) {
+      // Basic Prints Only: Only show "Base" print type, filter out all others
+      const nonBasePrintTypes = [
+        'Pre-Release', 'Starter Deck', 'Pre-Release Starter', 'Promotion', 'Box Topper Foil'
+      ];
+      nonBasePrintTypes.forEach(printType => {
+        not_filters.push({
+          type: 'not',
+          field: 'PrintType',
+          value: printType,
+          displayText: `PrintType: ${printType}`,
+        });
+      });
+    }
+    
+    if (searchPreferences.defaultFilters.noActionPoints) {
+      // No Action Points: Filter out Action Point cards, show all other card types
+      not_filters.push({
+        type: 'not',
+        field: 'CardType',
+        value: 'Action Point',
+        displayText: 'CardType: Action Point',
+      });
+    }
+    
+    if (searchPreferences.defaultFilters.baseRarityOnly) {
+      // Base Rarity Only: Only show base rarities (Common, Uncommon, Rare, Super Rare)
+      // Filter out special rarities (1-Star, 2-Star, 3-Star variants and Union Rare)
+      const specialRarities = [
+        'Common 1-Star', 'Rare 1-Star', 'Rare 2-Star', 
+        'Super Rare 1-Star', 'Super Rare 2-Star', 'Super Rare 3-Star', 
+        'Uncommon 1-Star', 'Union Rare'
+      ];
+      specialRarities.forEach(value => {
+        not_filters.push({
+          type: 'not',
+          field: 'Rarity',
+          value: value,
+          displayText: `Rarity: ${value}`,
+        });
+      });
+    }
+    
+    return {
+      query: state.query,
+      game: 'Union Arena', // Default game
+      series: state.getSeries(),
+      color: state.getColor(),
+      cardType: state.getCardType(),
+      sort: searchPreferences.sort,
+      page: state.page,
+      per_page: searchPreferences.per_page,
+      and_filters,
+      or_filters,
+      not_filters,
+    };
+  },
 }));
-
-// Helper functions to get current dropdown values from AND filters
-export const getCurrentSeries = () => {
-  const state = useSearchStore.getState();
-  const seriesFilter = state.filters.and_filters.find(f => f.field === 'SeriesName');
-  return seriesFilter ? seriesFilter.value : '';
-};
-
-export const getCurrentColor = () => {
-  const state = useSearchStore.getState();
-  const colorFilter = state.filters.and_filters.find(f => f.field === 'ActivationEnergy');
-  return colorFilter ? colorFilter.value : '';
-};
-
-export const getCurrentCardType = () => {
-  const state = useSearchStore.getState();
-  const cardTypeFilter = state.filters.and_filters.find(f => f.field === 'CardType');
-  return cardTypeFilter ? cardTypeFilter.value : '';
-};

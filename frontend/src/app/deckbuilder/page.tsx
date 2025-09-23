@@ -3,7 +3,7 @@
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { DeckListPage } from '@/features/deckbuilder/pages/DeckListPage';
-import { DeckBuilderProvider } from '@/features/deckbuilder/DeckBuilderContext';
+// DeckBuilderProvider removed - using Zustand store instead
 import { DeckBuilderContent } from '@/features/deckbuilder/DeckBuilderContent';
 
 function DeckBuilderContentWrapper() {
@@ -14,11 +14,9 @@ function DeckBuilderContentWrapper() {
   // If deckId is provided, show the deck builder interface
   if (deckId) {
     return (
-      <DeckBuilderProvider>
-        <Suspense fallback={<div>Loading...</div>}>
-          <DeckBuilderContent />
-        </Suspense>
-      </DeckBuilderProvider>
+      <Suspense fallback={<div>Loading...</div>}>
+        <DeckBuilderContent />
+      </Suspense>
     );
   }
 

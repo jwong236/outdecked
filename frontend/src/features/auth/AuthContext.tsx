@@ -63,10 +63,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(data.user);
         await loadUserPreferences();
         
-        // Load saved hand and decks from database if user is already logged in
-        const { dataManager } = await import('../../lib/dataManager');
-        await dataManager.loadHandFromDatabase();
-        await dataManager.loadDecksFromDatabase();
+        // Session data will be loaded by useSessionInitialization hook
       } else if (response.status === 401) {
         // 401 is expected when not logged in - this is not an error
         console.log('User not authenticated (401) - this is normal');
@@ -90,7 +87,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const loadUserPreferences = async () => {
     try {
-      const url = apiConfig.getApiUrl('/api/user/preferences');
+      const url = apiConfig.getApiUrl('/api/users/me/preferences');
       console.log('Loading user preferences:', url);
       
       const response = await fetch(url, {
@@ -142,10 +139,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setUser(data.user);
         await loadUserPreferences();
         
-        // Load saved hand and decks from database on login
-        const { dataManager } = await import('../../lib/dataManager');
-        await dataManager.loadHandFromDatabase();
-        await dataManager.loadDecksFromDatabase();
+        // Session data will be loaded by useSessionInitialization hook
         
         return true;
       } else {
@@ -197,13 +191,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const logout = async (): Promise<void> => {
     try {
       const url = apiConfig.getApiUrl('/api/auth/logout');
-      console.log('Attempting logout:', url);
       
       await fetch(url, {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
         },
+        credentials: 'include',
       });
     } catch (error) {
       console.error('Logout failed:', error);
@@ -211,16 +205,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setUser(null);
       setPreferences({});
       
-      // Clear hand and decks when logging out
-      const { dataManager } = await import('../../lib/dataManager');
-      dataManager.clearHand();
-      dataManager.clearDecks();
+      // Session data will be cleared by useSessionInitialization hook
     }
   };
 
   const updatePreferences = async (newPreferences: Record<string, string>): Promise<boolean> => {
     try {
-      const response = await fetch(apiConfig.getApiUrl('/api/user/preferences'), {
+      const response = await fetch(apiConfig.getApiUrl('/api/users/me/preferences'), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

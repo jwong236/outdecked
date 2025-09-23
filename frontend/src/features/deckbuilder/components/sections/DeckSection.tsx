@@ -3,26 +3,150 @@
 import React from 'react';
 import { GroupedDeckGrid } from '../grids/GroupedDeckGrid';
 import { DeckValidation } from '@/lib/deckValidation';
-import { useDeckOperations } from '../../hooks/useDeckOperations';
-import { useDeckBuilderSelectors, useDeckBuilderActions } from '../../DeckBuilderContext';
-import { useDeckValidation } from '../../hooks/useDeckValidation';
+import { useSessionStore } from '@/stores/sessionStore';
 
-export function DeckSection() {
-  const { 
-    currentDeck, 
-    deckCards, 
-    deckSortBy 
-  } = useDeckBuilderSelectors();
+interface DeckSectionProps {
+  searchCache: Record<string, any>;
+  setSearchCache: (updater: (prev: Record<string, any>) => Record<string, any>) => void;
+  onCardClick?: (card: any) => void;
+}
+
+export const DeckSection = React.memo(function DeckSection({ searchCache, setSearchCache, onCardClick }: DeckSectionProps) {
+  const { deckBuilder, setCurrentDeck } = useSessionStore();
+  const currentDeck = deckBuilder.currentDeck;
   
-  const { setDeckSortBy, setShowClearDeckModal, setSelectedCard, setModalOpen } = useDeckBuilderActions();
-  const { handleQuantityChange } = useDeckOperations();
-  const validation = useDeckValidation(deckCards);
+  // Track which cards we've already requested to prevent infinite loops
+  const requestedCardsRef = React.useRef<Set<string>>(new Set());
+  
+  // Function to fetch missing card data
+  const fetchMissingCardData = React.useCallback(async (cardIds: string[]) => {
+    try {
+      console.log('🃏 DeckSection: Fetching missing card data for:', cardIds);
+      const response = await fetch('/api/cards/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_ids: cardIds }),
+      });
+      
+      if (response.ok) {
+        const cards = await response.json();
+        console.log('🃏 DeckSection: API returned cards:', cards);
+        setSearchCache(prev => {
+          const newCache = { ...prev };
+          cards.forEach((card: any) => {
+            console.log('🃏 DeckSection: Caching card with product_id:', card.product_id, 'for request:', cardIds);
+            newCache[card.product_id] = card;
+          });
+          return newCache;
+        });
+        console.log('✅ DeckSection: Fetched and cached card data');
+      } else {
+        console.error('❌ DeckSection: Failed to fetch card data:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ DeckSection: Error fetching card data:', error);
+    }
+  }, [setSearchCache]);
+  
+  // Create deck cards array - cards now only store card_id and quantity, get full data from cache
+  const deckCards = React.useMemo(() => {
+    if (!currentDeck || Object.keys(currentDeck).length === 0 || !(currentDeck as any).cards) {
+      return [];
+    }
+    
+    return (currentDeck as any).cards.map((deckCard: any) => {
+      // Get full card data from cache using string key
+      const cardIdStr = deckCard.card_id.toString();
+      const fullCardData = searchCache[cardIdStr];
+      if (fullCardData) {
+        return {
+          ...fullCardData,
+          quantity: deckCard.quantity
+        };
+      } else {
+        // Fallback for missing cache data
+        return {
+          id: deckCard.card_id,
+          quantity: deckCard.quantity,
+          name: `Card ${deckCard.card_id}`,
+          image_url: '',
+          card_url: '',
+        };
+      }
+    });
+  }, [(currentDeck as any)?.cards, searchCache]);
+  
+  // Auto-fetch missing card data when deck changes
+  React.useEffect(() => {
+    if (!currentDeck || Object.keys(currentDeck).length === 0 || !(currentDeck as any).cards) {
+      return;
+    }
+    
+    const deckCards = (currentDeck as any).cards;
+    const missingCardIds = deckCards
+      .filter((deckCard: any) => {
+        const cardIdStr = deckCard.card_id.toString();
+        return !searchCache[cardIdStr] && !requestedCardsRef.current.has(cardIdStr);
+      })
+      .map((deckCard: any) => deckCard.card_id.toString());
+    
+    if (missingCardIds.length > 0) {
+      console.log('🃏 DeckSection: Found missing card data, fetching:', missingCardIds);
+      // Mark these cards as requested to prevent duplicate requests
+      missingCardIds.forEach((id: string) => requestedCardsRef.current.add(id));
+      fetchMissingCardData(missingCardIds);
+    }
+  }, [(currentDeck as any)?.cards, searchCache, fetchMissingCardData]);
+  
+  // Debug: Log the final deckCards array
+  React.useEffect(() => {
+  }, [deckCards]);
+  
+  const [deckSortBy, setDeckSortBy] = React.useState('name');
+
+  // Handler for quantity changes from deck cards
+  const handleQuantityChange = React.useCallback((card: any, change: number) => {
+    
+    const currentCards = (currentDeck as any).cards || [];
+    const existingCardIndex = currentCards.findIndex((deckCard: any) => deckCard.card_id === card.product_id);
+    
+    let updatedCards;
+    
+    if (existingCardIndex >= 0) {
+      // Card exists in deck - update quantity
+      const currentQuantity = currentCards[existingCardIndex].quantity;
+      const newQuantity = currentQuantity + change;
+      
+      if (newQuantity <= 0) {
+        // Remove card from deck
+        updatedCards = currentCards.filter((deckCard: any) => deckCard.card_id !== card.product_id);
+      } else {
+        // Update quantity
+        updatedCards = [...currentCards];
+        updatedCards[existingCardIndex] = { ...updatedCards[existingCardIndex], quantity: newQuantity };
+      }
+    } else {
+      // Card not in deck - add it
+      if (change > 0) {
+        updatedCards = [...currentCards, { card_id: card.product_id, quantity: change }];
+      } else {
+        updatedCards = currentCards; // Don't add negative quantities
+      }
+    }
+    
+    const updatedDeck = { ...currentDeck, cards: updatedCards };
+    setCurrentDeck(updatedDeck);
+  }, [currentDeck, setCurrentDeck]);
 
   const handleCardClick = (card: any) => {
-    // Find the correct index of the clicked card in the deck cards
-    const cardIndex = deckCards.findIndex(c => c.card_url === card.card_url);
-    setSelectedCard(card, cardIndex >= 0 ? cardIndex : 0);
-    setModalOpen(true); // Open the card detail modal
+    onCardClick?.(card);
+  };
+
+  const handleClearDeck = () => {
+    if (currentDeck && Object.keys(currentDeck).length > 0) {
+      const updatedDeck = { ...currentDeck, cards: [] };
+      setCurrentDeck(updatedDeck);
+    }
   };
 
   return (
@@ -34,9 +158,9 @@ export function DeckSection() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
             </svg>
             Current Deck
-            {currentDeck && (
+            {currentDeck && (currentDeck as any).cards && (
               <span className="ml-2 text-sm font-normal text-white/70">
-                ({currentDeck.cards.reduce((sum, c) => sum + c.quantity, 0)} cards)
+                ({(currentDeck as any).cards.reduce((sum: number, c: any) => sum + c.quantity, 0)} cards)
               </span>
             )}
           </h2>
@@ -56,9 +180,9 @@ export function DeckSection() {
             </div>
             
             <button
-              onClick={() => setShowClearDeckModal(true)}
+              onClick={handleClearDeck}
               className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm transition-colors flex items-center gap-1"
-              disabled={!currentDeck || currentDeck.cards.length === 0}
+              disabled={!currentDeck || Object.keys(currentDeck).length === 0 || !(currentDeck as any).cards || (currentDeck as any).cards.length === 0}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -68,9 +192,11 @@ export function DeckSection() {
           </div>
         </div>
         
-        <div className="mb-4">
-          <DeckValidation cards={deckCards} />
-        </div>
+        {deckCards.length > 0 && (
+          <div className="mb-4">
+            <DeckValidation cards={deckCards} />
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -78,7 +204,9 @@ export function DeckSection() {
           <GroupedDeckGrid
             cards={deckCards}
             onCardClick={handleCardClick}
-            onQuantityChange={handleQuantityChange}
+            onQuantityChange={(card, change) => {
+              handleQuantityChange(card, change);
+            }}
             sortBy={deckSortBy}
           />
         ) : (
@@ -95,4 +223,4 @@ export function DeckSection() {
       </div>
     </div>
   );
-}
+});

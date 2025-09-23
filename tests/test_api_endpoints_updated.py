@@ -213,26 +213,28 @@ class TestPublicEndpoints:
             assert "card_count" in stat
 
     def test_images_endpoint(self):
-        """Test images endpoint (renamed from /api/proxy-image)"""
-        print(f"\n[TEST] Testing images endpoint...")
+        """Test TCGPlayer product images endpoint"""
+        print(f"\n[TEST] Testing TCGPlayer product images endpoint...")
 
-        # First get a card to get its image URL
+        # First get a card to get its product_id
         response = requests.get(f"{BASE_URL}/api/cards?game=Union Arena&per_page=1")
         assert response.status_code == 200
         data = response.json()
 
-        if data["cards"] and data["cards"][0].get("image_url"):
-            image_url = data["cards"][0]["image_url"]
-            print(f"   [INFO] Testing with image URL: {image_url}")
+        if data["cards"] and data["cards"][0].get("product_id"):
+            product_id = data["cards"][0]["product_id"]
+            print(f"   [INFO] Testing with product ID: {product_id}")
 
-            # Test image fetching
-            response = requests.get(f"{BASE_URL}/api/images?url={image_url}")
+            # Test TCGPlayer product image fetching
+            response = requests.get(
+                f"{BASE_URL}/api/images/product/{product_id}?size=1000x1000"
+            )
             assert response.status_code == 200
 
             # Check that it returns image content
             assert response.headers.get("Content-Type", "").startswith("image/")
             print(
-                f"   [OK] Successfully fetched image (Content-Type: {response.headers.get('Content-Type')})"
+                f"   [OK] Successfully fetched TCGPlayer product image (Content-Type: {response.headers.get('Content-Type')})"
             )
 
     def test_health_endpoint(self):

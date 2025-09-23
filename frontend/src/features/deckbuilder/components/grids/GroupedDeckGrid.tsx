@@ -80,7 +80,7 @@ export function GroupedDeckGrid({
             <div className="grid gap-2 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {typeCards.map((card) => (
                 <DeckBuilderDeckCard
-                  key={card.card_url}
+                  key={`deck-${card.card_url}`}
                   card={card}
                   onClick={onCardClick}
                   onQuantityChange={onQuantityChange}

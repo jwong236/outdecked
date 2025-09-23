@@ -38,9 +38,8 @@ class DeckManager:
         name,
         game="Union Arena",
         description="",
-        defaultSeries="",
-        defaultFilters=None,
-        savedDefaultFilters=None,
+        visibility="private",
+        preferences=None,
     ):
         """Create a new empty deck."""
         deck_id = self.generate_deck_id()
@@ -55,9 +54,24 @@ class DeckManager:
                 "created_date": now,
                 "last_modified": now,
                 "description": description,
-                "defaultSeries": defaultSeries,
-                "defaultFilters": defaultFilters or {},
-                "savedDefaultFilters": savedDefaultFilters or {},
+                "visibility": visibility,
+                "preferences": preferences
+                or {
+                    "series": "",
+                    "color": "",
+                    "cardTypes": [
+                        "Character",
+                        "Event",
+                        "Site",
+                    ],  # All EXCEPT "Action Point"
+                    "printTypes": ["Base"],  # Base only
+                    "rarities": [
+                        "Common",
+                        "Uncommon",
+                        "Rare",
+                        "Super Rare",
+                    ],  # Base rarities only
+                },
             }
         )
 
@@ -286,6 +300,7 @@ class AuthenticatedDeckManager(DeckManager):
 
         try:
             deck_json = json.dumps(deck_data)
+
             cursor.execute(
                 """
                 INSERT OR REPLACE INTO user_decks (user_id, deck_id, deck_data, updated_at)

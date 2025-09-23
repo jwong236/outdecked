@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { Card } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
 import { formatTriggerWithIcons } from '../../lib/triggerIcons';
+import { getProductImageCard } from '@/lib/imageUtils';
 
 export interface CardDetailModalProps {
   card: Card | null;
@@ -41,6 +42,27 @@ export function CardDetailModal({
     }
   }, [card]);
 
+  // Handle keyboard navigation
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        handlePrevious();
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        handleNext();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose, currentIndex, allCards.length, hasPrevPage, hasNextPage, onNavigate]);
+
   const handlePrevious = () => {
     if (onNavigate) {
       if (currentIndex > 0) {
@@ -66,10 +88,10 @@ export function CardDetailModal({
   };
 
   const handleDownloadImage = async () => {
-    if (!card?.image_url) return;
+    if (!card?.product_id) return;
     
     try {
-      const response = await fetch(card.image_url);
+      const response = await fetch(getProductImageCard(card.product_id));
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -165,7 +187,7 @@ export function CardDetailModal({
                     {/* Card Image */}
                     <div className="space-y-4">
                       <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-gray-800/50 border border-white/10">
-                        {card.image_url && !imageError ? (
+                        {card.product_id && !imageError ? (
                           <>
                             {imageLoading && (
                               <div className="absolute inset-0 flex items-center justify-center">
@@ -173,7 +195,7 @@ export function CardDetailModal({
                               </div>
                             )}
                             <Image
-                              src={card.image_url}
+                              src={getProductImageCard(card.product_id)}
                               alt={card.name}
                               fill
                               className={`object-contain transition-opacity duration-300 ${
@@ -256,6 +278,10 @@ export function CardDetailModal({
                             <span className="font-medium text-gray-300">Battle Point BP:</span>
                             <span className="ml-2 text-white">{card.BattlePointBP || 'N/A'}</span>
                           </div>
+                          <div>
+                            <span className="font-medium text-gray-300">Generated Energy:</span>
+                            <span className="ml-2 text-white">{card.GeneratedEnergy || 'N/A'}</span>
+                          </div>
                         </div>
                         
                         {/* Trigger */}
@@ -263,6 +289,14 @@ export function CardDetailModal({
                           <div className="mt-4">
                             <span className="font-medium text-gray-300">Trigger:</span>
                             <div className="mt-1 text-sm text-gray-200 leading-relaxed">{formatTriggerWithIcons(card.Trigger)}</div>
+                          </div>
+                        )}
+                        
+                        {/* Affinities */}
+                        {card.Affinities && (
+                          <div className="mt-4">
+                            <span className="font-medium text-gray-300">Affinities:</span>
+                            <div className="mt-1 text-sm text-gray-200">{card.Affinities}</div>
                           </div>
                         )}
                         

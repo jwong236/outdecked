@@ -1,15 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card } from '@/types/card';
 import { CartGrid } from '@/features/cart/CartGrid';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
-import { dataManager, Deck, HandItem } from '../../lib/dataManager';
+import { HandItem, Deck } from '@/types/card';
+import { useSessionStore } from '@/stores/sessionStore';
+import { fetchDecksBatch } from '@/lib/deckUtils';
+// Compact print item interface (matches sessionStore)
+interface CompactPrintItem {
+  product_id: number;
+  quantity: number;
+}
 import { useAuth } from '@/features/auth/AuthContext';
+import { expandHandItems } from '@/lib/handUtils';
 
 export function CartPage() {
   const { user, isLoading: authLoading } = useAuth();
+  const { handCart, clearHand, setPrintList, deckBuilder } = useSessionStore();
   const [hand, setHand] = useState<HandItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
@@ -18,24 +28,42 @@ export function CartPage() {
   const [showMoveToProxyConfirm, setShowMoveToProxyConfirm] = useState(false);
   const [showCopyToDeckModal, setShowCopyToDeckModal] = useState(false);
   const [decks, setDecks] = useState<Deck[]>([]);
+  const [decksLoading, setDecksLoading] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
   const [selectedDeckId, setSelectedDeckId] = useState<string>('');
 
   useEffect(() => {
-    const loadHand = () => {
-      const handData = dataManager.getHand();
-      console.log('🛒 CartPage: Loading hand data:', handData);
-      setHand(handData);
-      setIsLoading(false);
+    const loadHand = async () => {
+      try {
+        console.log('🛒 CartPage: Loading hand data from sessionStore:', handCart.handItems);
+        const expandedHand = await expandHandItems(handCart.handItems);
+        console.log('🛒 CartPage: Expanded hand data:', expandedHand);
+        setHand(expandedHand);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error loading hand:', error);
+        setHand([]);
+        setIsLoading(false);
+      }
     };
 
     const loadDecks = async () => {
+      if (deckBuilder.deckList.length === 0) {
+        setDecks([]);
+        return;
+      }
+
       try {
-        const deckData = await dataManager.getDecks();
-        setDecks(deckData);
+        setDecksLoading(true);
+        console.log('🛒 CartPage: Loading full deck data for IDs:', deckBuilder.deckList);
+        const fullDecks = await fetchDecksBatch(deckBuilder.deckList);
+        console.log('🛒 CartPage: Loaded full deck data:', fullDecks);
+        setDecks(fullDecks);
       } catch (error) {
         console.error('Error loading decks:', error);
         setDecks([]);
+      } finally {
+        setDecksLoading(false);
       }
     };
 
@@ -53,10 +81,10 @@ export function CartPage() {
     return () => {
       window.removeEventListener('cartUpdated', handleCartUpdate);
     };
-  }, []);
+  }, [handCart.handItems, deckBuilder.deckList]); // Reload when hand items or deck list change
 
-  const clearHand = () => {
-    dataManager.clearHand();
+  const handleClearHand = () => {
+    clearHand();
     setHand([]);
     setShowClearConfirm(false);
   };
@@ -70,7 +98,14 @@ export function CartPage() {
   };
 
   const moveToProxyPrinter = () => {
-    dataManager.addToPrintList(hand);
+    // Convert hand items to compact print list items (just product_id and quantity)
+    const printListItems: CompactPrintItem[] = hand.map(card => ({
+      product_id: card.product_id,
+      quantity: card.quantity
+    }));
+    
+    // Add to print list using sessionStore
+    setPrintList(printListItems);
     setShowMoveToProxyConfirm(false);
     // Redirect to proxy printer page
     window.location.href = '/proxy-printer';
@@ -88,132 +123,87 @@ export function CartPage() {
   const copyToDeck = async () => {
     try {
       if (selectedDeckId === 'new') {
-        // Create new deck using the same method as deck builder page
-        const newDeck = await dataManager.createDeck(newDeckName.trim() || 'New Deck', 'Union Arena', 'private');
-        
-        // Add cards to the newly created deck by updating the deck
-        const updatedCards = [...newDeck.cards];
-        
-        hand.forEach(handItem => {
-          if (!handItem.card_url) return;
-          const existingCard = updatedCards.find(c => c.card_url === handItem.card_url);
-          if (existingCard) {
-            existingCard.quantity += handItem.quantity;
-          } else {
-            // Add full card data
-            updatedCards.push({
-              card_url: handItem.card_url,
-              quantity: handItem.quantity,
-              name: handItem.name,
-              image_url: handItem.image_url,
-              price: handItem.price,
-              id: handItem.id,
-              product_id: handItem.product_id,
-              clean_name: handItem.clean_name,
-              game: handItem.game,
-              category_id: handItem.category_id,
-              group_id: handItem.group_id,
-              group_name: handItem.group_name,
-              group_abbreviation: handItem.group_abbreviation,
-              image_count: handItem.image_count,
-              is_presale: handItem.is_presale,
-              released_on: handItem.released_on,
-              presale_note: handItem.presale_note,
-              modified_on: handItem.modified_on,
-              low_price: handItem.low_price,
-              mid_price: handItem.mid_price,
-              high_price: handItem.high_price,
-              created_at: handItem.created_at,
-              // Dynamic attributes
-              SeriesName: handItem.SeriesName,
-              Rarity: handItem.Rarity,
-              Number: handItem.Number,
-              CardType: handItem.CardType,
-              RequiredEnergy: handItem.RequiredEnergy,
-              ActionPointCost: handItem.ActionPointCost,
-              ActivationEnergy: handItem.ActivationEnergy,
-              Description: handItem.Description,
-              GeneratedEnergy: handItem.GeneratedEnergy,
-              BattlePointBP: handItem.BattlePointBP,
-              Trigger: handItem.Trigger,
-              Affinities: handItem.Affinities
-            });
-          }
+        // Create new deck using API
+        const response = await fetch('/api/user/decks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: newDeckName.trim() || 'New Deck',
+            game: 'Union Arena',
+            visibility: 'private',
+            description: '',
+            preferences: {
+              series: 'One Piece',
+              cardTypes: [],
+              rarities: []
+            }
+          }),
         });
 
-        const updatedDeck = {
-          ...newDeck,
-          cards: updatedCards,
-        };
+        if (!response.ok) {
+          throw new Error('Failed to create deck');
+        }
 
-        await dataManager.updateDeck(updatedDeck);
+        const data = await response.json();
+        const newDeck = data.deck;
+        
+        // Add cards to the newly created deck using the batch endpoint
+        const cardsToAdd = hand.map(handItem => ({
+          card_id: handItem.product_id,
+          quantity: handItem.quantity
+        }));
+
+        const addCardsResponse = await fetch(`/api/user/decks/${newDeck.id}/cards/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ cards: cardsToAdd }),
+        });
+
+        if (!addCardsResponse.ok) {
+          throw new Error('Failed to add cards to deck');
+        }
         
         // Reload decks to reflect the new deck
-        const deckData = await dataManager.getDecks();
+        const deckData = await fetchDecksBatch();
         setDecks(deckData);
       } else {
         // Add to existing deck
-        const existingDeck = await dataManager.getDeck(selectedDeckId);
+        const response = await fetch(`/api/user/decks/${selectedDeckId}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (!response.ok) {
+          console.error('Failed to fetch deck');
+          return;
+        }
+
+        const data = await response.json();
+        const existingDeck = data.deck;
+
         if (!existingDeck) {
           console.error('Deck not found');
           return;
         }
 
-        const updatedCards = [...existingDeck.cards];
-        
-        hand.forEach(handItem => {
-          if (!handItem.card_url) return;
-          const existingCard = updatedCards.find(c => c.card_url === handItem.card_url);
-          if (existingCard) {
-            existingCard.quantity += handItem.quantity;
-          } else {
-            // Add full card data
-            updatedCards.push({
-              card_url: handItem.card_url,
-              quantity: handItem.quantity,
-              name: handItem.name,
-              image_url: handItem.image_url,
-              price: handItem.price,
-              id: handItem.id,
-              product_id: handItem.product_id,
-              clean_name: handItem.clean_name,
-              game: handItem.game,
-              category_id: handItem.category_id,
-              group_id: handItem.group_id,
-              group_name: handItem.group_name,
-              group_abbreviation: handItem.group_abbreviation,
-              image_count: handItem.image_count,
-              is_presale: handItem.is_presale,
-              released_on: handItem.released_on,
-              presale_note: handItem.presale_note,
-              modified_on: handItem.modified_on,
-              low_price: handItem.low_price,
-              mid_price: handItem.mid_price,
-              high_price: handItem.high_price,
-              created_at: handItem.created_at,
-              // Dynamic attributes
-              SeriesName: handItem.SeriesName,
-              Rarity: handItem.Rarity,
-              Number: handItem.Number,
-              CardType: handItem.CardType,
-              RequiredEnergy: handItem.RequiredEnergy,
-              ActionPointCost: handItem.ActionPointCost,
-              ActivationEnergy: handItem.ActivationEnergy,
-              Description: handItem.Description,
-              GeneratedEnergy: handItem.GeneratedEnergy,
-              BattlePointBP: handItem.BattlePointBP,
-              Trigger: handItem.Trigger,
-              Affinities: handItem.Affinities
-            });
-          }
+        // Add cards to existing deck using the batch endpoint
+        const cardsToAdd = hand.map(handItem => ({
+          card_id: handItem.product_id,
+          quantity: handItem.quantity
+        }));
+
+        const addCardsResponse = await fetch(`/api/user/decks/${selectedDeckId}/cards/batch`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ cards: cardsToAdd }),
         });
 
-        const updatedDeck = {
-          ...existingDeck,
-          cards: updatedCards,
-        };
-
-        await dataManager.updateDeck(updatedDeck);
+        if (!addCardsResponse.ok) {
+          throw new Error('Failed to add cards to deck');
+        }
       }
       
       setShowCopyToDeckModal(false);
@@ -242,7 +232,7 @@ export function CartPage() {
     }
   };
 
-  const totalItems = dataManager.getHandTotalItems() || 0;
+  const totalItems = handCart.handItems.reduce((total, item) => total + item.quantity, 0);
 
   if (isLoading) {
     return (
@@ -273,7 +263,7 @@ export function CartPage() {
             </svg>
             <h3 className="text-lg font-medium text-white mb-2">Your hand is empty</h3>
             <p className="text-gray-300 mb-4">Add some cards to your hand from the search page.</p>
-            <a 
+            <Link 
               href="/search" 
               className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors duration-150"
             >
@@ -281,7 +271,7 @@ export function CartPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               Search Cards
-            </a>
+            </Link>
           </div>
         </div>
       ) : (
@@ -369,7 +359,7 @@ export function CartPage() {
                 Cancel
               </button>
               <button
-                onClick={clearHand}
+                onClick={handleClearHand}
                 className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors duration-150"
               >
                 Clear Hand
@@ -444,7 +434,13 @@ export function CartPage() {
                 {/* Decks Grid */}
                 <div>
                   <h4 className="text-white font-semibold mb-4">Select Deck</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
+                  {decksLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                      <span className="ml-3 text-white">Loading decks...</span>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
                     {/* Create New Deck Option */}
                     <button
                       onClick={() => setSelectedDeckId('new')}
@@ -498,7 +494,7 @@ export function CartPage() {
                           <div className="flex-shrink-0">
                             {deck.cover ? (
                               <img
-                                src={deck.cover.startsWith('http') ? deck.cover : `/api/images?url=${encodeURIComponent(deck.cover)}`}
+                                src={deck.cover}
                                 alt={`${deck.name} cover`}
                                 className="w-32 h-44 rounded-lg border border-white/20 object-cover"
                                 onError={(e) => {
@@ -521,7 +517,10 @@ export function CartPage() {
                               {deck.cards.length} cards
                             </p>
                             <p className="text-gray-400 text-xs">
-                              {new Date(deck.updatedAt).toLocaleDateString()}
+                              {deck.last_modified ? new Date(deck.last_modified).toLocaleDateString() : 
+                               deck.updatedAt ? new Date(deck.updatedAt).toLocaleDateString() :
+                               deck.created_at ? new Date(deck.created_at).toLocaleDateString() :
+                               'Unknown date'}
                             </p>
                           </div>
                           
@@ -536,7 +535,8 @@ export function CartPage() {
                         </div>
                       </button>
                     ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
                 
                 {/* New Deck Name Input */}

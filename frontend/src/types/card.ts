@@ -5,7 +5,6 @@ export interface Card {
   product_id: number;
   name: string;
   clean_name: string | null;
-  image_url: string | null;
   card_url: string | null;
   game: string;
   category_id: number;
@@ -109,3 +108,47 @@ export type ActivationEnergy = 'Blue' | 'Green' | 'Purple' | 'Red' | 'Yellow';
 export type Rarity = 'Common' | 'Uncommon' | 'Rare' | 'Super Rare' | 'Ultra Rare' | 'Secret Rare';
 
 export type CardType = 'Character' | 'Event' | 'Base' | 'Leader';
+
+// Deck-related types
+export interface DeckCard {
+  card_id: number;
+  name?: string;
+  image_url?: string;
+  quantity: number;
+  metadata?: Record<string, any>;
+}
+
+export interface Deck {
+  id: string;
+  name: string;
+  game: string;
+  description: string;
+  visibility: 'public' | 'private' | 'unlisted';
+  cards: DeckCard[];
+  created_date: string;
+  last_modified: string;
+  total_cards: number;
+  is_legal: boolean;
+  preferences: {
+    series: string;
+    color: string;
+    cardTypes: string[];
+    printTypes: string[];
+    rarities: string[];
+  };
+}
+
+// Hand and Print List types
+export interface HandItem {
+  product_id: number;
+  quantity: number;
+  // Full card data loaded on demand
+  card?: Card;
+}
+
+export interface PrintListItem {
+  product_id: number;
+  quantity: number;
+  // Full card data loaded on demand
+  card?: Card;
+}
