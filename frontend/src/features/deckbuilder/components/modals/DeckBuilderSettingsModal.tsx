@@ -50,9 +50,9 @@ export function DeckBuilderSettingsModal({ isOpen, onClose }: DeckBuilderSetting
       setSeriesOptions(seriesData.map((value: string) => ({ value, label: value })));
       
       // For collapsible options, check if they're in currentDeck preferences
-      const currentPrintTypes = ('preferences' in currentDeck) ? currentDeck.preferences?.printTypes || [] : [];
-      const currentCardTypes = ('preferences' in currentDeck) ? currentDeck.preferences?.cardTypes || [] : [];
-      const currentRarities = ('preferences' in currentDeck) ? currentDeck.preferences?.rarities || [] : [];
+      const currentPrintTypes = currentDeck?.preferences?.printTypes || [];
+      const currentCardTypes = currentDeck?.preferences?.cardTypes || [];
+      const currentRarities = currentDeck?.preferences?.rarities || [];
       
       setCollapsiblePrintTypeOptions(printTypeData.map((value: string) => ({ 
         value, 
@@ -85,7 +85,7 @@ export function DeckBuilderSettingsModal({ isOpen, onClose }: DeckBuilderSetting
     }
   };
 
-  const currentSeries = ('preferences' in currentDeck) ? currentDeck.preferences?.series || '' : '';
+  const currentSeries = currentDeck?.preferences?.series || '';
   
   // Calculate default filter indicators
   const isBasicPrintsOnly = React.useMemo(() => {
@@ -305,7 +305,7 @@ export function DeckBuilderSettingsModal({ isOpen, onClose }: DeckBuilderSetting
                 <p className="text-white/70 text-sm mb-4">Control who can see your deck.</p>
                 <FilterDropdown
                   label=""
-                  value={('visibility' in currentDeck) ? currentDeck.visibility || "private" : "private"}
+                  value={currentDeck?.visibility || "private"}
                   options={[
                     { value: 'private', label: 'Private - Only you can see this deck' },
                     { value: 'public', label: 'Public - Anyone can see this deck' },

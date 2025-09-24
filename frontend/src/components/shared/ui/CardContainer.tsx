@@ -2,18 +2,18 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { getProductImageIcon } from '@/lib/imageUtils';
 import { QuantityControl } from './QuantityControl';
 
 export type CardContainerVariant = 'search' | 'deck-search' | 'deck-display' | 'cart' | 'proxy' | 'basic';
 
 export interface CardContainerProps {
-  card: Card;
+  card: ExpandedCard;
   variant: CardContainerVariant;
-  onClick?: (card: Card) => void;
-  onAddToDeck?: (card: Card) => void;
-  onQuantityChange?: (card: Card, change: number) => void;
+  onClick?: (card: ExpandedCard) => void;
+  onAddToDeck?: (card: ExpandedCard) => void;
+  onQuantityChange?: (card: ExpandedCard, change: number) => void;
   
   // Display controls
   showPrices?: boolean;
@@ -288,11 +288,12 @@ export function CardContainer({
 
   // Render rarity display
   const renderRarity = () => {
-    if (!effectiveShowRarity || !card.rarity) return null;
+    const rarity = card.attributes.find(attr => attr.name === 'Rarity')?.value;
+    if (!effectiveShowRarity || !rarity) return null;
     
     return (
-      <div className={`${sizeClasses[size].rarity} ${getRarityColor(card.rarity)}`}>
-        {card.rarity}
+      <div className={`${sizeClasses[size].rarity} ${getRarityColor(rarity)}`}>
+        {rarity}
       </div>
     );
   };

@@ -1,16 +1,16 @@
 'use client';
 
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { BaseCardGrid, BaseCardGridProps } from '@/components/shared/grids/BaseCardGrid';
 import { DeckBuilderSearchCard } from '../cards/DeckBuilderSearchCard';
 
 export interface DeckBuilderSearchGridProps extends Omit<BaseCardGridProps, 'children'> {
-  onCardClick?: (card: Card) => void;
-  onAddToDeck?: (card: Card) => void;
-  onQuantityChange?: (card: Card, change: number) => void;
+  onCardClick?: (card: ExpandedCard) => void;
+  onAddToDeck?: (card: ExpandedCard) => void;
+  onQuantityChange?: (card: ExpandedCard, change: number) => void;
   showRarity?: boolean;
   priority?: boolean;
-  deckCards?: Card[]; // Pass deck cards to determine if search card is in deck
+  deckCards?: ExpandedCard[]; // Pass deck cards to determine if search card is in deck
 }
 
 export function DeckBuilderSearchGrid({
@@ -33,7 +33,7 @@ export function DeckBuilderSearchGrid({
       {(card, index) => {
         // Check if this card is in the deck
         const isInDeck = deckCards.some(deckCard => 
-          deckCard.card_url === card.card_url || deckCard.image_url === card.image_url
+          deckCard.card_url === card.card_url
         );
         
         return (

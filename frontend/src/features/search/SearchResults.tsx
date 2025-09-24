@@ -85,7 +85,7 @@ export function SearchResults({
       {cards.map((card, index) => (
         <SearchCard
           key={card.id}
-          card={card}
+          card={{ ...card, quantity: 0 }}
           onClick={onCardClick}
           showPrices={showPrices}
           showRarity={showRarity}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
-import { Deck, CardRef } from '@/types/card';
+import { Deck, CardRef, SearchParams } from '@/types/card';
 
 /**
  * Centralized Session Store
@@ -25,23 +25,7 @@ interface SessionState {
   
 
   // ===== SEARCH FEATURE =====
-  searchPreferences: {
-    // Account-level search preferences
-    sort: string;
-    per_page: number;
-    page: number;
-    game: string;
-    
-    // Default filter toggles
-    defaultFilters: {
-      basicPrintsOnly: boolean;
-      noActionPoints: boolean;
-      baseRarityOnly: boolean;
-    };
-    
-    // User-added filters stored in session
-    advancedFilters: string[]; // format: "&field=value", "|field=value", "!field=value"
-  };
+  searchPreferences: SearchParams;
   
 
   // ===== DECK BUILDER FEATURE =====
@@ -94,10 +78,9 @@ interface SessionState {
   
   // Search management
   setSearchPreferences: (preferences: SessionState['searchPreferences']) => void;
-  addAdvancedFilter: (filter: { type: 'and' | 'or' | 'not'; field: string; value: string }) => void;
-  removeAdvancedFilter: (index: number) => void;
+  addFilter: (filter: { type: 'and' | 'or' | 'not'; field: string; value: string; displayText: string }) => void;
+  removeFilter: (index: number) => void;
   clearAllFilters: () => void;
-  setDefaultFilterToggle: (filter: 'basicPrintsOnly' | 'noActionPoints' | 'baseRarityOnly', value: boolean) => void;
   setPage: (page: number) => void;
   setSort: (sort: string) => void;
   setSeries: (series: string) => void;
@@ -107,7 +90,7 @@ interface SessionState {
   getSeries: () => string;
   getCardType: () => string;
   getColor: () => string;
-  getFiltersForAPI: () => any;
+  getFiltersForAPI: () => SearchParams;
   
   // Deck builder management
   setDeckList: (deckIds: string[]) => void;
@@ -152,17 +135,17 @@ const defaultUser = {
 };
 
 
-const defaultSearchPreferences = {
+const defaultSearchPreferences: SearchParams = {
+  query: '',
   sort: 'name_asc',
   per_page: 24,
   page: 1,
-  game: 'Attack on Titan',
-  defaultFilters: {
-    basicPrintsOnly: true,
-    noActionPoints: true,
-    baseRarityOnly: true,
-  },
-  advancedFilters: [],
+  filters: [
+    { type: 'and', field: 'game', value: 'Attack on Titan', displayText: 'Game: Attack on Titan' },
+    { type: 'and', field: 'print_type', value: 'Basic', displayText: 'Basic Prints Only' },
+    { type: 'not', field: 'ActionPointCost', value: '0', displayText: 'No Action Points' },
+    { type: 'and', field: 'Rarity', value: 'Base', displayText: 'Base Rarity Only' },
+  ],
 };
 
 
@@ -281,20 +264,20 @@ export const useSessionStore = create<SessionState>()(
     };
   },
 
-  addAdvancedFilter: (filter) => {
+  addFilter: (filter) => {
     set((state) => {
-      const newAdvancedFilters = [...state.searchPreferences.advancedFilters, get().filterToCompact(filter)];
+      const newFilters = [...state.searchPreferences.filters, filter];
       return {
-        searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvancedFilters }
+        searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
     });
   },
 
-  removeAdvancedFilter: (index) => {
+  removeFilter: (index) => {
     set((state) => {
-      const newAdvancedFilters = state.searchPreferences.advancedFilters.filter((_, i) => i !== index);
+      const newFilters = state.searchPreferences.filters.filter((_, i) => i !== index);
       return {
-        searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvancedFilters }
+        searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
     });
   },
@@ -303,22 +286,11 @@ export const useSessionStore = create<SessionState>()(
     set((state) => ({
       searchPreferences: {
         ...state.searchPreferences,
-        advancedFilters: [],
+        filters: [],
       },
     }));
   },
 
-  setDefaultFilterToggle: (filter, value) => {
-    set((state) => ({
-      searchPreferences: {
-        ...state.searchPreferences,
-        defaultFilters: {
-          ...state.searchPreferences.defaultFilters,
-          [filter]: value,
-        },
-      },
-    }));
-  },
 
   setPage: (page) => {
     set((state) => ({
@@ -341,12 +313,12 @@ export const useSessionStore = create<SessionState>()(
   setSeries: (series) => {
     set((state) => {
       // Remove existing series filter
-      const filteredAdvanced = state.searchPreferences.advancedFilters.filter(f => !f.startsWith('&SeriesName='));
+      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'SeriesName');
       // Add new series filter if not empty
-      const newAdvanced = series ? [...filteredAdvanced, `&SeriesName=${series}`] : filteredAdvanced;
+      const newFilters = series ? [...filteredFilters, { type: 'and' as const, field: 'SeriesName', value: series, displayText: `Series: ${series}` }] : filteredFilters;
       
       return {
-        searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvanced }
+        searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
     });
   },
@@ -354,12 +326,12 @@ export const useSessionStore = create<SessionState>()(
   setCardType: (cardType) => {
     set((state) => {
       // Remove existing cardType filter
-      const filteredAdvanced = state.searchPreferences.advancedFilters.filter(f => !f.startsWith('&CardType='));
+      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'CardType');
       // Add new cardType filter if not empty
-      const newAdvanced = cardType ? [...filteredAdvanced, `&CardType=${cardType}`] : filteredAdvanced;
+      const newFilters = cardType ? [...filteredFilters, { type: 'and' as const, field: 'CardType', value: cardType, displayText: `Card Type: ${cardType}` }] : filteredFilters;
       
       return {
-        searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvanced }
+        searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
     });
   },
@@ -367,12 +339,12 @@ export const useSessionStore = create<SessionState>()(
   setColor: (color) => {
     set((state) => {
       // Remove existing color filter
-      const filteredAdvanced = state.searchPreferences.advancedFilters.filter(f => !f.startsWith('&ActivationEnergy='));
+      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'ActivationEnergy');
       // Add new color filter if not empty
-      const newAdvanced = color ? [...filteredAdvanced, `&ActivationEnergy=${color}`] : filteredAdvanced;
+      const newFilters = color ? [...filteredFilters, { type: 'and' as const, field: 'ActivationEnergy', value: color, displayText: `Color: ${color}` }] : filteredFilters;
       
       return {
-        searchPreferences: { ...state.searchPreferences, advancedFilters: newAdvanced }
+        searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
     });
   },
@@ -385,67 +357,33 @@ export const useSessionStore = create<SessionState>()(
 
   getSeries: () => {
     const state = get();
-    const seriesFilter = state.searchPreferences.advancedFilters.find(f => f.startsWith('&SeriesName='));
-    return seriesFilter ? seriesFilter.split('=')[1] : '';
+    const seriesFilter = state.searchPreferences.filters.find(f => f.field === 'SeriesName' && f.type === 'and');
+    return seriesFilter ? seriesFilter.value : '';
   },
 
   getCardType: () => {
     const state = get();
-    const cardTypeFilter = state.searchPreferences.advancedFilters.find(f => f.startsWith('&CardType='));
-    return cardTypeFilter ? cardTypeFilter.split('=')[1] : '';
+    const cardTypeFilter = state.searchPreferences.filters.find(f => f.field === 'CardType' && f.type === 'and');
+    return cardTypeFilter ? cardTypeFilter.value : '';
   },
 
   getColor: () => {
     const state = get();
-    const colorFilter = state.searchPreferences.advancedFilters.find(f => f.startsWith('&ActivationEnergy='));
-    return colorFilter ? colorFilter.split('=')[1] : '';
+    const colorFilter = state.searchPreferences.filters.find(f => f.field === 'ActivationEnergy' && f.type === 'and');
+    return colorFilter ? colorFilter.value : '';
   },
 
   getFiltersForAPI: () => {
     const state = get();
     const { searchPreferences } = state;
     
-    const and_filters: any[] = [];
-    const or_filters: any[] = [];
-    const not_filters: any[] = [];
-    
-    searchPreferences.advancedFilters.forEach(compactFilter => {
-      const filter = get().compactToFilter(compactFilter);
-      if (filter.type === 'and') {
-        and_filters.push(filter);
-      } else if (filter.type === 'or') {
-        or_filters.push(filter);
-      } else if (filter.type === 'not') {
-        not_filters.push(filter);
-      }
-    });
-
-    // Add default filters as NOT filters
-    if (searchPreferences.defaultFilters.basicPrintsOnly) {
-      not_filters.push({ type: 'not', field: 'PrintType', value: 'Pre-Release' });
-      not_filters.push({ type: 'not', field: 'PrintType', value: 'Starter Deck' });
-      not_filters.push({ type: 'not', field: 'PrintType', value: 'Box Topper Foil' });
-    }
-    if (searchPreferences.defaultFilters.noActionPoints) {
-      not_filters.push({ type: 'not', field: 'CardType', value: 'Action Point' });
-    }
-    if (searchPreferences.defaultFilters.baseRarityOnly) {
-      not_filters.push({ type: 'not', field: 'Rarity', value: 'Super Rare 1-Star' });
-      not_filters.push({ type: 'not', field: 'Rarity', value: 'Union Rare' });
-    }
-
+    // Return the complete SearchParams object
     return {
-      query: get().getQuery(),
-      game: searchPreferences.game,
-      series: get().getSeries(),
-      cardType: get().getCardType(),
-      color: get().getColor(),
+      query: searchPreferences.query,
       sort: searchPreferences.sort,
       page: searchPreferences.page,
       per_page: searchPreferences.per_page,
-      and_filters,
-      or_filters,
-      not_filters,
+      filters: searchPreferences.filters,
     };
   },
 

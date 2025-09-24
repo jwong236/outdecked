@@ -7,10 +7,24 @@ interface QuickFiltersProps {
 }
 
 export function QuickFilters({ className = '' }: QuickFiltersProps) {
-  const { searchPreferences, setDefaultFilterToggle } = useSessionStore();
+  const { searchPreferences, addFilter, removeFilter } = useSessionStore();
 
-  const handleDefaultFilterChange = (filterType: keyof typeof searchPreferences.defaultFilters, enabled: boolean) => {
-    setDefaultFilterToggle(filterType, enabled);
+  // Helper function to check if a filter exists
+  const hasFilter = (field: string, value: string) => {
+    return searchPreferences.filters.some(f => f.field === field && f.value === value);
+  };
+
+  // Helper function to add or remove a filter
+  const toggleFilter = (field: string, value: string, displayText: string, enabled: boolean) => {
+    if (enabled) {
+      addFilter({ type: 'and', field, value, displayText });
+    } else {
+      // Find and remove the filter
+      const filterIndex = searchPreferences.filters.findIndex(f => f.field === field && f.value === value);
+      if (filterIndex !== -1) {
+        removeFilter(filterIndex);
+      }
+    }
   };
 
   return (
@@ -22,8 +36,8 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
         <label className="flex items-center space-x-3 cursor-pointer">
           <input
             type="checkbox"
-            checked={searchPreferences.defaultFilters.basicPrintsOnly}
-            onChange={(e) => handleDefaultFilterChange('basicPrintsOnly', e.target.checked)}
+            checked={hasFilter('print_type', 'Basic')}
+            onChange={(e) => toggleFilter('print_type', 'Basic', 'Basic Prints Only', e.target.checked)}
             className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
           />
           <span className="text-white font-medium">Basic Prints Only</span>
@@ -33,8 +47,8 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
         <label className="flex items-center space-x-3 cursor-pointer">
           <input
             type="checkbox"
-            checked={searchPreferences.defaultFilters.noActionPoints}
-            onChange={(e) => handleDefaultFilterChange('noActionPoints', e.target.checked)}
+            checked={hasFilter('ActionPointCost', '0')}
+            onChange={(e) => toggleFilter('ActionPointCost', '0', 'No Action Points', e.target.checked)}
             className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
           />
           <span className="text-white font-medium">No Action Points</span>
@@ -44,8 +58,8 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
         <label className="flex items-center space-x-3 cursor-pointer">
           <input
             type="checkbox"
-            checked={searchPreferences.defaultFilters.baseRarityOnly}
-            onChange={(e) => handleDefaultFilterChange('baseRarityOnly', e.target.checked)}
+            checked={hasFilter('Rarity', 'Base')}
+            onChange={(e) => toggleFilter('Rarity', 'Base', 'Base Rarity Only', e.target.checked)}
             className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
           />
           <span className="text-white font-medium">Base Rarity Only</span>

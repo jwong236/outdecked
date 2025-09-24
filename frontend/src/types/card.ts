@@ -1,5 +1,3 @@
-// Card data types based on your Flask API structure
-
 export interface Card {
   id: number;
   product_id: number;
@@ -22,21 +20,17 @@ export interface Card {
   mid_price: number | null;
   high_price: number | null;
   created_at: string;
-  // Dynamic attributes from card_attributes table
-  SeriesName?: string;
-  Rarity?: string;
-  Number?: string;
-  CardType?: string;
-  RequiredEnergy?: string;
-  ActionPointCost?: string;
-  ActivationEnergy?: string;
-  Description?: string;
-  GeneratedEnergy?: string;
-  BattlePointBP?: string;
-  Trigger?: string;
-  Affinities?: string;
-  [key: string]: any; // Allow for any additional dynamic attributes
+  attributes: CardAttribute[];
 }
+
+export type CardRef = { 
+  card_id: number; 
+  quantity: number; 
+};
+
+export type CardCache = Record<number, Card>;
+
+export type ExpandedCard = Card & { quantity: number };
 
 export interface CardAttribute {
   id: number;
@@ -59,6 +53,14 @@ export interface SearchResponse {
   };
 }
 
+export interface SearchParams {
+  query: string;
+  sort: string;
+  page: number;
+  per_page: number;
+  filters: FilterOption[];
+}
+
 export interface FilterOption {
   type: 'and' | 'or' | 'not';
   field: string;
@@ -66,53 +68,12 @@ export interface FilterOption {
   displayText: string;
 }
 
-export interface SearchFilters {
-  query: string;
-  game: string;
-  series: string;
-  color: string;
-  cardType: string;
-  sort: string;
-  page: number;
-  per_page: number;
-  and_filters: FilterOption[];
-  or_filters: FilterOption[];
-  not_filters: FilterOption[];
-}
-
-export interface MetadataField {
-  name: string;
-  display: string;
-}
-
-// ===== CLEAN 3-LAYER ARCHITECTURE =====
-
-// 1. LIGHTWEIGHT REFERENCES (Storage Layer)
-export type CardRef = { 
-  card_id: number; 
-  quantity: number; 
-};
-
-// 2. CACHE LAYER
-export type CardCache = Record<string, Card>;
-
-// 3. EXPANDED OBJECTS (UI Layer)
-export type ExpandedCard = Card & { quantity: number };
-
-// ===== LEGACY UNION TYPES (Now Dynamic Strings) =====
-// These are now dynamic strings from scraped data, not hard-coded unions
-export type SeriesName = string;
-export type ActivationEnergy = string;
-export type Rarity = string;
-export type CardType = string;
-
-// ===== CLEAN DECK DEFINITION =====
 export interface Deck {
   id: string;
   name: string; 
   game: string;
   description?: string;
-  cards: CardRef[];              // Always lightweight references
+  cards: CardRef[]; 
   visibility: 'private' | 'public' | 'unlisted';
   preferences: {
     series: string;
@@ -121,12 +82,9 @@ export interface Deck {
     printTypes: string[];
     rarities: string[];
   };
-  created_date: string;          // ISO string, not Date
+  created_date: string;
   last_modified: string;
   is_legal?: boolean;
   total_cards?: number;
-  cover?: string; // Optional cover field
+  cover?: string;
 }
-
-// ===== CLEAN ARCHITECTURE - NO LEGACY INTERFACES =====
-// All legacy interfaces have been removed and replaced with clean types

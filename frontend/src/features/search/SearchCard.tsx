@@ -3,20 +3,20 @@
 import React from 'react';
 import Image from 'next/image';
 import { useState } from 'react';
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
 import { getProductImageIcon } from '@/lib/imageUtils';
 
 export interface SearchCardProps {
-  card: Card;
-  onClick: (card: Card) => void;
+  card: ExpandedCard;
+  onClick: (card: ExpandedCard) => void;
   className?: string;
   showPrices?: boolean;
   showRarity?: boolean;
   variant?: 'default' | 'compact' | 'detailed';
   priority?: boolean;
-  onAddToDeck?: (card: Card) => void;
-  onQuantityChange?: (card: Card, change: number) => void;
+  onAddToDeck?: (card: ExpandedCard) => void;
+  onQuantityChange?: (card: ExpandedCard, change: number) => void;
 }
 
 export function SearchCard({ 

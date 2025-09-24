@@ -3,13 +3,13 @@
 import React from 'react';
 import Image from 'next/image';
 import { getProductImageIcon } from '@/lib/imageUtils';
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
 
 export interface CartCardProps {
-  card: Card;
-  onClick?: (card: Card) => void;
-  onQuantityChange?: (card: Card, change: number) => void;
+  card: ExpandedCard;
+  onClick?: (card: ExpandedCard) => void;
+  onQuantityChange?: (card: ExpandedCard, change: number) => void;
   className?: string;
   showPrices?: boolean;
   showRarity?: boolean;

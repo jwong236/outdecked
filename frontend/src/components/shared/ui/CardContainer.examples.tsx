@@ -1,13 +1,12 @@
 import React from 'react';
 import { CardContainer } from './CardContainer';
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 
 // Example card data
 const exampleCard: Card = {
   id: 1,
   name: 'Monkey D. Luffy - Captain of the Straw Hat Pirates',
   card_url: 'https://example.com/luffy',
-  image_url: 'https://example.com/luffy.jpg',
   clean_name: 'Luffy',
   product_id: 12345,
   game: 'One Piece',
@@ -23,40 +22,49 @@ const exampleCard: Card = {
   mid_price: 15.99,
   high_price: 20.00,
   created_at: '2023-01-01T00:00:00Z',
-  // Dynamic attributes
-  SeriesName: 'Starter Deck',
-  Rarity: 'Super Rare',
-  Number: '001',
-  CardType: 'Character',
-  RequiredEnergy: '3',
-  ActionPointCost: '2',
-  ActivationEnergy: 'Red',
-  Description: 'This card has a special effect',
-  GeneratedEnergy: '1',
-  BattlePointBP: '5000',
-  Trigger: 'None',
-  Affinities: 'Straw Hat Pirates',
+  // Structured attributes
+  attributes: [
+    { id: 1, card_id: 1, name: 'SeriesName', value: 'Starter Deck', display_name: 'Series Name', created_at: '2023-01-01T00:00:00Z' },
+    { id: 2, card_id: 1, name: 'Rarity', value: 'Super Rare', display_name: 'Rarity', created_at: '2023-01-01T00:00:00Z' },
+    { id: 3, card_id: 1, name: 'Number', value: '001', display_name: 'Number', created_at: '2023-01-01T00:00:00Z' },
+    { id: 4, card_id: 1, name: 'CardType', value: 'Character', display_name: 'Card Type', created_at: '2023-01-01T00:00:00Z' },
+    { id: 5, card_id: 1, name: 'RequiredEnergy', value: '3', display_name: 'Required Energy', created_at: '2023-01-01T00:00:00Z' },
+    { id: 6, card_id: 1, name: 'ActionPointCost', value: '2', display_name: 'Action Point Cost', created_at: '2023-01-01T00:00:00Z' },
+    { id: 7, card_id: 1, name: 'ActivationEnergy', value: 'Red', display_name: 'Activation Energy', created_at: '2023-01-01T00:00:00Z' },
+    { id: 8, card_id: 1, name: 'Description', value: 'This card has a special effect', display_name: 'Description', created_at: '2023-01-01T00:00:00Z' },
+    { id: 9, card_id: 1, name: 'GeneratedEnergy', value: '1', display_name: 'Generated Energy', created_at: '2023-01-01T00:00:00Z' },
+    { id: 10, card_id: 1, name: 'BattlePointBP', value: '5000', display_name: 'Battle Point BP', created_at: '2023-01-01T00:00:00Z' },
+    { id: 11, card_id: 1, name: 'Trigger', value: 'None', display_name: 'Trigger', created_at: '2023-01-01T00:00:00Z' },
+    { id: 12, card_id: 1, name: 'Affinities', value: 'Straw Hat Pirates', display_name: 'Affinities', created_at: '2023-01-01T00:00:00Z' },
+  ]
 };
 
-const exampleCardInDeck: Card = {
+const exampleCardInDeck: ExpandedCard = {
   ...exampleCard,
+  quantity: 2,
 };
 
-const exampleCardInHand: Card = {
+const exampleCardInHand: ExpandedCard = {
   ...exampleCard,
+  quantity: 1,
+};
+
+const exampleCardWithQuantity3: ExpandedCard = {
+  ...exampleCard,
+  quantity: 3,
 };
 
 // Example usage patterns
 export function CardContainerExamples() {
-  const handleCardClick = (card: Card) => {
+  const handleCardClick = (card: ExpandedCard) => {
     console.log(`Card clicked: ${card.name}`);
   };
 
-  const handleAddToDeck = (card: Card) => {
+  const handleAddToDeck = (card: ExpandedCard) => {
     console.log(`Add to deck: ${card.name}`);
   };
 
-  const handleQuantityChange = (card: Card, change: number) => {
+  const handleQuantityChange = (card: ExpandedCard, change: number) => {
     console.log(`Quantity changed for ${card.name}: ${change}`);
   };
 
@@ -71,7 +79,7 @@ export function CardContainerExamples() {
           <div className="bg-white/10 p-4 rounded-lg">
             <h3 className="text-white mb-2">Quantity = 0 (Shows Add to Hand button)</h3>
             <CardContainer 
-              card={exampleCard}
+              card={exampleCardInHand}
               variant="search"
               onClick={handleCardClick}
               showPrices={true}
@@ -83,7 +91,7 @@ export function CardContainerExamples() {
           <div className="bg-white/10 p-4 rounded-lg">
             <h3 className="text-white mb-2">Quantity = 3 (Shows quantity control)</h3>
             <CardContainer 
-              card={exampleCardInHand}
+              card={exampleCardWithQuantity3}
               variant="search"
               onClick={handleCardClick}
               showPrices={true}
@@ -101,7 +109,7 @@ export function CardContainerExamples() {
           <div className="bg-white/10 p-4 rounded-lg">
             <h3 className="text-white mb-2">Not in Deck (Shows Add to Deck button)</h3>
             <CardContainer 
-              card={exampleCard}
+              card={exampleCardInHand}
               variant="deck-search"
               onClick={handleCardClick}
               onAddToDeck={handleAddToDeck}
@@ -195,7 +203,7 @@ export function CardContainerExamples() {
           <div className="bg-white/10 p-4 rounded-lg">
             <h3 className="text-white mb-2">Shows clean name when different</h3>
             <CardContainer 
-              card={exampleCard}
+              card={exampleCardInHand}
               variant="proxy"
               onClick={handleCardClick}
               showCleanName={true}
@@ -206,7 +214,7 @@ export function CardContainerExamples() {
           <div className="bg-white/10 p-4 rounded-lg">
             <h3 className="text-white mb-2">Always shows printList quantity control</h3>
             <CardContainer 
-              card={exampleCard}
+              card={exampleCardInHand}
               variant="proxy"
               onClick={handleCardClick}
               showCleanName={true}
@@ -223,7 +231,7 @@ export function CardContainerExamples() {
           <div className="bg-white/10 p-4 rounded-lg">
             <h3 className="text-white mb-2">Simple display with no quantity controls</h3>
             <CardContainer 
-              card={exampleCard}
+              card={exampleCardInHand}
               variant="basic"
               onClick={handleCardClick}
               showPrices={true}
@@ -234,7 +242,7 @@ export function CardContainerExamples() {
           <div className="bg-white/10 p-4 rounded-lg">
             <h3 className="text-white mb-2">No click indicator or quantity controls</h3>
             <CardContainer 
-              card={exampleCard}
+              card={exampleCardInHand}
               variant="basic"
               onClick={handleCardClick}
               showPrices={true}
@@ -293,7 +301,7 @@ export function CardContainerExamples() {
               {Array.from({ length: 8 }).map((_, index) => (
                 <CardContainer
                   key={index}
-                  card={exampleCard}
+                  card={exampleCardInHand}
                   variant="search"
                   onClick={handleCardClick}
                   size="sm"
@@ -327,7 +335,7 @@ export function CardContainerExamples() {
           <div className="bg-white/10 p-4 rounded-lg">
             <h3 className="text-white mb-2">Conditional Price Display</h3>
             <CardContainer 
-              card={exampleCard}
+              card={exampleCardInHand}
               variant="search"
               onClick={handleCardClick}
               showPrices={false}
@@ -339,7 +347,7 @@ export function CardContainerExamples() {
           <div className="bg-white/10 p-4 rounded-lg">
             <h3 className="text-white mb-2">Conditional Rarity Display</h3>
             <CardContainer 
-              card={exampleCard}
+              card={exampleCardInHand}
               variant="search"
               onClick={handleCardClick}
               showPrices={true}

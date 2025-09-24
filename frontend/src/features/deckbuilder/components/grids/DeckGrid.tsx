@@ -1,15 +1,15 @@
 'use client';
 
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { BaseCardGrid, BaseCardGridProps } from '@/components/shared/grids/BaseCardGrid';
 import { DeckCard } from '../cards/DeckCard';
 
 export interface DeckGridProps extends Omit<BaseCardGridProps, 'children'> {
-  onCardClick?: (card: Card) => void;
-  onQuantityChange?: (card: Card, change: number) => void;
-  onRemoveFromDeck?: (card: Card) => void;
-  onAddToDeck?: (card: Card) => void;
-  deckCards?: Card[];
+  onCardClick?: (card: ExpandedCard) => void;
+  onQuantityChange?: (card: ExpandedCard, change: number) => void;
+  onRemoveFromDeck?: (card: ExpandedCard) => void;
+  onAddToDeck?: (card: ExpandedCard) => void;
+  deckCards?: ExpandedCard[];
   showDeckActions?: boolean;
   showPrices?: boolean;
   showRarity?: boolean;

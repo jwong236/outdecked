@@ -2,7 +2,7 @@
 
 export interface DeckCard {
   name: string;
-  image_url_large: string;
+  card_url: string | null;
   quantity: number;
   CardType: string;
   RequiredEnergy: string;
@@ -13,119 +13,7 @@ export interface DecklistImageOptions {
   cards: DeckCard[];
 }
 
-export async function generateDecklistPdf(options: DecklistPdfOptions): Promise<jsPDF> {
-  const { deckName, cards } = options;
-  
-  // Create PDF document (A4 size)
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4'
-  });
-  
-  // Set up page dimensions
-  const pageWidth = 210; // A4 width in mm
-  const pageHeight = 297; // A4 height in mm
-  const margin = 10;
-  const contentWidth = pageWidth - (margin * 2);
-  
-  // Card dimensions (in mm)
-  const cardWidth = 25;
-  const cardHeight = 35;
-  const cardSpacing = 2;
-  const cardsPerRow = Math.floor((contentWidth + cardSpacing) / (cardWidth + cardSpacing));
-  
-  // Group cards by type and sort by required energy (descending)
-  const groupedCards = groupCardsByType(cards);
-  
-  let currentY = margin + 20; // Start below title
-  
-  // Add title
-  pdf.setFontSize(16);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text(deckName, pageWidth / 2, currentY, { align: 'center' });
-  currentY += 15;
-  
-  // Process each card type group
-  for (const [cardType, typeCards] of Object.entries(groupedCards)) {
-    // Add card type header
-    pdf.setFontSize(12);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text(`${cardType} (${typeCards.length} cards)`, margin, currentY);
-    currentY += 8;
-    
-    // Add cards for this type
-    let currentX = margin;
-    let rowCount = 0;
-    
-    for (const card of typeCards) {
-      // Check if we need a new page
-      if (currentY + cardHeight > pageHeight - margin) {
-        pdf.addPage();
-        currentY = margin;
-        currentX = margin;
-        rowCount = 0;
-      }
-      
-      // Check if we need a new row
-      if (currentX + cardWidth > pageWidth - margin) {
-        currentX = margin;
-        currentY += cardHeight + cardSpacing;
-        rowCount++;
-        
-        // Check if we need a new page after row break
-        if (currentY + cardHeight > pageHeight - margin) {
-          pdf.addPage();
-          currentY = margin;
-          currentX = margin;
-          rowCount = 0;
-        }
-      }
-      
-      // Add card image placeholder (rectangle for now)
-      pdf.setDrawColor(200, 200, 200);
-      pdf.setFillColor(240, 240, 240);
-      pdf.rect(currentX, currentY, cardWidth, cardHeight, 'FD');
-      
-      // Add card name (truncated if too long)
-      pdf.setFontSize(8);
-      pdf.setFont('helvetica', 'normal');
-      const cardName = card.name.length > 20 ? card.name.substring(0, 17) + '...' : card.name;
-      pdf.text(cardName, currentX + 1, currentY + cardHeight - 2);
-      
-      // Add quantity if more than 1
-      if (card.quantity > 1) {
-        pdf.setFillColor(0, 0, 0);
-        pdf.setDrawColor(0, 0, 0);
-        const quantityBoxSize = 6;
-        const quantityX = currentX + cardWidth - quantityBoxSize - 1;
-        const quantityY = currentY + 1;
-        
-        pdf.rect(quantityX, quantityY, quantityBoxSize, quantityBoxSize, 'FD');
-        
-        pdf.setFontSize(8);
-        pdf.setFont('helvetica', 'bold');
-        pdf.setTextColor(255, 255, 255);
-        pdf.text(card.quantity.toString(), quantityX + 1.5, quantityY + 4);
-        pdf.setTextColor(0, 0, 0); // Reset text color
-      }
-      
-      // Add required energy if available
-      if (card.RequiredEnergy) {
-        pdf.setFontSize(7);
-        pdf.setFont('helvetica', 'normal');
-        pdf.text(`Energy: ${card.RequiredEnergy}`, currentX + 1, currentY + cardHeight - 8);
-      }
-      
-      currentX += cardWidth + cardSpacing;
-    }
-    
-    // Move to next section
-    currentY += cardHeight + 10;
-  }
-  
-  return pdf;
-}
+// PDF generation removed - using image generation instead
 
 function groupCardsByType(cards: DeckCard[]): Record<string, DeckCard[]> {
   const grouped: Record<string, DeckCard[]> = {};
@@ -303,8 +191,11 @@ export async function generateDecklistImage(options: DecklistImageOptions): Prom
         
       try {
         // Use proxy method to get base64 image
-        console.log(`🖼️ Loading image for ${card.name}: ${card.image_url_large}`);
-        const base64Image = await loadImageAsBase64(card.image_url_large);
+        console.log(`🖼️ Loading image for ${card.name}: ${card.card_url}`);
+        if (!card.card_url) {
+          throw new Error(`No card URL for ${card.name}`);
+        }
+        const base64Image = await loadImageAsBase64(card.card_url);
         
         // Create image element
         const img = new Image();

@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { generateDecklistImage } from '@/lib/decklistPdfGenerator';
-import { CardRef } from '@/types/card';
+import { CardRef, ExpandedCard } from '@/types/card';
 import { Modal } from '@/components/shared/modals/Modal';
 
 interface DecklistModalProps {
   isOpen: boolean;
   onClose: () => void;
   deckName: string;
-  cards: CardRef[];
+  cards: ExpandedCard[];
 }
 
 export function DecklistModal({ isOpen, onClose, deckName, cards }: DecklistModalProps) {
@@ -30,9 +30,18 @@ export function DecklistModal({ isOpen, onClose, deckName, cards }: DecklistModa
     setError(null);
     
     try {
+      // Convert ExpandedCard[] to DeckCard[] for the generator
+      const deckCards = cards.map(card => ({
+        name: card.name,
+        card_url: card.card_url,
+        quantity: card.quantity,
+        CardType: card.attributes.find(attr => attr.name === 'CardType')?.value || 'Unknown',
+        RequiredEnergy: card.attributes.find(attr => attr.name === 'RequiredEnergy')?.value || '0',
+      }));
+
       const imageBlob = await generateDecklistImage({
         deckName,
-        cards
+        cards: deckCards
       });
       
       setPdfBlob(imageBlob);

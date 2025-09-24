@@ -1,16 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
 
 interface QuantityControlProps {
-  card: Card;
+  card: ExpandedCard;
   variant: 'button' | 'control';
   context: 'hand' | 'printList' | 'deck';
   buttonLayout?: '2-button' | '4-button' | '5-button' | 'auto';
   quantity?: number;
-  onQuantityChange?: (card: Card, change: number) => void;
+  onQuantityChange?: (card: ExpandedCard, change: number) => void;
   size?: 'sm' | 'md' | 'lg';
   className?: string;
 }

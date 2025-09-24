@@ -160,7 +160,7 @@ export function ProxyPrinterPage() {
       const expandedCards: {product_id: number, quantity: number}[] = [];
       proxyPrinter.printList.forEach(card => {
         for (let i = 0; i < card.quantity; i++) {
-          expandedCards.push({ product_id: card.product_id, quantity: 1 }); // Each individual card has quantity 1
+          expandedCards.push({ product_id: card.card_id, quantity: 1 }); // Each individual card has quantity 1
         }
       });
       
@@ -319,14 +319,15 @@ export function ProxyPrinterPage() {
             <ProxyGrid
               cards={proxyPrinter.printList.map(item => ({
                 id: 0,
-                product_id: item.product_id,
-                name: `Card ${item.product_id}`, // Placeholder name
+                product_id: item.card_id,
+                name: `Card ${item.card_id}`, // Placeholder name
                 clean_name: null,
-                image_url: getProductImageIcon(item.product_id),
-                card_url: '',
+                card_url: getProductImageIcon(item.card_id),
                 game: 'Union Arena',
                 category_id: 0,
                 group_id: 0,
+                attributes: [], // Required by Card interface
+                quantity: item.quantity, // Required by ExpandedCard
                 image_count: 0,
                 is_presale: false,
                 released_on: '',
@@ -538,10 +539,10 @@ export function ProxyPrinterPage() {
                                 }
                                 
                                 return (
-                                  <div key={card.product_id} className="bg-gray-100 border border-gray-300 rounded-sm overflow-hidden relative">
+                                  <div key={card.card_id} className="bg-gray-100 border border-gray-300 rounded-sm overflow-hidden relative">
                                     <img
-                                      src={getProductImageIcon(card.product_id)}
-                                      alt={`Card ${card.product_id}`}
+                                      src={getProductImageIcon(card.card_id)}
+                                      alt={`Card ${card.card_id}`}
                                       className="w-full h-full object-cover"
                                       onError={(e) => {
                                         const target = e.target as HTMLImageElement;
@@ -549,7 +550,7 @@ export function ProxyPrinterPage() {
                                         target.parentElement!.innerHTML = `
                                           <div class="flex items-center justify-center h-full text-gray-400">
                                             <div class="text-xs text-center p-1">
-                                              <div class="text-xs">Card ${card.product_id}</div>
+                                              <div class="text-xs">Card ${card.card_id}</div>
                                             </div>
                                           </div>
                                         `;

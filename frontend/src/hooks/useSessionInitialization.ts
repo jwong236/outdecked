@@ -58,19 +58,35 @@ export function useSessionInitialization() {
           display_name: user.display_name,
           avatar_url: user.avatar_url,
         },
-        // Preserve local advanced filters, merge with database preferences
+        // Preserve local filters, merge with database preferences
         searchPreferences: {
-          ...userData.searchPreferences,
-          advancedFilters: currentState.searchPreferences.advancedFilters, // Keep local advanced filters
+          query: '',
+          sort: userData.searchPreferences.sort || 'name_asc',
+          page: 1,
+          per_page: userData.searchPreferences.per_page || 24,
+          filters: currentState.searchPreferences.filters || [], // Keep local filters, fallback to empty array
         },
         deckBuilder: userData.deckBuilder,
-        // Merge local hand items with database hand items
+        // Merge local hand items with database hand items (deduplicate by card_id)
         handCart: {
           ...userData.handCart,
-          handItems: [
-            ...currentState.handCart.handItems, // Keep local hand items
-            ...userData.handCart.handItems, // Add database hand items
-          ],
+          handItems: (() => {
+            const allItems = [
+              ...currentState.handCart.handItems, // Keep local hand items
+              ...userData.handCart.handItems, // Add database hand items
+            ];
+            
+            // Deduplicate by card_id, keeping the item with higher quantity
+            const deduplicated = new Map<number, CardRef>();
+            allItems.forEach(item => {
+              const existing = deduplicated.get(item.card_id);
+              if (!existing || item.quantity > existing.quantity) {
+                deduplicated.set(item.card_id, item);
+              }
+            });
+            
+            return Array.from(deduplicated.values());
+          })(),
         },
         proxyPrinter: userData.proxyPrinter,
         sessionState: {
@@ -99,16 +115,16 @@ export function useSessionInitialization() {
         avatar_url: null,
       },
       searchPreferences: {
+        query: '',
         sort: 'name_asc',
         per_page: 24,
         page: 1,
-        game: 'Union Arena',
-        defaultFilters: {
-          basicPrintsOnly: true,
-          noActionPoints: true,
-          baseRarityOnly: true,
-        },
-        advancedFilters: [],
+        filters: [
+          { type: 'and', field: 'game', value: 'Union Arena', displayText: 'Game: Union Arena' },
+          { type: 'and', field: 'print_type', value: 'Basic', displayText: 'Basic Prints Only' },
+          { type: 'and', field: 'ActionPointCost', value: '0', displayText: 'No Action Points' },
+          { type: 'and', field: 'Rarity', value: 'Base', displayText: 'Base Rarity Only' },
+        ],
       },
       deckBuilder: {
         ...useSessionStore.getState().deckBuilder,
@@ -144,7 +160,7 @@ export function useSessionInitialization() {
       const preferencesData = preferencesResponse.ok ? await preferencesResponse.json() : { preferences: {} };
       
       // Load user's hand from database
-      const handResponse = await fetch('/api/user/hand', {
+      const handResponse = await fetch('/api/users/me/hand', {
         credentials: 'include',
       });
       const handData = handResponse.ok ? await handResponse.json() : { hand: [] };

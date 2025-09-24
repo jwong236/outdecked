@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { SearchFilters } from '@/types/card';
+import { SearchParams } from '@/types/card';
 import { FilterPill } from './FilterPill';
 import { useSessionStore } from '@/stores/sessionStore';
 
@@ -18,7 +18,7 @@ export function ActiveFilters({
   onClearAll, 
   className = '' 
 }: ActiveFiltersProps) {
-  const { searchPreferences, removeAdvancedFilter, getQuery, getSeries, getCardType } = useSessionStore();
+  const { searchPreferences, removeFilter, getQuery, getSeries, getCardType } = useSessionStore();
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ export function ActiveFilters({
     getQuery() || 
     getSeries() ||
     getCardType() ||
-    searchPreferences.advancedFilters.length > 0;
+    searchPreferences.filters.length > 0;
 
   // Always show the component, even when empty
 
@@ -103,24 +103,21 @@ export function ActiveFilters({
           <>
             {/* Basic filters from searchPreferences - only show if not already in advanced filters */}
             {getQuery() && renderFilterChip('query', getQuery())}
-            {getSeries() && !searchPreferences.advancedFilters.some(f => f.startsWith('&SeriesName=')) && renderFilterChip('series', getSeries())}
-            {getCardType() && !searchPreferences.advancedFilters.some(f => f.startsWith('&CardType=')) && renderFilterChip('cardType', getCardType())}
+            {getSeries() && !searchPreferences.filters.some(f => f.field === 'SeriesName') && renderFilterChip('series', getSeries())}
+            {getCardType() && !searchPreferences.filters.some(f => f.field === 'CardType') && renderFilterChip('cardType', getCardType())}
             
             {/* Advanced filters from searchPreferences */}
-            {searchPreferences.advancedFilters.map((compactFilter, index) => {
-              const type = compactFilter[0] as '&' | '|' | '!';
-              const [field, value] = compactFilter.slice(1).split('=');
-              const filterType = type === '&' ? 'AND' : type === '|' ? 'OR' : 'NOT';
-              const displayText = `${field}: ${value}`;
+            {searchPreferences.filters.map((filter, index) => {
+              const filterType = filter.type === 'and' ? 'AND' : filter.type === 'or' ? 'OR' : 'NOT';
               
               return (
                 <FilterPill
                   key={`advanced-${index}`}
                   type={filterType}
-                  value={displayText}
+                  value={filter.displayText}
                   onRemove={() => {
-                    // Remove from advanced filters using the store method
-                    removeAdvancedFilter(index);
+                    // Remove from filters using the store method
+                    removeFilter(index);
                   }}
                 />
               );

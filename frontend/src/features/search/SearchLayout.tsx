@@ -31,10 +31,9 @@ export function SearchLayout({
   const { 
     searchPreferences,
     setSearchPreferences,
-    addAdvancedFilter,
-    removeAdvancedFilter,
+    addFilter,
+    removeFilter,
     clearAllFilters,
-    setDefaultFilterToggle,
     setPage,
     setSort,
     setSeries,
@@ -64,14 +63,22 @@ export function SearchLayout({
     const urlFilters = getFiltersFromUrl();
     if (Object.keys(urlFilters).length > 0) {
       // Apply URL filters to searchPreferences
-      if (urlFilters.query) setQuery(urlFilters.query);
-      if (urlFilters.series) setSeries(urlFilters.series);
-      if (urlFilters.color) setColor(urlFilters.color);
-      if (urlFilters.cardType) setCardType(urlFilters.cardType);
+      if (urlFilters.query) {
+        // TODO: Implement setQuery if needed
+      }
       if (urlFilters.sort) setSort(urlFilters.sort);
       if (urlFilters.page) setPage(urlFilters.page);
       if (urlFilters.per_page) {
         // Note: per_page is handled by the resultsPerPage useEffect below
+      }
+      
+      // Apply filters from unified filter system
+      if (urlFilters.filters && Array.isArray(urlFilters.filters)) {
+        urlFilters.filters.forEach(filter => {
+          if (filter.field === 'SeriesName') setSeries(filter.value);
+          if (filter.field === 'ActivationEnergy') setColor(filter.value);
+          if (filter.field === 'CardType') setCardType(filter.value);
+        });
       }
     }
   }, []); // Empty dependency array - only run once on mount
@@ -170,14 +177,11 @@ export function SearchLayout({
       case 'and':
       case 'or':
       case 'not':
-        // Find and remove the specific advanced filter
-        const filterIndex = searchPreferences.advancedFilters.findIndex(compactFilter => {
-          const type = compactFilter[0] as '&' | '|' | '!';
-          const [field, filterValue] = compactFilter.slice(1).split('=');
-          const displayText = `${field}: ${filterValue}`;
-          return value ? displayText === value : false;
+        // Find and remove the specific filter
+        const filterIndex = searchPreferences.filters.findIndex(filter => {
+          return value ? filter.displayText === value : false;
         });
-        if (filterIndex !== -1) removeAdvancedFilter(filterIndex);
+        if (filterIndex !== -1) removeFilter(filterIndex);
         break;
     }
   };
@@ -226,7 +230,7 @@ export function SearchLayout({
     { value: 'required_energy_desc', label: 'Required Energy High-Low' },
   ];
 
-  const hasActiveAdvancedFilters = searchPreferences.advancedFilters.length > 0;
+  const hasActiveAdvancedFilters = searchPreferences.filters.length > 0;
 
   return (
     <div className={`min-h-screen ${className}`}>
@@ -313,7 +317,21 @@ export function SearchLayout({
             )}
             
             <SearchGrid
-              cards={searchResponse?.cards || []}
+              cards={(() => {
+                console.log('🔍 SearchLayout: searchResponse:', searchResponse);
+                console.log('🔍 SearchLayout: searchResponse?.cards:', searchResponse?.cards);
+                console.log('🔍 SearchLayout: isLoading:', isLoading);
+                console.log('🔍 SearchLayout: error:', error);
+                
+                const cards = searchResponse?.cards || [];
+                console.log('🔍 SearchLayout: cards array:', cards);
+                console.log('🔍 SearchLayout: cards length:', cards.length);
+                
+                const expandedCards = cards.map(card => ({ ...card, quantity: 0 }));
+                console.log('🔍 SearchLayout: expandedCards:', expandedCards);
+                
+                return expandedCards;
+              })()}
               isLoading={isLoading}
               error={error}
               onCardClick={handleCardClick}
@@ -352,17 +370,29 @@ export function SearchLayout({
             
             <div className="overflow-y-auto max-h-[60vh]">
               <AdvancedFilters
-                andFilters={[]}
-                orFilters={[]}
-                notFilters={[]}
-                onAddAndFilter={addAdvancedFilter}
-                onAddOrFilter={addAdvancedFilter}
-                onAddNotFilter={addAdvancedFilter}
-                onRemoveAndFilter={removeAdvancedFilter}
-                onRemoveOrFilter={removeAdvancedFilter}
-                onRemoveNotFilter={removeAdvancedFilter}
+                andFilters={searchPreferences.filters.filter(f => f.type === 'and')}
+                orFilters={searchPreferences.filters.filter(f => f.type === 'or')}
+                notFilters={searchPreferences.filters.filter(f => f.type === 'not')}
+                onAddAndFilter={(filter) => addFilter(filter)}
+                onAddOrFilter={(filter) => addFilter(filter)}
+                onAddNotFilter={(filter) => addFilter(filter)}
+                onRemoveAndFilter={(index) => {
+                  const andFilters = searchPreferences.filters.filter(f => f.type === 'and');
+                  const globalIndex = searchPreferences.filters.findIndex(f => f === andFilters[index]);
+                  if (globalIndex !== -1) removeFilter(globalIndex);
+                }}
+                onRemoveOrFilter={(index) => {
+                  const orFilters = searchPreferences.filters.filter(f => f.type === 'or');
+                  const globalIndex = searchPreferences.filters.findIndex(f => f === orFilters[index]);
+                  if (globalIndex !== -1) removeFilter(globalIndex);
+                }}
+                onRemoveNotFilter={(index) => {
+                  const notFilters = searchPreferences.filters.filter(f => f.type === 'not');
+                  const globalIndex = searchPreferences.filters.findIndex(f => f === notFilters[index]);
+                  if (globalIndex !== -1) removeFilter(globalIndex);
+                }}
                 availableFields={filterFields || []}
-                game={searchPreferences.game}
+                game={searchPreferences.filters.find(f => f.field === 'game')?.value || ''}
               />
             </div>
           </div>

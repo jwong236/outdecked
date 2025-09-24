@@ -1,18 +1,18 @@
 'use client';
 
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { ReactNode } from 'react';
 
 export type GridSize = 'compact' | 'default' | 'spacious' | 'custom';
 
 export interface BaseCardGridProps {
-  cards: Card[];
+  cards: ExpandedCard[];
   isLoading?: boolean;
   error?: Error | null;
   gridSize?: GridSize;
   customGridClasses?: string;
   className?: string;
-  children: (card: Card, index: number) => ReactNode;
+  children: (card: ExpandedCard, index: number) => ReactNode;
 }
 
 export function BaseCardGrid({

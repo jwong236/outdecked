@@ -1,6 +1,6 @@
 'use client';
 
-import { useSearchStore } from '@/stores/searchStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 
 interface PaginationProps {
@@ -11,7 +11,7 @@ interface PaginationProps {
 }
 
 export function Pagination({ currentPage, totalPages, hasNext, hasPrev }: PaginationProps) {
-  const { setPage } = useSearchStore();
+  const { setPage } = useSessionStore();
 
   if (totalPages <= 1) {
     return null;

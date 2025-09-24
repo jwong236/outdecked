@@ -24,52 +24,110 @@ def detect_print_type(abbreviation, card_name=None):
         return "Base"
 
 
+def parse_legacy_filters():
+    """Parse legacy flat query parameters into unified filter structure."""
+    filters = []
+
+    # Parse legacy parameters
+    game = request.args.get("game", "Union Arena")
+    series = request.args.get("series", "").strip()
+    color = request.args.get("color", "").strip()
+    card_type = request.args.get("cardType", "").strip()
+
+    # Convert to unified filter structure
+    if game:
+        filters.append({"type": "and", "field": "game", "value": game})
+    if series:
+        filters.append({"type": "and", "field": "SeriesName", "value": series})
+    if color:
+        filters.append({"type": "and", "field": "ActivationEnergy", "value": color})
+    if card_type:
+        filters.append({"type": "and", "field": "CardType", "value": card_type})
+
+    return filters
+
+
 def handle_api_search():
-    """Handle the /api/search route with complex filtering and pagination logic."""
+    """Handle the /api/search route with unified filter structure."""
     conn = get_db_connection()
 
-    # Get query parameters
-    game = request.args.get("game", "Union Arena")
+    # Get basic query parameters
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 20))
-    search_query = request.args.get("q", "").strip()
+    search_query = request.args.get("query", "").strip()
     sort_by = request.args.get("sort", "")
-    series = request.args.get("series", "").strip()  # For series filtering
-    color = request.args.get("color", "").strip()  # For color filtering
-    card_type = request.args.get("cardType", "").strip()  # For card type filtering
+
+    # Get unified filters from JSON body or query params
+    filters = []
+    if request.is_json and request.json:
+        # Accept filters from JSON body
+        filters = request.json.get("filters", [])
+    else:
+        # Fallback: parse filters from query parameters (for backward compatibility)
+        filters = parse_legacy_filters()
 
     # Build base query with group name
     base_query = "FROM cards c LEFT JOIN groups g ON c.group_id = g.group_id"
 
     # Build WHERE clause
-    where_conditions = ["c.game = ?"]
-    params = [game]
+    where_conditions = []
+    params = []
 
+    # Handle search query
     if search_query:
         where_conditions.append("(c.name LIKE ? OR c.clean_name LIKE ?)")
         search_param = f"%{search_query}%"
         params.extend([search_param, search_param])
 
-    # Handle series filter
-    if series:
-        where_conditions.append(
-            "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'SeriesName') = ?"
-        )
-        params.append(series)
+    # Process unified filters
+    and_conditions = []
+    or_conditions = []
+    not_conditions = []
 
-    # Handle color filter
-    if color:
-        where_conditions.append(
-            "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'ActivationEnergy') = ?"
-        )
-        params.append(color)
+    for filter_item in filters:
+        filter_type = filter_item.get("type", "and")
+        field = filter_item.get("field", "")
+        value = filter_item.get("value", "")
 
-    # Handle card type filter
-    if card_type:
-        where_conditions.append(
-            "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'CardType') = ?"
-        )
-        params.append(card_type)
+        if not field or not value:
+            continue
+
+        # Build condition based on field type
+        if field == "game":
+            condition = "c.game = ?"
+        elif field in [
+            "SeriesName",
+            "Rarity",
+            "CardType",
+            "ActivationEnergy",
+            "RequiredEnergy",
+            "ActionPointCost",
+            "Trigger",
+            "Affinities",
+        ]:
+            condition = "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = ?) = ?"
+            params.append(field)
+        else:
+            # Handle other fields
+            condition = f"c.{field} = ?"
+
+        params.append(value)
+
+        # Group conditions by type
+        if filter_type == "and":
+            and_conditions.append(condition)
+        elif filter_type == "or":
+            or_conditions.append(condition)
+        elif filter_type == "not":
+            not_conditions.append(f"NOT ({condition})")
+
+    # Combine all conditions
+    if and_conditions:
+        where_conditions.extend(and_conditions)
+    if or_conditions:
+        where_conditions.append(f"({' OR '.join(or_conditions)})")
+    if not_conditions:
+        where_conditions.extend(not_conditions)
 
     # Handle print type filter
     print_type = request.args.get("print_type", "")

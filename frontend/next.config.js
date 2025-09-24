@@ -29,14 +29,7 @@ const nextConfig = {
         pathname: '/product/**',
       },
     ],
-    localPatterns: [
-      {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '3000',
-        pathname: '/api/images/**',
-      },
-    ],
+    // localPatterns removed - not supported in this Next.js version
   },
   webpack: (config, { isServer }) => {
     config.resolve.alias = {

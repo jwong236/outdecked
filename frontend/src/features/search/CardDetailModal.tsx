@@ -248,63 +248,63 @@ export function CardDetailModal({
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Series:</span>
-                            <span className="ml-2 text-white">{card.SeriesName || 'N/A'}</span>
+                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'SeriesName')?.value || 'N/A'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Rarity:</span>
-                            <span className="ml-2 text-white">{card.Rarity || 'N/A'}</span>
+                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'Rarity')?.value || 'N/A'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Card Type:</span>
-                            <span className="ml-2 text-white">{card.CardType || 'N/A'}</span>
+                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'CardType')?.value || 'N/A'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Number:</span>
-                            <span className="ml-2 text-white">{card.Number || 'N/A'}</span>
+                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'Number')?.value || 'N/A'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Activation Energy:</span>
-                            <span className="ml-2 text-white">{card.ActivationEnergy || 'N/A'}</span>
+                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'ActivationEnergy')?.value || 'N/A'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Required Energy:</span>
-                            <span className="ml-2 text-white">{card.RequiredEnergy || 'N/A'}</span>
+                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'RequiredEnergy')?.value || 'N/A'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Action Point Cost:</span>
-                            <span className="ml-2 text-white">{card.ActionPointCost || 'N/A'}</span>
+                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'ActionPointCost')?.value || 'N/A'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Battle Point BP:</span>
-                            <span className="ml-2 text-white">{card.BattlePointBP || 'N/A'}</span>
+                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'BattlePointBP')?.value || 'N/A'}</span>
                           </div>
                           <div>
                             <span className="font-medium text-gray-300">Generated Energy:</span>
-                            <span className="ml-2 text-white">{card.GeneratedEnergy || 'N/A'}</span>
+                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'GeneratedEnergy')?.value || 'N/A'}</span>
                           </div>
                         </div>
                         
                         {/* Trigger */}
-                        {card.Trigger && (
+                        {card.attributes.find(attr => attr.name === 'Trigger')?.value && (
                           <div className="mt-4">
                             <span className="font-medium text-gray-300">Trigger:</span>
-                            <div className="mt-1 text-sm text-gray-200 leading-relaxed">{formatTriggerWithIcons(card.Trigger)}</div>
+                            <div className="mt-1 text-sm text-gray-200 leading-relaxed">{formatTriggerWithIcons(card.attributes.find(attr => attr.name === 'Trigger')?.value || '')}</div>
                           </div>
                         )}
                         
                         {/* Affinities */}
-                        {card.Affinities && (
+                        {card.attributes.find(attr => attr.name === 'Affinities')?.value && (
                           <div className="mt-4">
                             <span className="font-medium text-gray-300">Affinities:</span>
-                            <div className="mt-1 text-sm text-gray-200">{card.Affinities}</div>
+                            <div className="mt-1 text-sm text-gray-200">{card.attributes.find(attr => attr.name === 'Affinities')?.value}</div>
                           </div>
                         )}
                         
                         {/* Description */}
-                        {card.Description && (
+                        {card.attributes.find(attr => attr.name === 'Description')?.value && (
                           <div className="mt-4">
                             <span className="font-medium text-gray-300">Description:</span>
-                            <p className="mt-1 text-sm text-gray-200">{card.Description}</p>
+                            <p className="mt-1 text-sm text-gray-200">{card.attributes.find(attr => attr.name === 'Description')?.value}</p>
                           </div>
                         )}
                       </div>
@@ -333,7 +333,7 @@ export function CardDetailModal({
                           )}
                           <div className="flex-1">
                             <QuantityControl 
-                              card={card} 
+                              card={{ ...card, quantity: 0 }} 
                               variant="button"
                               context="hand"
                               buttonLayout="auto"

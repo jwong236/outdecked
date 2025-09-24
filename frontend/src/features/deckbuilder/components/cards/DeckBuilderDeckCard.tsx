@@ -3,13 +3,13 @@
 import React from 'react';
 import Image from 'next/image';
 import { getProductImageIcon } from '@/lib/imageUtils';
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
 
 export interface DeckBuilderDeckCardProps {
-  card: Card;
-  onClick?: (card: Card) => void;
-  onQuantityChange?: (card: Card, change: number) => void;
+  card: ExpandedCard;
+  onClick?: (card: ExpandedCard) => void;
+  onQuantityChange?: (card: ExpandedCard, change: number) => void;
   className?: string;
   showRarity?: boolean;
   showPrices?: boolean;
@@ -104,11 +104,14 @@ export function DeckBuilderDeckCard({
         )}
 
         {/* Rarity (if enabled) */}
-        {showRarity && card.Rarity && (
-          <div className="text-yellow-400 text-xs">
-            {card.Rarity}
-          </div>
-        )}
+        {showRarity && (() => {
+          const rarity = card.attributes.find(attr => attr.name === 'Rarity')?.value;
+          return rarity && (
+            <div className="text-yellow-400 text-xs">
+              {rarity}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Quantity Control - Always show for deck cards */}

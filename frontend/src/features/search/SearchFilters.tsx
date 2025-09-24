@@ -1,19 +1,24 @@
 'use client';
 
-import { useSearchStore } from '@/stores/searchStore';
+import { useState } from 'react';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useSeriesValues, useColorValues } from '@/lib/hooks';
 import { FilterDropdown } from './FilterDropdown';
 
 export function SearchFilters() {
   const { 
-    filters, 
-    setQuery, 
+    searchPreferences,
     setSeries, 
     setColor, 
     setSort,
-    addAndFilter,
-    removeAndFilter
-  } = useSearchStore();
+    addFilter,
+    removeFilter,
+    getSeries,
+    getColor
+  } = useSessionStore();
+
+  // Local state for query since it's not stored in sessionStore
+  const [query, setQuery] = useState('');
 
   const { data: seriesData } = useSeriesValues();
   const { data: colorData } = useColorValues();
@@ -51,21 +56,21 @@ export function SearchFilters() {
   ];
 
   // Check if Base Print filter is active
-  const basePrintFilter = filters.and_filters.find(f => f.field === 'PrintType' && f.value === 'Base');
+  const basePrintFilter = searchPreferences.filters.find(f => f.field === 'PrintType' && f.value === 'Base');
   const currentPrintType = basePrintFilter ? 'Base' : '';
 
   const handlePrintTypeChange = (value: string) => {
     // Remove existing Base Print filter if it exists
     if (basePrintFilter) {
-      const index = filters.and_filters.findIndex(f => f.field === 'PrintType' && f.value === 'Base');
+      const index = searchPreferences.filters.findIndex(f => f.field === 'PrintType' && f.value === 'Base');
       if (index !== -1) {
-        removeAndFilter(index);
+        removeFilter(index);
       }
     }
     
     // Add new filter if a value is selected
     if (value) {
-      addAndFilter({
+      addFilter({
         type: 'and',
         field: 'PrintType',
         value: value,
@@ -85,7 +90,7 @@ export function SearchFilters() {
           <input
             id="search"
             type="text"
-            value={filters.query || ''}
+            value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Enter card name..."
             className="w-full rounded-lg border border-gray-300 bg-white py-3 px-3 text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 sm:text-sm transition-colors duration-200"
@@ -96,7 +101,7 @@ export function SearchFilters() {
         <div className="w-full">
           <FilterDropdown
             label="Series"
-            value={filters.series || ''}
+            value={getSeries()}
             options={seriesOptions}
             onChange={setSeries}
             placeholder="All Series"
@@ -107,7 +112,7 @@ export function SearchFilters() {
         <div className="w-full">
           <FilterDropdown
             label="Color"
-            value={filters.color || ''}
+            value={getColor()}
             options={colorOptions}
             onChange={setColor}
             placeholder="All Colors"
@@ -118,7 +123,7 @@ export function SearchFilters() {
         <div className="w-full">
           <FilterDropdown
             label="Sort By"
-            value={filters.sort || ''}
+            value={searchPreferences.sort || ''}
             options={sortOptions}
             onChange={setSort}
             placeholder="Default"

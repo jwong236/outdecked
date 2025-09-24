@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { PlusIcon } from '@heroicons/react/20/solid';
 import { FilterOption } from '@/types/card';
 import { FilterDropdown } from './FilterDropdown';
-import { CollapsibleFilterSection, FilterOption as CollapsibleFilterOption } from './CollapsibleFilterSection';
+import { CollapsibleFilterSection, FilterCheckboxOption } from './CollapsibleFilterSection';
 import { useFilterValues } from '@/lib/hooks';
-import { SearchFilters } from '@/types/card';
+import { SearchParams } from '@/types/card';
 
 export interface AdvancedFiltersProps {
   andFilters: FilterOption[];
@@ -38,13 +38,13 @@ export interface AdvancedFiltersProps {
   };
   onDefaultFilterChange?: (filter: string, value: boolean) => void;
   // Collapsible filter sections
-  cardTypeOptions?: CollapsibleFilterOption[];
+  cardTypeOptions?: FilterCheckboxOption[];
   onCardTypeChange?: (value: string, checked: boolean) => void;
   onCardTypeToggleAll?: (checked: boolean) => void;
-  rarityOptions?: CollapsibleFilterOption[];
+  rarityOptions?: FilterCheckboxOption[];
   onRarityChange?: (value: string, checked: boolean) => void;
   onRarityToggleAll?: (checked: boolean) => void;
-  colorOptions?: CollapsibleFilterOption[];
+  colorOptions?: FilterCheckboxOption[];
   onColorChange?: (value: string, checked: boolean) => void;
   onColorToggleAll?: (checked: boolean) => void;
   className?: string;
@@ -247,7 +247,6 @@ export function AdvancedFilters({
                     title="Card Type"
                     options={cardTypeOptions}
                     onOptionChange={onCardTypeChange}
-                    onToggleAll={onCardTypeToggleAll}
                   />
                 )}
 
@@ -257,7 +256,6 @@ export function AdvancedFilters({
                     title="Rarity"
                     options={rarityOptions}
                     onOptionChange={onRarityChange}
-                    onToggleAll={onRarityToggleAll}
                   />
                 )}
 
@@ -267,7 +265,6 @@ export function AdvancedFilters({
                     title="Color"
                     options={colorOptions}
                     onOptionChange={onColorChange}
-                    onToggleAll={onColorToggleAll}
                   />
                 )}
               </div>

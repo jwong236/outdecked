@@ -2,16 +2,16 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
 
 export interface DeckCardProps {
-  card: Card;
-  onClick?: (card: Card) => void;
-  onQuantityChange?: (card: Card, change: number) => void;
-  onRemoveFromDeck?: (card: Card) => void;
-  onAddToDeck?: (card: Card) => void;
-  deckCards?: Card[];
+  card: ExpandedCard;
+  onClick?: (card: ExpandedCard) => void;
+  onQuantityChange?: (card: ExpandedCard, change: number) => void;
+  onRemoveFromDeck?: (card: ExpandedCard) => void;
+  onAddToDeck?: (card: ExpandedCard) => void;
+  deckCards?: ExpandedCard[];
   showDeckActions?: boolean;
   className?: string;
   showPrices?: boolean;
@@ -66,9 +66,9 @@ export function DeckCard({
     >
       {/* Card Image */}
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-gray-100">
-        {card.image_url ? (
+        {card.card_url ? (
           <Image
-            src={card.image_url}
+            src={card.card_url}
             alt={card.name}
             fill
             priority={priority}

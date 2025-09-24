@@ -8,7 +8,6 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { PageTitle } from '@/components/shared/PageTitle';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
 import { useSeriesValues } from '@/lib/hooks';
-import { useSearchStore } from '@/stores/searchStore';
 import { useSessionStore } from '@/stores/sessionStore';
 import { fetchDecksBatch } from '@/lib/deckUtils';
 import { apiConfig } from '../../../lib/apiConfig';
@@ -36,7 +35,7 @@ export function DeckListPage() {
   const { data: seriesData } = useSeriesValues();
   
   // Search store for setting default series and filters
-  const { setSeries, addAdvancedFilter } = useSearchStore();
+  const { setSeries, addFilter } = useSessionStore();
 
   // Handle edit deck - just redirect to deck builder page
   const handleEditDeck = (deckId: string) => {
@@ -354,7 +353,7 @@ export function DeckListPage() {
       if (newDeckSeries) {
         setSeries(newDeckSeries); // Set series in search store
         // Add the series filter as an advanced filter
-        addAdvancedFilter({
+        addFilter({
           type: 'and',
           field: 'SeriesName',
           value: newDeckSeries,

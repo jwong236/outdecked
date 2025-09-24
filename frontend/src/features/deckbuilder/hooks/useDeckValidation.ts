@@ -1,10 +1,10 @@
 'use client';
 
 import { useMemo } from 'react';
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { DeckValidation, analyzeDeck } from '@/lib/deckValidation';
 
-export function useDeckValidation(cards: Card[]) {
+export function useDeckValidation(cards: ExpandedCard[]) {
   const validation = useMemo(() => {
     if (!cards || cards.length === 0) {
       return {

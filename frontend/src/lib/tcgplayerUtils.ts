@@ -1,4 +1,4 @@
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 
 /**
  * Extracts the set code from a card's group abbreviation
@@ -25,7 +25,7 @@ export function urlEncodeForTCGPlayer(text: string): string {
 /**
  * Generates a TCGPlayer mass entry URL for a deck
  */
-export function generateTCGPlayerURL(cards: Card[]): string {
+export function generateTCGPlayerURL(cards: ExpandedCard[]): string {
   if (!cards || cards.length === 0) {
     return '';
   }
@@ -41,7 +41,7 @@ export function generateTCGPlayerURL(cards: Card[]): string {
       name: card.name,
       group_abbreviation: card.group_abbreviation,
       group_name: card.group_name,
-      SeriesName: card.SeriesName
+      SeriesName: card.attributes.find(attr => attr.name === 'SeriesName')?.value
     });
     
     const setCode = extractSetCode(card.group_abbreviation || '');
@@ -91,7 +91,7 @@ export function generateTCGPlayerURL(cards: Card[]): string {
 /**
  * Opens TCGPlayer mass entry in a new tab
  */
-export function openTCGPlayerDeck(cards: Card[]): void {
+export function openTCGPlayerDeck(cards: ExpandedCard[]): void {
   const url = generateTCGPlayerURL(cards);
   if (url) {
     window.open(url, '_blank', 'noopener,noreferrer');

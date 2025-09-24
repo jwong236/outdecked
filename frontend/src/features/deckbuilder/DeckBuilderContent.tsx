@@ -12,7 +12,6 @@ import { useDeckOperations } from './hooks/useDeckOperations';
 // import { useSearchLogic } from './hooks/useSearchLogic';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAuth } from '@/features/auth/AuthContext';
-import { useSearchStore } from '@/stores/searchStore';
 
 export function DeckBuilderContent() {
   const router = useRouter();
@@ -26,7 +25,7 @@ export function DeckBuilderContent() {
   const { deckBuilder, setCurrentDeck, clearCurrentDeck } = useSessionStore();
   const sessionStore = useSessionStore;
   const currentDeck = deckBuilder.currentDeck;
-  const { clearAllFilters } = useSearchStore();
+  const { clearAllFilters } = useSessionStore();
   const lastProcessedDeckId = useRef<string | null>(null);
   
   // Shared search cache state - lifted up from SearchSection to share with DeckSection

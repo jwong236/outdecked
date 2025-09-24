@@ -2,16 +2,14 @@
 
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Deck } from '@/types/card';
-import { Card } from '@/types/card';
+import { Deck, Card, ExpandedCard } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
-import { useSearchStore } from '@/stores/searchStore';
 import { fetchDeck } from '@/lib/deckUtils';
 
 export function useDeckOperations(searchCache: Record<string, any>, setSearchCache: (updater: (prev: Record<string, any>) => Record<string, any>) => void) {
   const router = useRouter();
   const { deckBuilder, setCurrentDeck } = useSessionStore();
-  const { setSeries } = useSearchStore();
+  const { setSeries } = useSessionStore();
   
   // Get current deck from sessionStore
   const currentDeck = deckBuilder.currentDeck;
@@ -149,7 +147,7 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
   }, [currentDeck, setCurrentDeck, originalDeckName, isValidDeck]);
 
   // Handle quantity change
-  const handleQuantityChange = useCallback((card: Card, change: number) => {
+  const handleQuantityChange = useCallback((card: ExpandedCard, change: number) => {
     if (!isValidDeck(currentDeck)) return;
     
     console.log('🃏 handleQuantityChange called with:', card.name, 'current quantity:', card.quantity, 'change:', change);
@@ -207,7 +205,7 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
         
         // Clear session immediately after saving to database
         if (updateSession) {
-          setCurrentDeck({});
+          setCurrentDeck(null);
         }
       } else {
         console.error('Failed to save deck');
@@ -233,7 +231,7 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
     }
 
     // Get product IDs that need card data
-    const productIds = handItems.map(handItem => handItem.product_id);
+    const productIds = handItems.map(handItem => handItem.card_id);
     
     // Check which cards are missing from searchCache
     const missingCardIds = productIds.filter(id => !searchCache || !searchCache[id]);
@@ -268,7 +266,7 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
 
     // Convert hand items to session format {card_id, quantity}
     const handCards = handItems.map(handItem => ({
-      card_id: handItem.product_id,
+      card_id: handItem.card_id,
       quantity: handItem.quantity
     }));
 
@@ -309,7 +307,7 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
     
     // Convert deck cards to print list items
     const printItems = currentDeck.cards.map(deckCard => ({
-      product_id: deckCard.card_id,
+      card_id: deckCard.card_id,
       quantity: deckCard.quantity
     }));
     
@@ -432,14 +430,14 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
       } catch (error) {
         console.error('Error saving deck before navigating:', error);
       }
-      setCurrentDeck({});
+      setCurrentDeck(null);
       setOriginalDeckName('');
       setHasUnsavedChanges(false);
       router.push('/deckbuilder');
     } else {
       // Clear React state
       // Clear React state as well
-      setCurrentDeck({});
+      setCurrentDeck(null);
       // TODO: Remove - no longer using these functions
       // setDeckName('');
       // setOriginalDeckName('');

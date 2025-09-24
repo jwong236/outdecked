@@ -6,7 +6,7 @@ import { Card } from '@/types/card';
 import { CartGrid } from '@/features/cart/CartGrid';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
-import { Deck, CardRef } from '@/types/card';
+import { Deck, CardRef, ExpandedCard } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
 import { fetchDecksBatch } from '@/lib/deckUtils';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -15,7 +15,7 @@ import { expandHandItems } from '@/lib/handUtils';
 export function CartPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { handCart, clearHand, setPrintList, deckBuilder } = useSessionStore();
-  const [hand, setHand] = useState<Card[]>([]);
+  const [hand, setHand] = useState<ExpandedCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);

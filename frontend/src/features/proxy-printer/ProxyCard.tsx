@@ -67,7 +67,7 @@ export function ProxyCard({
   // Get current quantity from sessionStore print list
   const { proxyPrinter } = useSessionStore();
   const getCurrentQuantity = () => {
-    const existingItem = proxyPrinter.printList.find(item => item.product_id === card.product_id);
+    const existingItem = proxyPrinter.printList.find(item => item.card_id === card.product_id);
     return existingItem ? existingItem.quantity : 0;
   };
 
@@ -95,9 +95,9 @@ export function ProxyCard({
     >
       {/* Card Image */}
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-gray-100">
-        {card.image_url ? (
+        {card.card_url ? (
           <Image
-            src={card.image_url}
+            src={card.card_url}
             alt={card.name}
             fill
             priority={priority}
@@ -136,7 +136,7 @@ export function ProxyCard({
       {/* Quantity Control */}
       <div className="flex items-center justify-center pt-2">
         <QuantityControl 
-          card={card} 
+          card={{ ...card, quantity: currentQuantity }} 
           variant="button"
           context="printList"
           buttonLayout="auto"

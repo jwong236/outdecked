@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import { useSearchStore } from '@/stores/searchStore';
+import { useSessionStore } from '@/stores/sessionStore';
 import { FilterPill } from '@/features/search/FilterPill';
 
 interface DefaultFiltersProps {
@@ -9,12 +9,12 @@ interface DefaultFiltersProps {
 }
 
 export function DefaultFilters({ className = '' }: DefaultFiltersProps) {
-  const { defaultFilters, removeDefaultFilter } = useSearchStore();
+  const { searchPreferences, removeFilter } = useSessionStore();
 
   // Group Base Rarity Only filters into a single display
   const processedFilters = useMemo(() => {
-    const rarityFilters = defaultFilters.filter(f => f.field === 'Rarity' && f.type === 'not');
-    const otherFilters = defaultFilters.filter(f => !(f.field === 'Rarity' && f.type === 'not'));
+    const rarityFilters = searchPreferences.filters.filter(f => f.field === 'Rarity' && f.type === 'not');
+    const otherFilters = searchPreferences.filters.filter(f => !(f.field === 'Rarity' && f.type === 'not'));
     
     const hasBaseRarityOnly = rarityFilters.length >= 8; // Check if we have all the base rarity filters
     
@@ -33,17 +33,22 @@ export function DefaultFilters({ className = '' }: DefaultFiltersProps) {
       ];
     }
     
-    return defaultFilters;
-  }, [defaultFilters]);
+    return searchPreferences.filters;
+  }, [searchPreferences.filters]);
 
-  const handleRemoveFilter = (filter: any) => {
+  const handleRemoveFilter = (filter: any, index: number) => {
     if (filter.isSpecial && filter.field === 'BaseRarityOnly') {
       // Remove all the original rarity filters
       filter.originalFilters.forEach((originalFilter: any) => {
-        removeDefaultFilter(originalFilter);
+        const originalIndex = searchPreferences.filters.findIndex(f => 
+          f.field === originalFilter.field && f.value === originalFilter.value
+        );
+        if (originalIndex !== -1) {
+          removeFilter(originalIndex);
+        }
       });
     } else {
-      removeDefaultFilter(filter);
+      removeFilter(index);
     }
   };
 
@@ -65,7 +70,7 @@ export function DefaultFilters({ className = '' }: DefaultFiltersProps) {
             key={`${filter.field}-${filter.value}-${index}`}
             type={filter.type.toUpperCase() as 'AND' | 'OR' | 'NOT' | 'NOT NOT'}
             value={filter.displayText}
-            onRemove={() => handleRemoveFilter(filter)}
+            onRemove={() => handleRemoveFilter(filter, index)}
           />
         ))}
       </div>

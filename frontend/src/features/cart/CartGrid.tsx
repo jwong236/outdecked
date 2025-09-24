@@ -1,12 +1,12 @@
 'use client';
 
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { BaseCardGrid, BaseCardGridProps } from '@/components/shared/grids/BaseCardGrid';
 import { CartCard } from './CartCard';
 
 export interface CartGridProps extends Omit<BaseCardGridProps, 'children'> {
-  onCardClick?: (card: Card) => void;
-  onQuantityChange?: (card: Card, change: number) => void;
+  onCardClick?: (card: ExpandedCard) => void;
+  onQuantityChange?: (card: ExpandedCard, change: number) => void;
   showPrices?: boolean;
   showRarity?: boolean;
   priority?: boolean;

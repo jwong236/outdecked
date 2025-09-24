@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/20/solid';
 
-export interface FilterOption {
+export interface FilterCheckboxOption {
   value: string;
   label: string;
   checked: boolean;
@@ -11,7 +11,7 @@ export interface FilterOption {
 
 export interface CollapsibleFilterSectionProps {
   title: string;
-  options: FilterOption[];
+  options: FilterCheckboxOption[];
   onOptionChange: (value: string, checked: boolean) => void;
   className?: string;
 }
