@@ -9,9 +9,10 @@ interface DeckSectionProps {
   searchCache: Record<string, any>;
   setSearchCache: (updater: (prev: Record<string, any>) => Record<string, any>) => void;
   onCardClick?: (card: any) => void;
+  onQuantityChange?: (card: any, change: number) => void;
 }
 
-export const DeckSection = React.memo(function DeckSection({ searchCache, setSearchCache, onCardClick }: DeckSectionProps) {
+export const DeckSection = React.memo(function DeckSection({ searchCache, setSearchCache, onCardClick, onQuantityChange }: DeckSectionProps) {
   const { deckBuilder, setCurrentDeck } = useSessionStore();
   const currentDeck = deckBuilder.currentDeck;
   
@@ -104,39 +105,11 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
   
   const [deckSortBy, setDeckSortBy] = React.useState('name');
 
-  // Handler for quantity changes from deck cards
-  const handleQuantityChange = React.useCallback((card: any, change: number) => {
-    
-    const currentCards = (currentDeck as any).cards || [];
-    const existingCardIndex = currentCards.findIndex((deckCard: any) => deckCard.card_id === card.product_id);
-    
-    let updatedCards;
-    
-    if (existingCardIndex >= 0) {
-      // Card exists in deck - update quantity
-      const currentQuantity = currentCards[existingCardIndex].quantity;
-      const newQuantity = currentQuantity + change;
-      
-      if (newQuantity <= 0) {
-        // Remove card from deck
-        updatedCards = currentCards.filter((deckCard: any) => deckCard.card_id !== card.product_id);
-      } else {
-        // Update quantity
-        updatedCards = [...currentCards];
-        updatedCards[existingCardIndex] = { ...updatedCards[existingCardIndex], quantity: newQuantity };
-      }
-    } else {
-      // Card not in deck - add it
-      if (change > 0) {
-        updatedCards = [...currentCards, { card_id: card.product_id, quantity: change }];
-      } else {
-        updatedCards = currentCards; // Don't add negative quantities
-      }
-    }
-    
-    const updatedDeck = { ...currentDeck, cards: updatedCards };
-    setCurrentDeck(updatedDeck);
-  }, [currentDeck, setCurrentDeck]);
+  // Use the passed onQuantityChange handler instead of our own
+  const handleQuantityChange = onQuantityChange || ((card: any, change: number) => {
+    console.log('DeckSection fallback handleQuantityChange called with:', card.name, change);
+    // Fallback implementation if no handler is provided
+  });
 
   const handleCardClick = (card: any) => {
     onCardClick?.(card);

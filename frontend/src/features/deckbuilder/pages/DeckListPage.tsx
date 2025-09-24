@@ -495,10 +495,10 @@ export function DeckListPage() {
                           } else {
                             // Fallback to frontend validation for backwards compatibility
                             const deckCards = deck.cards.map(cardRef => ({
-                              ...cardRef,
+                              card_id: cardRef.card_id,
                               quantity: cardRef.quantity,
-                              Trigger: cardRef.Trigger || '',
-                              name: cardRef.name || 'Unknown Card'
+                              Trigger: '',
+                              name: 'Unknown Card'
                             } as any));
                             const validation = analyzeDeck(deckCards);
                             const hasExcessCards = validation.errors.some(error => error.includes('has') && error.includes('copies'));
@@ -625,7 +625,7 @@ export function DeckListPage() {
                       </div>
                       <div className="flex justify-between">
                         <span>Updated:</span>
-                        <span>{formatDate(deck.last_modified || deck.updatedAt || deck.created_at || new Date())}</span>
+                        <span>{formatDate(deck.last_modified || deck.created_date || new Date())}</span>
                       </div>
         </div>
 
@@ -836,23 +836,16 @@ export function DeckListPage() {
             
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-96 overflow-y-auto">
               {deckForCoverChange.cards.map((deckCard, index) => {
-                if (!deckCard.image_url) return null;
-                
+                // CardRef only has card_id and quantity, so we'll show a placeholder
                 return (
                   <button
                     key={index}
-                    onClick={() => handleCoverSelection(deckCard.image_url!)}
+                    onClick={() => handleCoverSelection('')}
                     className="relative group"
                   >
-                    <img
-                      src={deckCard.image_url}
-                      alt={deckCard.name}
-                      className="w-full h-auto rounded-lg border-2 border-transparent group-hover:border-indigo-400 transition-colors"
-                      onError={(e) => {
-                        console.error('Failed to load card image:', deckCard.image_url);
-                        e.currentTarget.style.display = 'none';
-                      }}
-                    />
+                    <div className="w-full h-32 bg-gray-700 rounded-lg border-2 border-transparent group-hover:border-indigo-400 transition-colors flex items-center justify-center">
+                      <span className="text-gray-400 text-sm">Card {deckCard.card_id}</span>
+                    </div>
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 rounded-lg transition-colors flex items-center justify-center">
                       <div className="opacity-0 group-hover:opacity-100 bg-indigo-600 text-white px-2 py-1 rounded text-xs font-medium transition-opacity">
                         Select

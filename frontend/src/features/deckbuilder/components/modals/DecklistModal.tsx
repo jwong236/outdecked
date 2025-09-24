@@ -1,14 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { generateDecklistImage, DeckCard } from '@/lib/decklistPdfGenerator';
+import { generateDecklistImage } from '@/lib/decklistPdfGenerator';
+import { CardRef } from '@/types/card';
 import { Modal } from '@/components/shared/modals/Modal';
 
 interface DecklistModalProps {
   isOpen: boolean;
   onClose: () => void;
   deckName: string;
-  cards: DeckCard[];
+  cards: CardRef[];
 }
 
 export function DecklistModal({ isOpen, onClose, deckName, cards }: DecklistModalProps) {

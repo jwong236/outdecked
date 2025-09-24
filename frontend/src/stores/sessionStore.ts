@@ -1,18 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
-import { Deck, HandItem, PrintListItem } from '@/types/card';
-
-// Ultra-compact hand item - only store essential data
-interface CompactHandItem {
-  product_id: number;
-  quantity: number;
-}
-
-// Ultra-compact print list item - only store essential data
-interface CompactPrintItem {
-  product_id: number;
-  quantity: number;
-}
+import { Deck, CardRef } from '@/types/card';
 
 /**
  * Centralized Session Store
@@ -60,20 +48,20 @@ interface SessionState {
   deckBuilder: {
     // User's deck list - stored as compact deck IDs only
     deckList: string[];
-    // Current deck being edited (loaded on-demand) - empty object when no deck loaded
-    currentDeck: Deck | {};
+    // Current deck being edited (loaded on-demand) - null when no deck loaded
+    currentDeck: Deck | null;
   };
 
   // ===== HAND CART FEATURE =====
   handCart: {
-    // Cards in user's hand (for checking) - stored as compact items
-    handItems: CompactHandItem[];
+    // Cards in user's hand (for checking) - stored as lightweight references
+    handItems: CardRef[];
   };
 
   // ===== PROXY PRINTER FEATURE =====
   proxyPrinter: {
-    // Cards to print - stored as compact items (product_id, quantity)
-    printList: CompactPrintItem[];
+    // Cards to print - stored as lightweight references
+    printList: CardRef[];
     
     // Print settings
     printSettings: {
@@ -123,13 +111,13 @@ interface SessionState {
   
   // Deck builder management
   setDeckList: (deckIds: string[]) => void;
-  setCurrentDeck: (deck: Deck | {}) => void;
+  setCurrentDeck: (deck: Deck | null) => void;
   clearCurrentDeck: () => void;
   
   setDeckBuilderState: (state: Partial<SessionState['deckBuilder']>) => void;
   
   // Hand cart management
-  setHandItems: (items: CompactHandItem[]) => void;
+  setHandItems: (items: CardRef[]) => void;
   setHandCartState: (state: Partial<SessionState['handCart']>) => void;
   addToHand: (product_id: number, quantity: number) => void;
   removeFromHand: (product_id: number) => void;
@@ -137,7 +125,7 @@ interface SessionState {
   clearHand: () => void;
   
   // Proxy printer management
-  setPrintList: (items: CompactPrintItem[]) => void;
+  setPrintList: (items: CardRef[]) => void;
   setPrintSettings: (settings: Partial<SessionState['proxyPrinter']['printSettings']>) => void;
   setProxyPrinterState: (state: Partial<SessionState['proxyPrinter']>) => void;
   
@@ -147,6 +135,10 @@ interface SessionState {
   // Database sync
   syncWithDatabase: () => Promise<void>;
   markAsSynced: () => void;
+  
+  // Helper functions
+  filterToCompact: (filter: { type: 'and' | 'or' | 'not'; field: string; value: string }) => string;
+  compactToFilter: (compactFilter: string) => { type: 'and' | 'or' | 'not'; field: string; value: string };
 }
 
 // Default values for session initialization
@@ -176,7 +168,7 @@ const defaultSearchPreferences = {
 
 const defaultDeckBuilder = {
   deckList: [],
-  currentDeck: {},
+  currentDeck: null,
 };
 
 const defaultHandCart = {
@@ -473,7 +465,7 @@ export const useSessionStore = create<SessionState>()(
 
   clearCurrentDeck: () => {
     set((state) => ({
-      deckBuilder: { ...state.deckBuilder, currentDeck: {} },
+      deckBuilder: { ...state.deckBuilder, currentDeck: null },
     }));
   },
 
@@ -500,7 +492,7 @@ export const useSessionStore = create<SessionState>()(
 
   addToHand: (product_id, quantity) => {
     set((state) => {
-      const existingIndex = state.handCart.handItems.findIndex(item => item.product_id === product_id);
+      const existingIndex = state.handCart.handItems.findIndex(item => item.card_id === product_id);
       let newHandItems;
       
       if (existingIndex >= 0) {
@@ -512,7 +504,7 @@ export const useSessionStore = create<SessionState>()(
         };
       } else {
         // Add new item
-        newHandItems = [...state.handCart.handItems, { product_id, quantity }];
+        newHandItems = [...state.handCart.handItems, { card_id: product_id, quantity }];
       }
       
       return {
@@ -525,7 +517,7 @@ export const useSessionStore = create<SessionState>()(
     set((state) => ({
       handCart: {
         ...state.handCart,
-        handItems: state.handCart.handItems.filter(item => item.product_id !== product_id)
+        handItems: state.handCart.handItems.filter(item => item.card_id !== product_id)
       }
     }));
   },
@@ -537,13 +529,13 @@ export const useSessionStore = create<SessionState>()(
         return {
           handCart: {
             ...state.handCart,
-            handItems: state.handCart.handItems.filter(item => item.product_id !== product_id)
+            handItems: state.handCart.handItems.filter(item => item.card_id !== product_id)
           }
         };
       }
       
       const newHandItems = state.handCart.handItems.map(item =>
-        item.product_id === product_id ? { ...item, quantity } : item
+        item.card_id === product_id ? { ...item, quantity } : item
       );
       
       return {

@@ -101,6 +101,8 @@ export function useSessionInitialization() {
       searchPreferences: {
         sort: 'name_asc',
         per_page: 24,
+        page: 1,
+        game: 'Union Arena',
         defaultFilters: {
           basicPrintsOnly: true,
           noActionPoints: true,

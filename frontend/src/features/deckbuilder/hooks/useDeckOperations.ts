@@ -153,11 +153,19 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
     if (!isValidDeck(currentDeck)) return;
     
     console.log('🃏 handleQuantityChange called with:', card.name, 'current quantity:', card.quantity, 'change:', change);
-    const newQuantity = (card.quantity || 0) + change;
-    console.log('🃏 newQuantity will be:', newQuantity);
-    const updatedCards = [...(currentDeck.cards || [])];
+    console.log('🃏 currentDeck.cards:', currentDeck.cards);
+    console.log('🃏 card.product_id:', card.product_id);
     
+    const updatedCards = [...(currentDeck.cards || [])];
     const existingCardIndex = updatedCards.findIndex(deckCard => deckCard.card_id === card.product_id);
+    
+    console.log('🃏 existingCardIndex:', existingCardIndex);
+    console.log('🃏 existing card if found:', existingCardIndex >= 0 ? updatedCards[existingCardIndex] : 'not found');
+    
+    // Get the actual current quantity from the deck, not from the card prop
+    const currentQuantity = existingCardIndex >= 0 ? updatedCards[existingCardIndex].quantity : 0;
+    const newQuantity = currentQuantity + change;
+    console.log('🃏 actual current quantity from deck:', currentQuantity, 'newQuantity will be:', newQuantity);
     
     if (newQuantity <= 0) {
       // Remove card from deck

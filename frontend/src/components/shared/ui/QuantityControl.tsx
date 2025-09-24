@@ -41,14 +41,14 @@ export function QuantityControl({
   // Get current quantity for this specific card
   const getCurrentQuantity = () => {
     if (context === 'printList') {
-      const existingItem = proxyPrinter.printList.find(item => item.product_id === card.product_id);
+      const existingItem = proxyPrinter.printList.find(item => item.card_id === card.product_id);
       return existingItem ? existingItem.quantity : 0;
     } else if (context === 'deck') {
       // For deck context, use the quantity from the card prop or local state
       return card.quantity || localQuantity;
     } else {
       // Hand context - use sessionStore
-      const existingItem = handCart.handItems.find(item => item.product_id === card.product_id);
+      const existingItem = handCart.handItems.find(item => item.card_id === card.product_id);
       return existingItem ? existingItem.quantity : 0;
     }
   };
@@ -57,13 +57,13 @@ export function QuantityControl({
   const updateQuantity = (change: number) => {
     if (context === 'printList') {
       const currentPrintList = [...proxyPrinter.printList];
-      const existingIndex = currentPrintList.findIndex(item => item.product_id === card.product_id);
+      const existingIndex = currentPrintList.findIndex(item => item.card_id === card.product_id);
       
       if (existingIndex >= 0) {
         const newQuantity = currentPrintList[existingIndex].quantity + change;
         if (newQuantity <= 0) {
           // Remove from print list
-          const updatedList = currentPrintList.filter(item => item.product_id !== card.product_id);
+          const updatedList = currentPrintList.filter(item => item.card_id !== card.product_id);
           setPrintList(updatedList);
         } else {
           // Update quantity
@@ -72,7 +72,7 @@ export function QuantityControl({
         }
       } else if (change > 0) {
         // Adding new card to print list
-        currentPrintList.push({ product_id: card.product_id, quantity: change });
+        currentPrintList.push({ card_id: card.product_id, quantity: change });
         setPrintList(currentPrintList);
       }
     } else if (context === 'deck') {

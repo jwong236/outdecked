@@ -315,6 +315,7 @@ export function DeckBuilderContent() {
           searchCache={searchCache}
           setSearchCache={setSearchCache}
           onCardClick={handleCardClick}
+          onQuantityChange={deckOperations.handleQuantityChange}
         />
       </div>
 

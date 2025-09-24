@@ -6,21 +6,16 @@ import { Card } from '@/types/card';
 import { CartGrid } from '@/features/cart/CartGrid';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
-import { HandItem, Deck } from '@/types/card';
+import { Deck, CardRef } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
 import { fetchDecksBatch } from '@/lib/deckUtils';
-// Compact print item interface (matches sessionStore)
-interface CompactPrintItem {
-  product_id: number;
-  quantity: number;
-}
 import { useAuth } from '@/features/auth/AuthContext';
 import { expandHandItems } from '@/lib/handUtils';
 
 export function CartPage() {
   const { user, isLoading: authLoading } = useAuth();
   const { handCart, clearHand, setPrintList, deckBuilder } = useSessionStore();
-  const [hand, setHand] = useState<HandItem[]>([]);
+  const [hand, setHand] = useState<Card[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
@@ -98,10 +93,10 @@ export function CartPage() {
   };
 
   const moveToProxyPrinter = () => {
-    // Convert hand items to compact print list items (just product_id and quantity)
-    const printListItems: CompactPrintItem[] = hand.map(card => ({
-      product_id: card.product_id,
-      quantity: card.quantity
+    // Convert hand items to lightweight references
+    const printListItems: CardRef[] = hand.map(card => ({
+      card_id: card.product_id,
+      quantity: card.quantity || 1
     }));
     
     // Add to print list using sessionStore
@@ -149,9 +144,9 @@ export function CartPage() {
         const newDeck = data.deck;
         
         // Add cards to the newly created deck using the batch endpoint
-        const cardsToAdd = hand.map(handItem => ({
-          card_id: handItem.product_id,
-          quantity: handItem.quantity
+        const cardsToAdd = hand.map(card => ({
+          card_id: card.product_id,
+          quantity: card.quantity || 1
         }));
 
         const addCardsResponse = await fetch(`/api/user/decks/${newDeck.id}/cards/batch`, {
@@ -166,7 +161,7 @@ export function CartPage() {
         }
         
         // Reload decks to reflect the new deck
-        const deckData = await fetchDecksBatch();
+        const deckData = await fetchDecksBatch(deckBuilder.deckList);
         setDecks(deckData);
       } else {
         // Add to existing deck
@@ -189,9 +184,9 @@ export function CartPage() {
         }
 
         // Add cards to existing deck using the batch endpoint
-        const cardsToAdd = hand.map(handItem => ({
-          card_id: handItem.product_id,
-          quantity: handItem.quantity
+        const cardsToAdd = hand.map(card => ({
+          card_id: card.product_id,
+          quantity: card.quantity || 1
         }));
 
         const addCardsResponse = await fetch(`/api/user/decks/${selectedDeckId}/cards/batch`, {
@@ -215,7 +210,7 @@ export function CartPage() {
   };
 
   const handleCardClick = (card: Card) => {
-    const index = hand.findIndex(c => c.card_url === card.card_url);
+    const index = hand.findIndex(c => c.product_id === card.product_id);
     setSelectedCard(card);
     setSelectedCardIndex(index);
   };
@@ -227,7 +222,7 @@ export function CartPage() {
 
   const handleNavigate = (index: number) => {
     if (hand[index]) {
-      setSelectedCard(hand[index]);
+      setSelectedCard(hand[index] || null);
       setSelectedCardIndex(index);
     }
   };
@@ -279,7 +274,7 @@ export function CartPage() {
           {/* Hand Items */}
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8">
             <CartGrid
-              cards={hand.filter(item => item && typeof item === 'object' && item.name)}
+              cards={hand.filter(item => item && item.name)}
               onCardClick={handleCardClick}
             />
           </div>
@@ -327,7 +322,7 @@ export function CartPage() {
         card={selectedCard}
         isOpen={!!selectedCard}
         onClose={handleCloseModal}
-        allCards={hand}
+        allCards={hand.filter(item => item && item.name)}
         currentIndex={selectedCardIndex}
         onNavigate={handleNavigate}
         hasNextPage={false}
@@ -518,8 +513,7 @@ export function CartPage() {
                             </p>
                             <p className="text-gray-400 text-xs">
                               {deck.last_modified ? new Date(deck.last_modified).toLocaleDateString() : 
-                               deck.updatedAt ? new Date(deck.updatedAt).toLocaleDateString() :
-                               deck.created_at ? new Date(deck.created_at).toLocaleDateString() :
+                               deck.created_date ? new Date(deck.created_date).toLocaleDateString() :
                                'Unknown date'}
                             </p>
                           </div>

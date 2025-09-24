@@ -85,50 +85,35 @@ export interface MetadataField {
   display: string;
 }
 
-// Union Arena specific types
-export type SeriesName = 
-  | 'BLEACH'
-  | 'CODE GEASS'
-  | 'HUNTER X HUNTER'
-  | 'Jujutsu Kaisen'
-  | 'Demon Slayer'
-  | 'Attack on Titan'
-  | 'Black Clover'
-  | 'FULLMETAL ALCHEMIST'
-  | 'One Punch Man'
-  | 'Sword Art Online'
-  | 'Rurouni Kenshin'
-  | 'Kaiju No. 8'
-  | 'NIKKE'
-  | 'Yu Yu Hakusho'
-  | 'Union Arena Promotion Cards';
+// ===== CLEAN 3-LAYER ARCHITECTURE =====
 
-export type ActivationEnergy = 'Blue' | 'Green' | 'Purple' | 'Red' | 'Yellow';
+// 1. LIGHTWEIGHT REFERENCES (Storage Layer)
+export type CardRef = { 
+  card_id: number; 
+  quantity: number; 
+};
 
-export type Rarity = 'Common' | 'Uncommon' | 'Rare' | 'Super Rare' | 'Ultra Rare' | 'Secret Rare';
+// 2. CACHE LAYER
+export type CardCache = Record<string, Card>;
 
-export type CardType = 'Character' | 'Event' | 'Base' | 'Leader';
+// 3. EXPANDED OBJECTS (UI Layer)
+export type ExpandedCard = Card & { quantity: number };
 
-// Deck-related types
-export interface DeckCard {
-  card_id: number;
-  name?: string;
-  image_url?: string;
-  quantity: number;
-  metadata?: Record<string, any>;
-}
+// ===== LEGACY UNION TYPES (Now Dynamic Strings) =====
+// These are now dynamic strings from scraped data, not hard-coded unions
+export type SeriesName = string;
+export type ActivationEnergy = string;
+export type Rarity = string;
+export type CardType = string;
 
+// ===== CLEAN DECK DEFINITION =====
 export interface Deck {
   id: string;
-  name: string;
+  name: string; 
   game: string;
-  description: string;
-  visibility: 'public' | 'private' | 'unlisted';
-  cards: DeckCard[];
-  created_date: string;
-  last_modified: string;
-  total_cards: number;
-  is_legal: boolean;
+  description?: string;
+  cards: CardRef[];              // Always lightweight references
+  visibility: 'private' | 'public' | 'unlisted';
   preferences: {
     series: string;
     color: string;
@@ -136,19 +121,12 @@ export interface Deck {
     printTypes: string[];
     rarities: string[];
   };
+  created_date: string;          // ISO string, not Date
+  last_modified: string;
+  is_legal?: boolean;
+  total_cards?: number;
+  cover?: string; // Optional cover field
 }
 
-// Hand and Print List types
-export interface HandItem {
-  product_id: number;
-  quantity: number;
-  // Full card data loaded on demand
-  card?: Card;
-}
-
-export interface PrintListItem {
-  product_id: number;
-  quantity: number;
-  // Full card data loaded on demand
-  card?: Card;
-}
+// ===== CLEAN ARCHITECTURE - NO LEGACY INTERFACES =====
+// All legacy interfaces have been removed and replaced with clean types
