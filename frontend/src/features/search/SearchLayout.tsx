@@ -6,7 +6,7 @@ import { useSearchCards, useSeriesValues, useColorValues, useFilterFields } from
 import { useUrlState } from '@/lib/useUrlState';
 import { Card, SearchResponse } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
-import { useAuth } from '@/features/auth/AuthContext';
+// Removed useAuth import - now using sessionStore
 import { FilterSection } from './FilterSection';
 import { QuickFilters } from './QuickFilters';
 import { AdvancedFiltersButton } from './AdvancedFiltersButton';
@@ -27,7 +27,7 @@ export function SearchLayout({
   showAdvancedFilters = true,
   resultsPerPage = 24
 }: SearchLayoutProps) {
-  const { user } = useAuth();
+  const { user } = useSessionStore();
   const { 
     searchPreferences,
     setSearchPreferences,
@@ -110,10 +110,14 @@ export function SearchLayout({
     syncFiltersToUrl(getFiltersForAPI());
   }, [searchPreferences, syncFiltersToUrl, getFiltersForAPI]);
 
-  const searchParams = {
-    ...getFiltersForAPI(),
-    query: debouncedQuery // Use debounced query
-  };
+  const searchParams = React.useMemo(() => {
+    const apiFilters = getFiltersForAPI();
+    return {
+      ...apiFilters,
+      query: debouncedQuery // Use debounced query
+    };
+  }, [searchPreferences, debouncedQuery]); // Use searchPreferences instead of getFiltersForAPI
+  
   console.log('🔍 SearchLayout: Calling useSearchCards with params:', searchParams);
   
   const { data: searchData, isLoading, error } = useSearchCards(searchParams);

@@ -5,7 +5,6 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
-import { useAuth } from '@/features/auth/AuthContext';
 import { useSessionStore } from '@/stores/sessionStore';
 import { 
   HomeIcon, 
@@ -25,8 +24,8 @@ export function Navigation() {
   const [isHydrated, setIsHydrated] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, isLoading } = useAuth();
-  const { handCart } = useSessionStore();
+  const { user, logout, sessionState, handCart } = useSessionStore();
+  const isLoading = !sessionState.isInitialized;
 
   const isActive = (path: string) => pathname === path;
 
@@ -172,7 +171,7 @@ export function Navigation() {
                   Loading...
                 </div>
               </div>
-            ) : user ? (
+            ) : user.id ? (
               // Authenticated user - show profile dropdown
               <div className="relative profile-dropdown">
                 <button

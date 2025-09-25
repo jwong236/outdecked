@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/features/auth/AuthContext';
+// Removed useAuth import - now using sessionStore
+import { useSessionStore } from '@/stores/sessionStore';
 import { useBackground } from '@/components/shared/BackgroundContext';
 import { useRouter } from 'next/navigation';
 
 export function SettingsPage() {
-  const { user } = useAuth();
+  const { user } = useSessionStore();
   const { background, setBackground } = useBackground();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);

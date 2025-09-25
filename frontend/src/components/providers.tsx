@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { BackgroundProvider } from '@/components/shared/BackgroundContext';
-import { AuthProvider } from '@/features/auth/AuthContext';
+// Removed AuthProvider import - authentication now handled by sessionStore
 import { useSessionInitialization } from '@/hooks/useSessionInitialization';
 import { NotificationProvider } from '@/components/shared/NotificationContext';
 import { useState } from 'react';
@@ -22,15 +22,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <NotificationProvider>
-          <SessionInitializer />
-          <BackgroundProvider>
-            {children}
-            <ReactQueryDevtools initialIsOpen={false} />
-          </BackgroundProvider>
-        </NotificationProvider>
-      </AuthProvider>
+      <NotificationProvider>
+        <SessionInitializer />
+        <BackgroundProvider>
+          {children}
+          <ReactQueryDevtools initialIsOpen={false} />
+        </BackgroundProvider>
+      </NotificationProvider>
     </QueryClientProvider>
   );
 }

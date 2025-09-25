@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { useAuth } from '@/features/auth/AuthContext';
+import { useSessionStore } from '@/stores/sessionStore';
 
 interface BackgroundContextType {
   background: string;
@@ -11,7 +11,7 @@ interface BackgroundContextType {
 const BackgroundContext = createContext<BackgroundContextType | undefined>(undefined);
 
 export function BackgroundProvider({ children }: { children: ReactNode }) {
-  const { user, preferences, updatePreferences } = useAuth();
+  const { user, preferences, updatePreferences } = useSessionStore();
   
   // Always start with default background to prevent hydration mismatch
   const [background, setBackground] = useState('/backgrounds/background-1.jpg');

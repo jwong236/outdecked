@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/features/auth/AuthContext';
+import { useSessionStore } from '@/stores/sessionStore';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 export function AuthPage() {
@@ -16,7 +16,7 @@ export function AuthPage() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const { login, register } = useAuth();
+  const { login, register } = useSessionStore();
   const router = useRouter();
 
   // Check URL parameters to determine initial form state

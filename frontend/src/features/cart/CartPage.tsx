@@ -11,12 +11,13 @@ import { CreateDeckModal } from '@/components/shared/modals/CreateDeckModal';
 import { Deck, CardRef, ExpandedCard } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
 import { fetchDecksBatch } from '@/lib/deckUtils';
-import { useAuth } from '@/features/auth/AuthContext';
+// Removed useAuth import - now using sessionStore
 import { expandHandItems } from '@/lib/handUtils';
 
 export function CartPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, sessionState } = useSessionStore();
+  const authLoading = !sessionState.isInitialized;
   const { handCart, clearHand, setPrintList, deckBuilder, setCurrentDeck } = useSessionStore();
   const [hand, setHand] = useState<ExpandedCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -109,11 +110,11 @@ export function CartPage() {
     setShowMoveToProxyConfirm(false);
     
     // Redirect to proxy printer page
-    window.location.href = '/proxy-printer';
+    router.push('/proxy-printer');
   };
 
   const handleCopyToDeckClick = () => {
-    if (!user) {
+    if (!user.id) {
       // Show sign-in prompt instead of deck modal
       setShowCopyToDeckModal(true);
       return;
@@ -481,7 +482,7 @@ export function CartPage() {
                     {/* Create New Deck Option */}
                     <button
                       onClick={() => {
-                        if (!user) {
+                        if (!user.id) {
                           // Show sign-in modal if not logged in
                           setShowCopyToDeckModal(false);
                           setShowSignInModal(true);
@@ -619,7 +620,7 @@ export function CartPage() {
 
       {/* Sign In Modal */}
       <SignInModal
-        isOpen={showCopyToDeckModal && !user}
+        isOpen={showCopyToDeckModal && !user.id}
         onClose={() => setShowCopyToDeckModal(false)}
         title="Sign In Required"
         message="You need to be signed in to copy cards to your decks. Sign in to save your hand contents and access your personal deck collection."

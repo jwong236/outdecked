@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, devtools } from 'zustand/middleware';
 import { Deck, CardRef, SearchParams } from '@/types/card';
+import { apiConfig } from '@/lib/apiConfig';
 
 /**
  * Centralized Session Store
@@ -22,6 +23,10 @@ interface SessionState {
     display_name: string | null;
     avatar_url: string | null;
   };
+  
+  // User preferences
+  preferences: Record<string, string>;
+  
   
 
   // ===== SEARCH FEATURE =====
@@ -62,7 +67,6 @@ interface SessionState {
   // ===== SESSION MANAGEMENT =====
   sessionState: {
     isInitialized: boolean;
-    isLoggedIn: boolean;
     lastSync: string | null; // ISO timestamp of last database sync
   };
 
@@ -76,6 +80,16 @@ interface SessionState {
   
   // User management
   setUser: (user: SessionState['user']) => void;
+  getIsLoggedIn: () => boolean;
+  
+  // Authentication functions
+  login: (username: string, password: string) => Promise<boolean>;
+  register: (username: string, email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  checkAuthStatus: () => Promise<void>;
+  updatePreferences: (preferences: Record<string, string>) => Promise<boolean>;
+  loadUserPreferences: () => Promise<void>;
+  loadAllUserData: () => Promise<void>;
   
   // Search management
   setSearchPreferences: (preferences: SessionState['searchPreferences']) => void;
@@ -135,6 +149,7 @@ const defaultUser = {
   avatar_url: null,
 };
 
+const defaultPreferences = {};
 
 const defaultSearchPreferences: SearchParams = {
   query: '',
@@ -175,7 +190,6 @@ const defaultProxyPrinter = {
 
 const defaultSessionState = {
   isInitialized: false,
-  isLoggedIn: false,
   lastSync: null,
 };
 
@@ -186,6 +200,7 @@ export const useSessionStore = create<SessionState>()(
       (set, get) => ({
   // ===== INITIAL STATE =====
   user: defaultUser,
+  preferences: defaultPreferences,
   searchPreferences: defaultSearchPreferences,
   deckBuilder: defaultDeckBuilder,
   handCart: defaultHandCart,
@@ -205,7 +220,7 @@ export const useSessionStore = create<SessionState>()(
         ...defaultSessionState,
         isInitialized: true,
       },
-    });
+    }, false, 'initializeSession');
     console.log('✅ Session initialized');
   },
 
@@ -213,6 +228,7 @@ export const useSessionStore = create<SessionState>()(
     console.log('🧹 Clearing session...');
     set({
       user: defaultUser,
+      preferences: defaultPreferences,
       searchPreferences: defaultSearchPreferences,
       deckBuilder: defaultDeckBuilder,
       handCart: defaultHandCart,
@@ -220,9 +236,8 @@ export const useSessionStore = create<SessionState>()(
       sessionState: {
         ...defaultSessionState,
         isInitialized: true,
-        isLoggedIn: false,
       },
-    });
+    }, false, 'clearSession');
     console.log('✅ Session cleared');
   },
 
@@ -231,24 +246,283 @@ export const useSessionStore = create<SessionState>()(
     set((state) => ({
       ...state,
       ...updates,
-    }));
+    }), false, 'batchUpdateUserData');
   },
 
   // ===== USER MANAGEMENT =====
   setUser: (user) => {
-    set((state) => ({
-      user,
-      sessionState: {
-        ...state.sessionState,
-        isLoggedIn: user.id !== null,
-      },
-    }));
+    set({ user }, false, 'setUser');
+  },
+
+  getIsLoggedIn: () => {
+    const state = get();
+    return state.user.id !== null;
+  },
+
+  // ===== AUTHENTICATION FUNCTIONS =====
+  login: async (username: string, password: string): Promise<boolean> => {
+    try {
+      const url = apiConfig.getApiUrl('/api/auth/login');
+      console.log('Attempting login:', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+        credentials: 'include',
+      });
+      
+      console.log('Login response status:', response.status);
+      console.log('Login response ok:', response.ok);
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Login successful:', data);
+        
+        // Set user in store
+        get().setUser(data.user);
+        
+        // Load ALL user data (preferences, hand cart, deck list)
+        await get().loadAllUserData();
+        
+        return true;
+      } else {
+        console.log('Login failed with status:', response.status);
+        const errorData = await response.json().catch(() => ({}));
+        console.log('Login error data:', errorData);
+        return false;
+      }
+    } catch (error) {
+      console.error('Login failed:', error);
+      return false;
+    }
+  },
+
+  register: async (username: string, email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const url = apiConfig.getApiUrl('/api/auth/register');
+      console.log('Attempting registration:', url);
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({ username, email, password }),
+      });
+      
+      console.log('Register response status:', response.status);
+
+      if (response.ok) {
+        // After successful registration, automatically log the user in
+        const loginSuccess = await get().login(username, password);
+        if (loginSuccess) {
+          return { success: true };
+        } else {
+          return { success: false, error: 'Registration successful, but automatic login failed. Please sign in manually.' };
+        }
+      } else {
+        const data = await response.json();
+        return { success: false, error: data.error || 'Registration failed' };
+      }
+    } catch (error) {
+      console.error('Registration failed:', error);
+      return { success: false, error: 'Network error. Please try again.' };
+    }
+  },
+
+  logout: async (): Promise<void> => {
+    try {
+      const url = apiConfig.getApiUrl('/api/auth/logout');
+      
+      await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      // Clear user data
+      get().setUser(defaultUser);
+      set({ preferences: defaultPreferences }, false, 'logoutClearPreferences');
+    }
+  },
+
+  checkAuthStatus: async (): Promise<void> => {
+    try {
+      const url = apiConfig.getApiUrl('/api/auth/me');
+      console.log('Attempting to fetch:', url);
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+      
+      console.log('Response status:', response.status);
+      console.log('Response ok:', response.ok);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🔍 SESSION DEBUG - User data from API:', data.user);
+        get().setUser(data.user);
+        
+        // Load ALL user data in one coordinated call
+        await get().loadAllUserData();
+      } else if (response.status === 401) {
+        // 401 is expected when not logged in - this is not an error
+        console.log('User not authenticated (401) - this is normal');
+        get().setUser(defaultUser);
+      } else {
+        // Other error statuses
+        console.error('Unexpected response status:', response.status);
+        get().setUser(defaultUser);
+      }
+    } catch (error) {
+      console.error('Auth check failed:', error);
+      console.error('Error details:', {
+        name: error instanceof Error ? error.name : 'Unknown',
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+      get().setUser(defaultUser);
+    } finally {
+      // Mark session as initialized after auth check completes
+      set((state) => ({
+        sessionState: {
+          ...state.sessionState,
+          isInitialized: true,
+        },
+      }), false, 'markSessionInitialized');
+    }
+  },
+
+  updatePreferences: async (newPreferences: Record<string, string>): Promise<boolean> => {
+    try {
+      const response = await fetch(apiConfig.getApiUrl('/api/users/me/preferences'), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ preferences: newPreferences }),
+        credentials: 'include',
+      });
+
+      if (response.ok) {
+        set((state) => ({
+          preferences: { ...state.preferences, ...newPreferences }
+        }), false, 'updatePreferences');
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to update preferences:', error);
+      return false;
+    }
+  },
+
+  loadUserPreferences: async (): Promise<void> => {
+    try {
+      const url = apiConfig.getApiUrl('/api/users/me/preferences');
+      console.log('Loading user preferences:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+      
+      console.log('Preferences response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        set({ preferences: data.preferences }, false, 'loadUserPreferences');
+      } else if (response.status === 404) {
+        // 404 is normal for new users who don't have preferences yet
+        console.log('No user preferences found (404) - this is normal for new users');
+        set({ preferences: defaultPreferences }, false, 'loadUserPreferencesDefault404');
+      } else {
+        console.log('Unexpected response status for preferences:', response.status);
+        set({ preferences: defaultPreferences }, false, 'loadUserPreferencesDefaultError');
+      }
+    } catch (error) {
+      console.error('Failed to load preferences:', error);
+      set({ preferences: defaultPreferences }, false, 'loadUserPreferencesDefaultCatch');
+    }
+  },
+
+  loadAllUserData: async (): Promise<void> => {
+    try {
+      console.log('🔄 Loading all user data from database...');
+      
+      // Load user preferences
+      await get().loadUserPreferences();
+      
+      // Load user's hand from database
+      const handResponse = await fetch(apiConfig.getApiUrl('/api/users/me/hand'), {
+        credentials: 'include',
+      });
+      const handData = handResponse.ok ? await handResponse.json() : { hand: [] };
+      
+      // Load user's deck IDs from database
+      const decksResponse = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
+        credentials: 'include',
+      });
+      const decksData = decksResponse.ok ? await decksResponse.json() : { data: { deck_ids: [] } };
+
+      console.log('✅ All user data loaded from database');
+      
+      // Convert hand data to CardRef format if it contains full Card objects
+      const handItems = (handData.hand || []).map((item: any) => {
+        // If the item has a product_id, it's already a CardRef
+        if (item.card_id && typeof item.quantity === 'number') {
+          return item;
+        }
+        // If the item has full card data, convert it to CardRef
+        if (item.product_id) {
+          return {
+            card_id: item.product_id,
+            quantity: item.quantity || 1
+          };
+        }
+        // Fallback for any other format
+        return {
+          card_id: item.id || item.card_id,
+          quantity: item.quantity || 1
+        };
+      });
+      
+      // Update session store with loaded data
+      set((state) => ({
+        handCart: {
+          ...state.handCart,
+          handItems: handItems,
+        },
+        deckBuilder: {
+          ...state.deckBuilder,
+          deckList: decksData.data?.deck_ids || [],
+        },
+      }), false, 'loadAllUserData');
+      
+    } catch (error) {
+      console.error('Failed to load all user data:', error);
+    }
   },
 
 
   // ===== SEARCH MANAGEMENT =====
   setSearchPreferences: (preferences) => {
-    set({ searchPreferences: preferences });
+    set({ searchPreferences: preferences }, false, 'setSearchPreferences');
   },
 
   // Helper function to convert filter to compact format
@@ -274,7 +548,7 @@ export const useSessionStore = create<SessionState>()(
       return {
         searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
-    });
+    }, false, 'addFilter');
   },
 
   removeFilter: (index) => {
@@ -283,7 +557,7 @@ export const useSessionStore = create<SessionState>()(
       return {
         searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
-    });
+    }, false, 'removeFilter');
   },
 
   clearAllFilters: () => {
@@ -292,7 +566,7 @@ export const useSessionStore = create<SessionState>()(
         ...state.searchPreferences,
         filters: [],
       },
-    }));
+    }), false, 'clearAllFilters');
   },
 
 
@@ -302,7 +576,7 @@ export const useSessionStore = create<SessionState>()(
         ...state.searchPreferences,
         page,
       },
-    }));
+    }), false, 'setPage');
   },
 
   setSort: (sort) => {
@@ -311,7 +585,7 @@ export const useSessionStore = create<SessionState>()(
         ...state.searchPreferences,
         sort,
       },
-    }));
+    }), false, 'setSort');
   },
 
   setSeries: (series) => {
@@ -332,7 +606,15 @@ export const useSessionStore = create<SessionState>()(
       // Remove existing cardType filter
       const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'CardType');
       // Add new cardType filter if not empty
-      const newFilters = cardType ? [...filteredFilters, { type: 'and' as const, field: 'CardType', value: cardType, displayText: `Card Type: ${cardType}` }] : filteredFilters;
+      let newFilters = filteredFilters;
+      if (cardType) {
+        // Special case: "Action Point" should create a "No Action Points" filter (negative)
+        if (cardType === 'Action Point') {
+          newFilters = [...filteredFilters, { type: 'not' as const, field: 'CardType', value: 'Action Point', displayText: 'No Action Points' }];
+        } else {
+          newFilters = [...filteredFilters, { type: 'and' as const, field: 'CardType', value: cardType, displayText: `Card Type: ${cardType}` }];
+        }
+      }
       
       return {
         searchPreferences: { ...state.searchPreferences, filters: newFilters }
@@ -402,13 +684,13 @@ export const useSessionStore = create<SessionState>()(
   setCurrentDeck: (deck) => {
     set((state) => ({
       deckBuilder: { ...state.deckBuilder, currentDeck: deck },
-    }));
+    }), false, 'setCurrentDeck');
   },
 
   clearCurrentDeck: () => {
     set((state) => ({
       deckBuilder: { ...state.deckBuilder, currentDeck: null },
-    }));
+    }), false, 'clearCurrentDeck');
   },
 
 
@@ -524,7 +806,7 @@ export const useSessionStore = create<SessionState>()(
   // ===== DATABASE SYNC =====
   syncWithDatabase: async () => {
     const state = get();
-    if (!state.sessionState.isLoggedIn) {
+    if (!state.user.id) {
       console.log('⚠️ Cannot sync - user not logged in');
       return;
     }
@@ -545,18 +827,22 @@ export const useSessionStore = create<SessionState>()(
   },
     }),
     {
-      name: 'outdecked-session-storage', // unique name for sessionStorage key
-      storage: createJSONStorage(() => sessionStorage), // use sessionStorage instead of localStorage
+      name: 'outdecked-session-storage', // unique name for localStorage key
+      storage: createJSONStorage(() => localStorage), // use localStorage for persistence across browser sessions
       partialize: (state) => ({
-        // Only persist the data we want to save across page refreshes
+        // Only persist the data we want to save across browser sessions
         user: state.user,
+        preferences: state.preferences,
         searchPreferences: state.searchPreferences,
         handCart: state.handCart,
-        deckBuilder: state.deckBuilder,
+        deckBuilder: {
+          // Only persist deckList, NOT currentDeck - load from database instead
+          deckList: state.deckBuilder.deckList,
+          currentDeck: null, // Always start with null, load from database
+        },
         proxyPrinter: state.proxyPrinter,
         sessionState: {
           isInitialized: state.sessionState.isInitialized,
-          isLoggedIn: state.sessionState.isLoggedIn,
           lastSync: state.sessionState.lastSync,
         },
       }),

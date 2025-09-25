@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Deck } from '@/types/card';
 import { analyzeDeck } from '@/lib/deckValidation';
-import { useAuth } from '@/features/auth/AuthContext';
+// Removed useAuth import - now using sessionStore
 import { PageTitle } from '@/components/shared/PageTitle';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
 import { CreateDeckModal } from '@/components/shared/modals/CreateDeckModal';
@@ -16,7 +16,8 @@ import Link from 'next/link';
 
 export function DeckListPage() {
   const router = useRouter();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, sessionState } = useSessionStore();
+  const authLoading = !sessionState.isInitialized;
   const { deckBuilder, setDeckList, setCurrentDeck } = useSessionStore();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [isLoading, setIsLoading] = useState(true);

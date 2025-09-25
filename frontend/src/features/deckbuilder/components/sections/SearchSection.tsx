@@ -24,10 +24,18 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   // State for search results and local search state
   const [searchResults, setSearchResults] = React.useState<Card[]>([]);
   const [searchLoading, setSearchLoading] = React.useState(false);
+  const [paginationData, setPaginationData] = React.useState<{
+    total_cards: number;
+    total_pages: number;
+    current_page: number;
+    per_page: number;
+    has_next: boolean;
+    has_prev: boolean;
+  } | null>(null);
   const [searchQuery, setSearchQuery] = React.useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState('');
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [itemsPerPage, setItemsPerPage] = React.useState(24);
+  const [itemsPerPage, setItemsPerPage] = React.useState(25);
   const [currentSort, setCurrentSort] = React.useState('name_asc');
   const [currentColor, setCurrentColor] = React.useState(currentDeck?.preferences?.color || '');
   const [colorOptions, setColorOptions] = React.useState<Array<{value: string, label: string}>>([]);
@@ -36,7 +44,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   const filters = { 
     query: searchQuery, 
     series: currentDeck?.preferences?.series || '', 
-    color: currentColor, 
+    color: currentDeck?.preferences?.color || currentColor, // Use deck preference first, fallback to local state
     cardType: '', 
     sort: currentSort 
   };
@@ -173,9 +181,10 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
         searchParams.append('series', currentDeck.preferences.series);
       }
       
-      // Add color filter if it exists
-      if (currentColor) {
-        searchParams.append('color', currentColor);
+      // Add color filter if it exists (use deck preference first, fallback to local state)
+      const activeColor = currentDeck?.preferences?.color || currentColor;
+      if (activeColor) {
+        searchParams.append('color', activeColor);
       }
       
       // Add card types filter if it exists (API uses 'CardType' parameter, multiple values)
@@ -211,6 +220,11 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
         const cleanCards = transformRawCardsToCards(data.cards);
         setSearchResults(cleanCards);
         
+        // Store pagination data from API response
+        if (data.pagination) {
+          setPaginationData(data.pagination);
+        }
+        
         // Notify parent component of search results change with clean cards
         if (onSearchResultsChange) {
           onSearchResultsChange(cleanCards);
@@ -233,14 +247,39 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
     } finally {
       setSearchLoading(false);
     }
-  }, [currentPage, itemsPerPage, currentSort, debouncedSearchQuery, currentDeck?.preferences?.series, currentColor]);
+  }, [
+    currentPage, 
+    itemsPerPage, 
+    currentSort, 
+    debouncedSearchQuery,
+    // Unified filter dependencies - any change to these will trigger re-search
+    currentDeck?.preferences?.series,
+    currentDeck?.preferences?.color,
+    currentDeck?.preferences?.cardTypes,
+    currentDeck?.preferences?.printTypes,
+    currentDeck?.preferences?.rarities,
+    currentColor, // Keep local color state for now
+  ]);
   
   // Initial fetch when component mounts or deck changes
   React.useEffect(() => {
     if (currentDeck && Object.keys(currentDeck).length > 0) {
       fetchCards();
     }
-  }, [currentDeck?.id, currentDeck?.preferences?.series, currentSort, currentPage, itemsPerPage, debouncedSearchQuery, currentColor]); // Run when any search parameter changes
+  }, [
+    currentDeck?.id,
+    // Unified filter dependencies - any change to these will trigger re-search
+    currentDeck?.preferences?.series,
+    currentDeck?.preferences?.color,
+    currentDeck?.preferences?.cardTypes,
+    currentDeck?.preferences?.printTypes,
+    currentDeck?.preferences?.rarities,
+    currentSort, 
+    currentPage, 
+    itemsPerPage, 
+    debouncedSearchQuery, 
+    currentColor
+  ]);
   
   // Merge search results with deck quantities
   const searchResultsWithQuantities: ExpandedCard[] = searchResults.map(card => {
@@ -283,10 +322,21 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   };
   
   const handleSearchColorChange = (color: string) => {
+    // Update both local state and deck preferences
     setCurrentColor(color);
     setCurrentPage(1); // Reset to first page when changing filters
-    // Note: We don't update currentDeck here to avoid infinite loops
-    // The color filter is handled locally in this component
+    
+    // Update deck preferences to trigger re-search
+    if (currentDeck) {
+      const updatedDeck = {
+        ...currentDeck,
+        preferences: {
+          ...currentDeck.preferences,
+          color: color
+        }
+      };
+      setCurrentDeck(updatedDeck);
+    }
   };
   
   const handleSortChange = (sort: string) => {
@@ -305,7 +355,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   
   
   // Mock pagination data (should come from API response)
-  const pagination = { 
+  const pagination = paginationData || { 
     total_cards: searchResults.length, 
     total_pages: Math.ceil(searchResults.length / itemsPerPage),
     current_page: currentPage,
@@ -341,7 +391,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-white">Color:</label>
               <select
-                value={currentColor || ''}
+                value={currentDeck?.preferences?.color || currentColor || ''}
                 onChange={(e) => handleSearchColorChange(e.target.value)}
                 className="px-3 py-1 bg-white/20 border border-white/30 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
@@ -423,7 +473,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
               onChange={(e) => handleItemsPerPageChange(Number(e.target.value))}
               className="bg-white/10 border border-white/20 rounded px-2 py-1 text-white text-sm [&>option]:bg-gray-800 [&>option]:text-white"
             >
-              <option value={24}>24 per page</option>
+              <option value={25}>25 per page</option>
               <option value={50}>50 per page</option>
               <option value={100}>100 per page</option>
             </select>

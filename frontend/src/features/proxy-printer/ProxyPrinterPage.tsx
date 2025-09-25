@@ -7,14 +7,14 @@ import { ProxyGrid } from '@/features/proxy-printer/ProxyGrid';
 // No longer need CardDetailModal - proxy printer is view-only
 import { SignInModal } from '@/components/shared/modals/SignInModal';
 // No longer need dataManager or PrintListItem - using compact format with sessionStore
-import { useAuth } from '@/features/auth/AuthContext';
+// Removed useAuth import - now using sessionStore
 import { useSessionStore } from '@/stores/sessionStore';
 import { apiConfig } from '../../lib/apiConfig';
 import { getProductImageCard, getProductImageIcon } from '@/lib/imageUtils';
 import jsPDF from 'jspdf';
 
 export function ProxyPrinterPage() {
-  const { user } = useAuth();
+  const { user } = useSessionStore();
   const { proxyPrinter, setPrintList, setPrintSettings } = useSessionStore();
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);

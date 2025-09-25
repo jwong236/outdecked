@@ -10,14 +10,15 @@ import { DeckBuilderSearchSettingsModal } from './components/modals/DeckBuilderS
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { useDeckOperations } from './hooks/useDeckOperations';
 import { useSessionStore } from '@/stores/sessionStore';
-import { useAuth } from '@/features/auth/AuthContext';
+// Removed useAuth import - now using sessionStore
 import { Card, CardCache } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
 
 export function DeckBuilderContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, isLoading: authLoading } = useAuth();
+  const { user, sessionState } = useSessionStore();
+  const authLoading = !sessionState.isInitialized;
   const deckId = searchParams.get('deckId');
   const isLoadingRef = useRef(false);
   
@@ -294,7 +295,7 @@ export function DeckBuilderContent() {
       
       if (deckToSave && Object.keys(deckToSave).length > 0 && 'id' in deckToSave && deckToSave.id && !isSavingRef.current) {
         // Check if user is still authenticated before attempting save
-        if (!user) {
+        if (!user.id) {
           console.log('🔄 User not authenticated, skipping deck save on unmount');
           clearCurrentDeck();
           return;
@@ -354,7 +355,7 @@ export function DeckBuilderContent() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       handleUnmount();
     };
-  }, [clearCurrentDeck, user]); // Include clearCurrentDeck and user in dependencies
+  }, [clearCurrentDeck]); // Remove user from dependencies to prevent race condition during session init
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
