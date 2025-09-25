@@ -2,12 +2,12 @@
 
 import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Deck, Card, ExpandedCard } from '@/types/card';
+import { Deck, Card, ExpandedCard, CardCache } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
 import { fetchDeck } from '@/lib/deckUtils';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
 
-export function useDeckOperations(searchCache: Record<number, Card>, setSearchCache: (updater: (prev: Record<number, Card>) => Record<number, Card>) => void) {
+export function useDeckOperations(searchCache: CardCache, setSearchCache: (updater: (prev: CardCache) => CardCache) => void) {
   const router = useRouter();
   const { deckBuilder, setCurrentDeck } = useSessionStore();
   const { setSeries } = useSessionStore();

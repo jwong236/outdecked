@@ -13,7 +13,8 @@ import { useDeckOperations } from './hooks/useDeckOperations';
 // import { useSearchLogic } from './hooks/useSearchLogic';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAuth } from '@/features/auth/AuthContext';
-import { Card } from '@/types/card';
+import { Card, CardCache } from '@/types/card';
+import { transformRawCardsToCards } from '@/lib/cardTransform';
 
 export function DeckBuilderContent() {
   const router = useRouter();
@@ -31,13 +32,23 @@ export function DeckBuilderContent() {
   const lastProcessedDeckId = useRef<string | null>(null);
   
   // Shared search cache state - lifted up from SearchSection to share with DeckSection
-  const [searchCache, setSearchCache] = React.useState<Record<number, Card>>({});
+  const [searchCache, setSearchCache] = React.useState<CardCache>({});
   
-  // Clear cache on mount to remove any old format cards
+  // Note: Cache is now persistent across deck loads for better performance
+  
+  // Verification: Log cache format to ensure consistency
   React.useEffect(() => {
-    console.log('🃏 DeckBuilderContent: Clearing search cache to remove old format cards');
-    setSearchCache({});
-  }, []);
+    if (Object.keys(searchCache).length > 0) {
+      const sampleCard = Object.values(searchCache)[0];
+      console.log('🔍 Cache verification - Sample card:', {
+        hasAttributes: !!sampleCard?.attributes,
+        attributesType: Array.isArray(sampleCard?.attributes) ? 'array' : typeof sampleCard?.attributes,
+        attributesLength: sampleCard?.attributes?.length,
+        productId: sampleCard?.product_id,
+        cacheKeys: Object.keys(searchCache).slice(0, 3) // First 3 keys
+      });
+    }
+  }, [searchCache]);
   
   // Current search results for navigation
   const [currentSearchResults, setCurrentSearchResults] = React.useState<any[]>([]);
@@ -57,13 +68,14 @@ export function DeckBuilderContent() {
       });
       
       if (response.ok) {
-        const cards = await response.json();
+        const rawCards = await response.json();
+        const cleanCards = transformRawCardsToCards(rawCards);
         
         // Populate the cache with the fetched card data
         setSearchCache(prev => {
           const newCache = { ...prev };
-          cards.forEach((card: any) => {
-            newCache[card.id] = card;
+          cleanCards.forEach(card => {
+            newCache[card.product_id] = card;
           });
           return newCache;
         });
@@ -89,17 +101,17 @@ export function DeckBuilderContent() {
     let allCards: any[] = [];
     
     // Check if it's a search card or deck card
-    if (searchCache[card.id]) {
+    if (searchCache[card.product_id]) {
       // It's a search card - find in current search results (maintains sort order)
       allCards = currentSearchResults;
-      index = allCards.findIndex(c => c.id === card.id);
+      index = allCards.findIndex(c => c.product_id === card.product_id);
     } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
       // It's a deck card - find in deck cards
       allCards = currentDeck.cards.map((deckCard: any) => {
         const fullCardData = searchCache[deckCard.card_id];
         return fullCardData ? { ...fullCardData, quantity: deckCard.quantity } : deckCard;
       });
-      index = allCards.findIndex(c => c.id === card.id);
+      index = allCards.findIndex(c => c.product_id === card.product_id);
     }
     
     setSelectedCard(card);
@@ -115,7 +127,7 @@ export function DeckBuilderContent() {
     let allCards: any[] = [];
     
     // Get the appropriate cards array
-    if (selectedCard && searchCache[selectedCard.id]) {
+    if (selectedCard && searchCache[selectedCard.product_id]) {
       // It's a search card - use current search results (maintains sort order)
       allCards = currentSearchResults;
     } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
@@ -196,16 +208,7 @@ export function DeckBuilderContent() {
           
           setCurrentDeck(migratedDeck);
           
-          // Check if we need to fetch missing card data
-          if (migratedDeck.cards && migratedDeck.cards.length > 0) {
-            const missingCardIds = migratedDeck.cards
-              .filter((card: any) => !searchCache[card.card_id])
-              .map((card: any) => card.card_id);
-            
-            if (missingCardIds.length > 0) {
-              await fetchMissingCardData(missingCardIds);
-            }
-          }
+          // Note: Card data fetching will be handled by a separate effect
         }
       } catch (error) {
       }
@@ -213,6 +216,20 @@ export function DeckBuilderContent() {
 
     loadDeckData();
   }, [deckId, setCurrentDeck]); // Only reload when deckId changes
+
+  // Fetch missing card data when deck is loaded and cache is available
+  useEffect(() => {
+    if (currentDeck && 'cards' in currentDeck && currentDeck.cards && currentDeck.cards.length > 0) {
+      const missingCardIds = currentDeck.cards
+        .filter((card: any) => !searchCache[card.card_id])
+        .map((card: any) => card.card_id);
+      
+      if (missingCardIds.length > 0) {
+        console.log('🃏 Fetching missing card data for deck:', missingCardIds);
+        fetchMissingCardData(missingCardIds);
+      }
+    }
+  }, [currentDeck, searchCache]); // Run when deck or cache changes
 
   // Use a ref to capture the current deck value at unmount time
   const currentDeckRef = useRef(currentDeck);
@@ -432,7 +449,7 @@ export function DeckBuilderContent() {
           if (!selectedCard) return [];
           
           // Get the appropriate cards array based on the selected card
-          if (searchCache[selectedCard.id]) {
+          if (searchCache[selectedCard.product_id]) {
             // It's a search card - use current search results (maintains sort order)
             return currentSearchResults;
           } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
@@ -448,7 +465,7 @@ export function DeckBuilderContent() {
         onNavigate={handleNavigate}
         hasNextPage={(() => {
           if (!selectedCard) return false;
-          if (searchCache[selectedCard.id]) {
+          if (searchCache[selectedCard.product_id]) {
             return selectedCardIndex < currentSearchResults.length - 1;
           } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
             return selectedCardIndex < currentDeck.cards.length - 1;

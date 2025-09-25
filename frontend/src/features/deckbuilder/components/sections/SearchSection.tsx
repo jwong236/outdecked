@@ -4,12 +4,12 @@ import React from 'react';
 import { DeckBuilderSearchGrid } from '../grids/DeckBuilderSearchGrid';
 import { CompactFilterSection } from '../filters/CompactFilterSection';
 import { useSessionStore } from '@/stores/sessionStore';
-import { Card, ExpandedCard } from '@/types/card';
+import { Card, ExpandedCard, CardCache } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
 
 interface SearchSectionProps {
-  searchCache: Record<number, Card>;
-  setSearchCache: React.Dispatch<React.SetStateAction<Record<number, Card>>>;
+  searchCache: CardCache;
+  setSearchCache: React.Dispatch<React.SetStateAction<CardCache>>;
   onCardClick?: (card: ExpandedCard) => void;
   fetchMissingCardData?: (cardIds: string[]) => Promise<void>;
   onSearchResultsChange?: (results: Card[]) => void;
@@ -197,16 +197,16 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
       
       console.log('🃏 Cards API response:', data);
       if (data.cards) {
-        setSearchResults(data.cards);
+        // Transform raw API data to clean Card objects once
+        const cleanCards = transformRawCardsToCards(data.cards);
+        setSearchResults(cleanCards);
         
-        // Notify parent component of search results change
+        // Notify parent component of search results change with clean cards
         if (onSearchResultsChange) {
-          onSearchResultsChange(data.cards);
+          onSearchResultsChange(cleanCards);
         }
         
         // Cache the cards by product_id for fast deck building
-        // Transform raw API data to clean Card objects once at cache time
-        const cleanCards = transformRawCardsToCards(data.cards);
         setSearchCache(prev => {
           const newCache = { ...prev };
           cleanCards.forEach(card => {

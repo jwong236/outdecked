@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSearchCards, useSeriesValues, useColorValues, useFilterFields } from '@/lib/hooks';
 import { useUrlState } from '@/lib/useUrlState';
 import { Card, SearchResponse } from '@/types/card';
+import { transformRawCardsToCards } from '@/lib/cardTransform';
 import { useAuth } from '@/features/auth/AuthContext';
 import { FilterSection } from './FilterSection';
 import { QuickFilters } from './QuickFilters';
@@ -109,33 +110,39 @@ export function SearchLayout({
   const { data: filterFields } = useFilterFields();
 
   const searchResponse = searchData as unknown as SearchResponse;
+  
+  // Transform raw API data to clean Card objects
+  const transformedCards = React.useMemo(() => {
+    if (!searchResponse?.cards) return [];
+    return transformRawCardsToCards(searchResponse.cards);
+  }, [searchResponse?.cards]);
 
   // Handle cross-page navigation - select appropriate card when page changes
   useEffect(() => {
-    if (searchResponse?.cards && searchResponse.cards.length > 0 && isNavigatingPages) {
+    if (transformedCards && transformedCards.length > 0 && isNavigatingPages) {
       // If we're navigating to next page, select first card
-      if (selectedCardIndex >= searchResponse.cards.length) {
-        setSelectedCard(searchResponse.cards[0]);
+      if (selectedCardIndex >= transformedCards.length) {
+        setSelectedCard(transformedCards[0]);
         setSelectedCardIndex(0);
         setIsNavigatingPages(false);
       }
       // If we're navigating to previous page, select last card
       else if (selectedCardIndex < 0) {
-        const lastIndex = searchResponse.cards.length - 1;
-        setSelectedCard(searchResponse.cards[lastIndex]);
+        const lastIndex = transformedCards.length - 1;
+        setSelectedCard(transformedCards[lastIndex]);
         setSelectedCardIndex(lastIndex);
         setIsNavigatingPages(false);
       }
       // If we're navigating to next page and selectedCardIndex is 0, select first card
       else if (selectedCardIndex === 0) {
-        setSelectedCard(searchResponse.cards[0]);
+        setSelectedCard(transformedCards[0]);
         setIsNavigatingPages(false);
       }
     }
-  }, [searchResponse, selectedCardIndex, isNavigatingPages]);
+  }, [transformedCards, selectedCardIndex, isNavigatingPages]);
 
   const handleCardClick = (card: Card) => {
-    const index = searchResponse?.cards.findIndex(c => c.id === card.id) || 0;
+    const index = transformedCards.findIndex(c => c.id === card.id) || 0;
     setSelectedCard(card);
     setSelectedCardIndex(index);
   };
@@ -148,11 +155,11 @@ export function SearchLayout({
   };
 
   const handleNavigate = (index: number) => {
-    if (searchResponse?.cards[index]) {
-      setSelectedCard(searchResponse.cards[index]);
+    if (transformedCards[index]) {
+      setSelectedCard(transformedCards[index]);
       setSelectedCardIndex(index);
       setIsNavigatingPages(false);
-    } else if (index >= searchResponse?.cards.length && searchResponse?.pagination.has_next) {
+    } else if (index >= transformedCards.length && searchResponse?.pagination.has_next) {
       // Navigate to next page - will show first card of next page
       setIsNavigatingPages(true);
       setPage(searchPreferences.page + 1);
@@ -331,11 +338,7 @@ export function SearchLayout({
                 console.log('🔍 SearchLayout: isLoading:', isLoading);
                 console.log('🔍 SearchLayout: error:', error);
                 
-                const cards = searchResponse?.cards || [];
-                console.log('🔍 SearchLayout: cards array:', cards);
-                console.log('🔍 SearchLayout: cards length:', cards.length);
-                
-                const expandedCards = cards.map((card: Card) => ({ ...card, quantity: 0 }));
+                const expandedCards = transformedCards.map((card: Card) => ({ ...card, quantity: 0 }));
                 console.log('🔍 SearchLayout: expandedCards:', expandedCards);
                 
                 return expandedCards;
@@ -412,7 +415,7 @@ export function SearchLayout({
         card={selectedCard}
         isOpen={!!selectedCard}
         onClose={handleCloseModal}
-        allCards={searchResponse?.cards || []}
+        allCards={transformedCards}
         currentIndex={selectedCardIndex}
         onNavigate={handleNavigate}
         hasNextPage={searchResponse?.pagination.has_next || false}

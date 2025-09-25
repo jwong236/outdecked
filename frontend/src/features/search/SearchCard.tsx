@@ -201,12 +201,7 @@ export function SearchCard({
           })() : (
             // Regular search page context - show Add to Hand button
             (() => {
-              console.log('SearchCard render (hand context):', {
-                cardName: card.name,
-                cardQuantity: card.quantity,
-                context: 'hand',
-                onAddToDeck: !!onAddToDeck
-              });
+              // Debug logging removed to prevent console spam
               
               return (
                 <QuantityControl 

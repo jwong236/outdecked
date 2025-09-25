@@ -4,11 +4,12 @@ import React from 'react';
 import { GroupedDeckGrid } from '../grids/GroupedDeckGrid';
 import { DeckValidation } from '@/lib/deckValidation';
 import { useSessionStore } from '@/stores/sessionStore';
-import { Card } from '@/types/card';
+import { Card, CardCache } from '@/types/card';
+import { transformRawCardsToCards } from '@/lib/cardTransform';
 
 interface DeckSectionProps {
-  searchCache: Record<number, Card>;
-  setSearchCache: (updater: (prev: Record<number, Card>) => Record<number, Card>) => void;
+  searchCache: CardCache;
+  setSearchCache: (updater: (prev: CardCache) => CardCache) => void;
   onCardClick?: (card: any) => void;
   onQuantityChange?: (card: any, change: number) => void;
 }
@@ -31,17 +32,22 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
       });
       
       if (response.ok) {
-        const cards = await response.json();
-        console.log('🃏 DeckSection: API returned cards:', cards);
+        const rawCards = await response.json();
+        console.log('🃏 DeckSection: API returned raw cards:', rawCards);
+        
+        // Transform raw API data to clean Card objects
+        const cleanCards = transformRawCardsToCards(rawCards);
+        console.log('🃏 DeckSection: Transformed to clean cards:', cleanCards);
+        
         setSearchCache(prev => {
           const newCache = { ...prev };
-          cards.forEach((card: any) => {
-            console.log('🃏 DeckSection: Caching card with product_id:', card.product_id, 'for request:', cardIds);
+          cleanCards.forEach((card: any) => {
+            console.log('🃏 DeckSection: Caching clean card with product_id:', card.product_id, 'for request:', cardIds);
             newCache[card.product_id] = card;
           });
           return newCache;
         });
-        console.log('✅ DeckSection: Fetched and cached card data');
+        console.log('✅ DeckSection: Fetched and cached clean card data');
       } else {
         console.error('❌ DeckSection: Failed to fetch card data:', response.status);
       }
