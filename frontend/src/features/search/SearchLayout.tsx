@@ -45,8 +45,7 @@ export function SearchLayout({
     getFiltersForAPI,
   } = useSessionStore();
 
-  // Override getQuery to use local state
-  const getQuery = () => query;
+  // Query is managed by local state
 
   const { getFiltersFromUrl, syncFiltersToUrl } = useUrlState();
 
@@ -55,6 +54,7 @@ export function SearchLayout({
   const [isNavigatingPages, setIsNavigatingPages] = useState<boolean>(false);
   const [showAdvancedFiltersModal, setShowAdvancedFiltersModal] = useState(false);
   const [query, setQuery] = useState<string>(''); // Temporary UI state
+  const [debouncedQuery, setDebouncedQuery] = useState<string>('');
   const [isClient, setIsClient] = useState(false);
 
   // Search preferences are automatically loaded by sessionStore
@@ -63,6 +63,15 @@ export function SearchLayout({
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Debounce the search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedQuery(query);
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timer);
+  }, [query]);
 
   // Initialize filters from URL on mount (only once)
   useEffect(() => {
@@ -101,7 +110,10 @@ export function SearchLayout({
     syncFiltersToUrl(getFiltersForAPI());
   }, [searchPreferences, syncFiltersToUrl, getFiltersForAPI]);
 
-  const searchParams = getFiltersForAPI();
+  const searchParams = {
+    ...getFiltersForAPI(),
+    query: debouncedQuery // Use debounced query
+  };
   console.log('🔍 SearchLayout: Calling useSearchCards with params:', searchParams);
   
   const { data: searchData, isLoading, error } = useSearchCards(searchParams);
@@ -306,7 +318,7 @@ export function SearchLayout({
               <input
                 id="search"
                 type="text"
-                value={getQuery()}
+                value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Enter card name..."
                 className="w-full rounded-lg border border-white/30 bg-white/20 py-2 px-3 text-white placeholder-white/70 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 sm:text-sm transition-colors duration-200"

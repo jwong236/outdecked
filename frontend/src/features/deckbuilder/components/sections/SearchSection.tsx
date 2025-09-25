@@ -25,6 +25,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   const [searchResults, setSearchResults] = React.useState<Card[]>([]);
   const [searchLoading, setSearchLoading] = React.useState(false);
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState('');
   const [currentPage, setCurrentPage] = React.useState(1);
   const [itemsPerPage, setItemsPerPage] = React.useState(24);
   const [currentSort, setCurrentSort] = React.useState('name_asc');
@@ -44,6 +45,15 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   React.useEffect(() => {
     fetchColorsForSeries();
   }, [currentDeck?.preferences?.series]);
+
+  // Debounce the search query
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300); // 300ms delay
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
 
   const fetchColorsForSeries = async () => {
@@ -154,8 +164,8 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
       });
       
       // Add search query if it exists
-      if (searchQuery.trim()) {
-        searchParams.append('q', searchQuery.trim());
+      if (debouncedSearchQuery.trim()) {
+        searchParams.append('query', debouncedSearchQuery.trim());
       }
       
       // Add series filter if it exists
@@ -223,14 +233,14 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
     } finally {
       setSearchLoading(false);
     }
-  }, [currentPage, itemsPerPage, currentSort, searchQuery, currentDeck?.preferences?.series, currentColor]);
+  }, [currentPage, itemsPerPage, currentSort, debouncedSearchQuery, currentDeck?.preferences?.series, currentColor]);
   
   // Initial fetch when component mounts or deck changes
   React.useEffect(() => {
     if (currentDeck && Object.keys(currentDeck).length > 0) {
       fetchCards();
     }
-  }, [currentDeck?.id, currentDeck?.preferences?.series, currentSort, currentPage, itemsPerPage, searchQuery, currentColor]); // Run when any search parameter changes
+  }, [currentDeck?.id, currentDeck?.preferences?.series, currentSort, currentPage, itemsPerPage, debouncedSearchQuery, currentColor]); // Run when any search parameter changes
   
   // Merge search results with deck quantities
   const searchResultsWithQuantities: ExpandedCard[] = searchResults.map(card => {

@@ -43,8 +43,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY *.py ./
 COPY models.py ./
 
-# Copy existing database (if it exists)
-COPY cards.db* ./
+# Note: Database will be created fresh during startup to ensure schema compatibility
 
 # Copy startup script
 COPY start.sh ./
