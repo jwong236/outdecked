@@ -25,6 +25,17 @@ export function DeckBuilderContent() {
   
   const { deckBuilder, setCurrentDeck, clearCurrentDeck } = useSessionStore();
   const currentDeck = deckBuilder.currentDeck;
+  
+  // Debug currentDeck changes
+  React.useEffect(() => {
+    console.log('🃏 DeckBuilderContent: currentDeck changed:', {
+      hasCurrentDeck: !!currentDeck,
+      currentDeckId: currentDeck?.id,
+      currentDeckName: currentDeck?.name,
+      cardsCount: currentDeck?.cards?.length || 0,
+      stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n')
+    });
+  }, [currentDeck]);
   const { clearAllFilters } = useSessionStore();
   const lastProcessedDeckId = useRef<string | null>(null);
   
@@ -202,7 +213,9 @@ export function DeckBuilderContent() {
             console.log('🃏 Converted to session format:', migratedDeck.cards);
           }
           
+          console.log('🃏 DeckBuilderContent: About to set currentDeck:', migratedDeck);
           setCurrentDeck(migratedDeck);
+          console.log('🃏 DeckBuilderContent: currentDeck set, new value:', useSessionStore.getState().deckBuilder.currentDeck);
           
           // Note: Card data fetching will be handled by a separate effect
         }
@@ -229,6 +242,7 @@ export function DeckBuilderContent() {
 
   // Use a ref to capture the current deck value at unmount time
   const currentDeckRef = useRef(currentDeck);
+  const isSavingRef = useRef(false);
   
   // Update the ref whenever currentDeck changes
   useEffect(() => {
@@ -243,7 +257,8 @@ export function DeckBuilderContent() {
       console.log('🃏 BeforeUnload: has id?', !!(deckToSave && 'id' in deckToSave && deckToSave.id));
       console.log('🃏 BeforeUnload: has cards?', (deckToSave && 'cards' in deckToSave && deckToSave.cards) ? deckToSave.cards.length : 0);
       
-      if (deckToSave && Object.keys(deckToSave).length > 0 && 'id' in deckToSave && deckToSave.id) {
+      if (deckToSave && Object.keys(deckToSave).length > 0 && 'id' in deckToSave && deckToSave.id && !isSavingRef.current) {
+        isSavingRef.current = true;
         // Use sendBeacon for reliable saving on page unload
         const data = JSON.stringify(deckToSave);
         const blob = new Blob([data], { type: 'application/json' });
@@ -277,19 +292,50 @@ export function DeckBuilderContent() {
     const handleUnmount = async () => {
       const deckToSave = currentDeckRef.current;
       
-      if (deckToSave && Object.keys(deckToSave).length > 0 && 'id' in deckToSave && deckToSave.id) {
+      if (deckToSave && Object.keys(deckToSave).length > 0 && 'id' in deckToSave && deckToSave.id && !isSavingRef.current) {
+        // Check if user is still authenticated before attempting save
+        if (!user) {
+          console.log('🔄 User not authenticated, skipping deck save on unmount');
+          clearCurrentDeck();
+          return;
+        }
+        
+        isSavingRef.current = true;
         try {
-          const response = await fetch(`/api/user/decks/${(deckToSave as any).id}`, {
+          const deckId = (deckToSave as any).id;
+          console.log('🔄 Saving deck on component unmount...', {
+            deckId: deckId,
+            deckData: deckToSave,
+            userAuthenticated: !!user
+          });
+          const response = await fetch(`/api/user/decks/${deckId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify(deckToSave),
           });
           
+          console.log('🔄 Deck save response:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            headers: Object.fromEntries(response.headers.entries())
+          });
+          
           if (response.ok) {
             console.log('✅ Deck saved before component unmount');
           } else {
-            console.error('Failed to save deck on unmount:', await response.json());
+            let errorText = '';
+            try {
+              errorText = await response.text();
+            } catch (e) {
+              errorText = 'Could not read response body';
+            }
+            console.error('Failed to save deck on unmount:', {
+              status: response.status,
+              statusText: response.statusText,
+              body: errorText || 'Empty response body'
+            });
           }
         } catch (error) {
           console.error('Error saving deck on unmount:', error);
@@ -308,7 +354,7 @@ export function DeckBuilderContent() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       handleUnmount();
     };
-  }, [clearCurrentDeck]); // Include clearCurrentDeck in dependencies
+  }, [clearCurrentDeck, user]); // Include clearCurrentDeck and user in dependencies
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">

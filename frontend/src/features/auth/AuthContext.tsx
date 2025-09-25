@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { apiConfig } from '../../lib/apiConfig';
+import { useSessionStore } from '../../stores/sessionStore';
 
 interface User {
   id: number;

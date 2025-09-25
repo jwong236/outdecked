@@ -41,10 +41,13 @@ export function Navigation() {
   }, [isProfileOpen]);
 
   const handleLogout = async () => {
-    await logout();
     setIsProfileOpen(false);
-    // Redirect to homepage after logout
+    // Redirect first to trigger deck save on unmount
     router.push('/');
+    // Then logout after a brief delay to allow unmount save to complete
+    setTimeout(async () => {
+      await logout();
+    }, 100);
   };
 
   useEffect(() => {

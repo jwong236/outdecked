@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/types/card';
 import { CartGrid } from '@/features/cart/CartGrid';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
+import { CreateDeckModal } from '@/components/shared/modals/CreateDeckModal';
 import { Deck, CardRef, ExpandedCard } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
 import { fetchDecksBatch } from '@/lib/deckUtils';
@@ -13,8 +15,9 @@ import { useAuth } from '@/features/auth/AuthContext';
 import { expandHandItems } from '@/lib/handUtils';
 
 export function CartPage() {
+  const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
-  const { handCart, clearHand, setPrintList, deckBuilder } = useSessionStore();
+  const { handCart, clearHand, setPrintList, deckBuilder, setCurrentDeck } = useSessionStore();
   const [hand, setHand] = useState<ExpandedCard[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
@@ -22,6 +25,8 @@ export function CartPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showMoveToProxyConfirm, setShowMoveToProxyConfirm] = useState(false);
   const [showCopyToDeckModal, setShowCopyToDeckModal] = useState(false);
+  const [showCreateDeckModal, setShowCreateDeckModal] = useState(false);
+  const [showSignInModal, setShowSignInModal] = useState(false);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [decksLoading, setDecksLoading] = useState(false);
   const [newDeckName, setNewDeckName] = useState('');
@@ -116,63 +121,65 @@ export function CartPage() {
     setShowCopyToDeckModal(true);
   };
 
+  const handleDeckCreated = async (deckId: string) => {
+    try {
+      // Add cards to the newly created deck using the batch endpoint
+      console.log('🛒 Copy to deck - hand array:', hand);
+      console.log('🛒 Copy to deck - hand length:', hand.length);
+      const cardsToAdd = hand.map(card => {
+        console.log('🛒 Processing card:', { name: card.name, product_id: card.product_id, quantity: card.quantity });
+        return {
+          card_id: card.product_id,
+          quantity: card.quantity || 1
+        };
+      });
+      console.log('🛒 Cards to add:', cardsToAdd);
+
+      const addCardsResponse = await fetch(`/api/user/decks/${deckId}/cards/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ cards: cardsToAdd }),
+      });
+
+      if (!addCardsResponse.ok) {
+        const errorText = await addCardsResponse.text();
+        console.error('🛒 Failed to add cards to new deck:', addCardsResponse.status, errorText);
+        throw new Error(`Failed to add cards to deck: ${addCardsResponse.status} ${errorText}`);
+      }
+      
+      // Fetch the newly created deck data from the API to get the latest cards
+      const newDeckResponse = await fetch(`/api/user/decks/${deckId}`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      
+      if (newDeckResponse.ok) {
+        const newDeckData = await newDeckResponse.json();
+        const newDeck = newDeckData.deck;
+        
+        // Update the session store with the fresh deck data
+        setCurrentDeck(newDeck);
+        console.log('🛒 Updated session store with new deck data:', newDeck);
+      }
+      
+      // Reload decks to reflect the new deck
+      const deckData = await fetchDecksBatch(deckBuilder.deckList);
+      setDecks(deckData);
+      
+      // Redirect to the deck builder page
+      router.push(`/deckbuilder?deckId=${deckId}`);
+      
+    } catch (error) {
+      console.error('🛒 Error adding cards to new deck:', error);
+      // You could show an error message to the user here
+    }
+  };
+
   const copyToDeck = async () => {
     try {
-      if (selectedDeckId === 'new') {
-        // Create new deck using API
-        const response = await fetch('/api/user/decks', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            name: newDeckName.trim() || 'New Deck',
-            game: 'Union Arena',
-            visibility: 'private',
-            description: '',
-            preferences: {
-              series: 'One Piece',
-              cardTypes: [],
-              rarities: []
-            }
-          }),
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to create deck');
-        }
-
-        const data = await response.json();
-        const newDeck = data.deck;
-        
-        // Add cards to the newly created deck using the batch endpoint
-        console.log('🛒 Copy to deck - hand array:', hand);
-        console.log('🛒 Copy to deck - hand length:', hand.length);
-        const cardsToAdd = hand.map(card => {
-          console.log('🛒 Processing card:', { name: card.name, product_id: card.product_id, quantity: card.quantity });
-          return {
-            card_id: card.product_id,
-            quantity: card.quantity || 1
-          };
-        });
-        console.log('🛒 Cards to add:', cardsToAdd);
-
-        const addCardsResponse = await fetch(`/api/user/decks/${newDeck.id}/cards/batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ cards: cardsToAdd }),
-        });
-
-        if (!addCardsResponse.ok) {
-          const errorText = await addCardsResponse.text();
-          console.error('🛒 Failed to add cards to new deck:', addCardsResponse.status, errorText);
-          throw new Error(`Failed to add cards to deck: ${addCardsResponse.status} ${errorText}`);
-        }
-        
-        // Reload decks to reflect the new deck
-        const deckData = await fetchDecksBatch(deckBuilder.deckList);
-        setDecks(deckData);
-      } else {
+      // Only handle existing deck selection now
+      if (selectedDeckId && selectedDeckId !== 'new') {
         // Add to existing deck
         const response = await fetch(`/api/user/decks/${selectedDeckId}`, {
           method: 'GET',
@@ -216,11 +223,29 @@ export function CartPage() {
           console.error('🛒 Failed to add cards to existing deck:', addCardsResponse.status, errorText);
           throw new Error(`Failed to add cards to deck: ${addCardsResponse.status} ${errorText}`);
         }
+        
+        // Fetch the updated deck data from the API to get the latest cards
+        const updatedDeckResponse = await fetch(`/api/user/decks/${selectedDeckId}`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        
+        if (updatedDeckResponse.ok) {
+          const updatedDeckData = await updatedDeckResponse.json();
+          const updatedDeck = updatedDeckData.deck;
+          
+          // Update the session store with the fresh deck data
+          setCurrentDeck(updatedDeck);
+          console.log('🛒 Updated session store with fresh deck data:', updatedDeck);
+        }
+        
+        setShowCopyToDeckModal(false);
+        setSelectedDeckId('');
+        setNewDeckName('');
+        
+        // Redirect to the deck builder page for the deck we just added cards to
+        router.push(`/deckbuilder?deckId=${selectedDeckId}`);
       }
-      
-      setShowCopyToDeckModal(false);
-      setSelectedDeckId('');
-      setNewDeckName('');
     } catch (error) {
       console.error('Error copying cards to deck:', error);
     }
@@ -455,12 +480,18 @@ export function CartPage() {
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-80 overflow-y-auto">
                     {/* Create New Deck Option */}
                     <button
-                      onClick={() => setSelectedDeckId('new')}
-                      className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
-                        selectedDeckId === 'new'
-                          ? 'border-green-500 bg-green-500/20'
-                          : 'border-white/20 bg-white/5 hover:bg-white/10'
-                      }`}
+                      onClick={() => {
+                        if (!user) {
+                          // Show sign-in modal if not logged in
+                          setShowCopyToDeckModal(false);
+                          setShowSignInModal(true);
+                        } else {
+                          // Open create deck modal if logged in
+                          setShowCopyToDeckModal(false);
+                          setShowCreateDeckModal(true);
+                        }
+                      }}
+                      className="p-4 rounded-lg border-2 transition-all duration-200 text-left border-white/20 bg-white/5 hover:bg-white/10"
                     >
                       <div className="flex gap-4">
                         {/* Create New Deck Icon */}
@@ -592,6 +623,21 @@ export function CartPage() {
         onClose={() => setShowCopyToDeckModal(false)}
         title="Sign In Required"
         message="You need to be signed in to copy cards to your decks. Sign in to save your hand contents and access your personal deck collection."
+      />
+
+      {/* Create Deck Modal */}
+      <CreateDeckModal
+        isOpen={showCreateDeckModal}
+        onClose={() => setShowCreateDeckModal(false)}
+        onDeckCreated={handleDeckCreated}
+      />
+
+      {/* Sign In Modal for Create Deck */}
+      <SignInModal
+        isOpen={showSignInModal}
+        onClose={() => setShowSignInModal(false)}
+        title="Sign In Required"
+        message="You need to be signed in to create new decks. Sign in to save your hand contents and create your personal deck collection."
       />
     </div>
   );

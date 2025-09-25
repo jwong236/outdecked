@@ -28,8 +28,6 @@ const nextConfig = {
         port: '',
         pathname: '/product/**',
       },
-    ],
-    localPatterns: [
       {
         protocol: 'http',
         hostname: 'localhost',

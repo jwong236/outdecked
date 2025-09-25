@@ -63,6 +63,12 @@ export function useSessionInitialization() {
       const currentState = useSessionStore.getState();
       
       // SESSION-WINS BEHAVIOR: Session data completely replaces account data
+      console.log('🔄 handleUserLogin - About to update session with:', {
+        currentStateCurrentDeck: currentState.deckBuilder.currentDeck,
+        userDataCurrentDeck: userData.deckBuilder.currentDeck,
+        willPreserve: currentState.deckBuilder.currentDeck || userData.deckBuilder.currentDeck
+      });
+      
       batchUpdateUserData({
         user: {
           id: user.id,
@@ -87,8 +93,11 @@ export function useSessionInitialization() {
             { type: 'or', field: 'Rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
           ],
         },
-        // Use account deck builder data
-        deckBuilder: userData.deckBuilder,
+        // Use account deck builder data but preserve current session deck
+        deckBuilder: {
+          ...userData.deckBuilder,
+          currentDeck: currentState.deckBuilder.currentDeck || userData.deckBuilder.currentDeck, // Preserve current session deck, fallback to account deck
+        },
         // SESSION WINS: Current session cart completely replaces account cart
         handCart: currentState.handCart,
         // SESSION WINS: Current session proxy printer data is kept (doesn't sync to account anyway)
