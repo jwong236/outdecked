@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { compactHandItems } from '@/lib/handUtils';
 import { useAuth } from '@/features/auth/AuthContext';
@@ -21,6 +21,9 @@ export function useSessionInitialization() {
     sessionState
   } = useSessionStore();
   const { showNotification } = useNotification();
+  
+  // Track the last processed user to avoid duplicate login notifications
+  const lastProcessedUserId = useRef<number | null>(null);
 
   // Initialize session on app startup
   useEffect(() => {
@@ -34,16 +37,24 @@ export function useSessionInitialization() {
   useEffect(() => {
     if (sessionState.isInitialized && !authLoading) {
       if (user) {
-        console.log('👤 User logged in - populating session...');
-        handleUserLogin(user);
+        // Only process if this is a new user (not a page refresh)
+        if (lastProcessedUserId.current !== user.id) {
+          console.log('👤 User logged in - populating session...');
+          handleUserLogin(user, true); // true = show notification
+          lastProcessedUserId.current = user.id;
+        } else {
+          console.log('👤 User session restored - populating session silently...');
+          handleUserLogin(user, false); // false = no notification
+        }
       } else {
         console.log('👤 User logged out - clearing user data...');
         handleUserLogout();
+        lastProcessedUserId.current = null;
       }
     }
   }, [user, authLoading, sessionState.isInitialized]);
 
-  const handleUserLogin = async (user: any) => {
+  const handleUserLogin = async (user: any, showLoginNotification: boolean = false) => {
     try {
       // Load user data from database
       const userData = await loadUserData();
@@ -91,8 +102,10 @@ export function useSessionInitialization() {
 
       console.log('✅ User logged in - session data preserved, account data loaded');
       
-      // Show success notification
-      showNotification('Logged in successfully. Your current cart has been saved to your account.', 'success');
+      // Show success notification only for genuine new logins
+      if (showLoginNotification) {
+        showNotification('Logged in successfully. Your current cart has been saved to your account.', 'success');
+      }
     } catch (error) {
       console.error('❌ Failed to populate user session:', error);
     }

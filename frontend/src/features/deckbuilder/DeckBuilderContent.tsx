@@ -9,8 +9,6 @@ import { DeckBuilderSettingsModal } from './components/modals/DeckBuilderSetting
 import { DeckBuilderSearchSettingsModal } from './components/modals/DeckBuilderSearchSettingsModal';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { useDeckOperations } from './hooks/useDeckOperations';
-// TODO: Replace useSearchLogic with direct sessionStore usage
-// import { useSearchLogic } from './hooks/useSearchLogic';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAuth } from '@/features/auth/AuthContext';
 import { Card, CardCache } from '@/types/card';
@@ -26,7 +24,6 @@ export function DeckBuilderContent() {
   
   
   const { deckBuilder, setCurrentDeck, clearCurrentDeck } = useSessionStore();
-  const sessionStore = useSessionStore;
   const currentDeck = deckBuilder.currentDeck;
   const { clearAllFilters } = useSessionStore();
   const lastProcessedDeckId = useRef<string | null>(null);
@@ -149,8 +146,7 @@ export function DeckBuilderContent() {
   // Simple authentication check
   useEffect(() => {
     if (!authLoading && !user) {
-      // TODO: Show sign in modal
-      console.log('TODO: Show sign in modal');
+      // User not authenticated - could show sign in modal here if needed
     }
   }, [authLoading, user]);
 

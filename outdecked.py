@@ -62,6 +62,7 @@ from deck_builder import (
     handle_get_deck,
     handle_get_decks_batch,
     handle_add_card_to_deck,
+    handle_add_cards_to_deck,
     handle_remove_card_from_deck,
     handle_update_card_quantity,
     handle_get_validation_rules,

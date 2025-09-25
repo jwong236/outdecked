@@ -145,10 +145,16 @@ export function CartPage() {
         const newDeck = data.deck;
         
         // Add cards to the newly created deck using the batch endpoint
-        const cardsToAdd = hand.map(card => ({
-          card_id: card.product_id,
-          quantity: card.quantity || 1
-        }));
+        console.log('🛒 Copy to deck - hand array:', hand);
+        console.log('🛒 Copy to deck - hand length:', hand.length);
+        const cardsToAdd = hand.map(card => {
+          console.log('🛒 Processing card:', { name: card.name, product_id: card.product_id, quantity: card.quantity });
+          return {
+            card_id: card.product_id,
+            quantity: card.quantity || 1
+          };
+        });
+        console.log('🛒 Cards to add:', cardsToAdd);
 
         const addCardsResponse = await fetch(`/api/user/decks/${newDeck.id}/cards/batch`, {
           method: 'POST',
@@ -158,7 +164,9 @@ export function CartPage() {
         });
 
         if (!addCardsResponse.ok) {
-          throw new Error('Failed to add cards to deck');
+          const errorText = await addCardsResponse.text();
+          console.error('🛒 Failed to add cards to new deck:', addCardsResponse.status, errorText);
+          throw new Error(`Failed to add cards to deck: ${addCardsResponse.status} ${errorText}`);
         }
         
         // Reload decks to reflect the new deck
@@ -185,10 +193,16 @@ export function CartPage() {
         }
 
         // Add cards to existing deck using the batch endpoint
-        const cardsToAdd = hand.map(card => ({
-          card_id: card.product_id,
-          quantity: card.quantity || 1
-        }));
+        console.log('🛒 Copy to existing deck - hand array:', hand);
+        console.log('🛒 Copy to existing deck - hand length:', hand.length);
+        const cardsToAdd = hand.map(card => {
+          console.log('🛒 Processing card for existing deck:', { name: card.name, product_id: card.product_id, quantity: card.quantity });
+          return {
+            card_id: card.product_id,
+            quantity: card.quantity || 1
+          };
+        });
+        console.log('🛒 Cards to add to existing deck:', cardsToAdd);
 
         const addCardsResponse = await fetch(`/api/user/decks/${selectedDeckId}/cards/batch`, {
           method: 'POST',
@@ -198,7 +212,9 @@ export function CartPage() {
         });
 
         if (!addCardsResponse.ok) {
-          throw new Error('Failed to add cards to deck');
+          const errorText = await addCardsResponse.text();
+          console.error('🛒 Failed to add cards to existing deck:', addCardsResponse.status, errorText);
+          throw new Error(`Failed to add cards to deck: ${addCardsResponse.status} ${errorText}`);
         }
       }
       

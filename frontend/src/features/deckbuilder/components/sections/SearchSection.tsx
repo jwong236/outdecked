@@ -381,7 +381,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
             onCardClick={handleCardClick}
             onAddToDeck={(card) => handleQuantityChange(card, 1)}
             onQuantityChange={handleQuantityChange}
-            showRarity={true}
+            showRarity={false}
             deckCards={currentDeck?.cards?.map(cardRef => {
               const card = searchCache[cardRef.card_id];
               return card ? { ...card, quantity: cardRef.quantity } : null;

@@ -553,8 +553,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
           console.log(`🖼️ Card ${fullCardData.name}: product_id = ${fullCardData.product_id}`);
           return {
             name: fullCardData.name,
-            image_url_small: `https://tcgplayer-cdn.tcgplayer.com/product/${fullCardData.product_id}_in_400x400.jpg`,
-            image_url_large: `https://tcgplayer-cdn.tcgplayer.com/product/${fullCardData.product_id}_in_1000x1000.jpg`,
+            card_url: `https://tcgplayer-cdn.tcgplayer.com/product/${fullCardData.product_id}_in_1000x1000.jpg`,
             quantity: deckCard.quantity,
             CardType: fullCardData.attributes?.find(attr => attr.name === 'CardType')?.value || 'Unknown',
             RequiredEnergy: fullCardData.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0'
@@ -563,8 +562,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
           console.log(`🖼️ Card data not found in cache for ${deckCard.card_id}`);
           return {
             name: `Card ${deckCard.card_id}`,
-            image_url_small: '',
-            image_url_large: '',
+            card_url: null,
             quantity: deckCard.quantity,
             CardType: 'Unknown',
             RequiredEnergy: '0'

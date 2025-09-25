@@ -70,7 +70,7 @@ export function SearchLayout({
     if (Object.keys(urlFilters).length > 0) {
       // Apply URL filters to searchPreferences
       if (urlFilters.query) {
-        // TODO: Implement setQuery if needed
+        // Query handling could be implemented here if needed
       }
       if (urlFilters.sort) setSort(urlFilters.sort);
       if (urlFilters.page) setPage(urlFilters.page);
