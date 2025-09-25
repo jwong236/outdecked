@@ -66,6 +66,7 @@ interface SessionState {
     lastSync: string | null; // ISO timestamp of last database sync
   };
 
+
   // ===== ACTIONS =====
   
   // Session initialization
@@ -141,10 +142,12 @@ const defaultSearchPreferences: SearchParams = {
   per_page: 24,
   page: 1,
   filters: [
-    { type: 'and', field: 'game', value: 'Attack on Titan', displayText: 'Game: Attack on Titan' },
-    { type: 'and', field: 'print_type', value: 'Basic', displayText: 'Basic Prints Only' },
-    { type: 'not', field: 'ActionPointCost', value: '0', displayText: 'No Action Points' },
-    { type: 'and', field: 'Rarity', value: 'Base', displayText: 'Base Rarity Only' },
+    { type: 'and', field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' },
+    { type: 'not', field: 'CardType', value: 'Action Point', displayText: 'No Action Points' },
+    { type: 'or', field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
+    { type: 'or', field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+    { type: 'or', field: 'Rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+    { type: 'or', field: 'Rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
   ],
 };
 
@@ -175,6 +178,7 @@ const defaultSessionState = {
   isLoggedIn: false,
   lastSync: null,
 };
+
 
 export const useSessionStore = create<SessionState>()(
   devtools(

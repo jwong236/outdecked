@@ -6,12 +6,14 @@ import { DeckBuilderHeader } from './DeckBuilderHeader';
 import { SearchSection } from './components/sections/SearchSection';
 import { DeckSection } from './components/sections/DeckSection';
 import { DeckBuilderSettingsModal } from './components/modals/DeckBuilderSettingsModal';
+import { DeckBuilderSearchSettingsModal } from './components/modals/DeckBuilderSearchSettingsModal';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { useDeckOperations } from './hooks/useDeckOperations';
 // TODO: Replace useSearchLogic with direct sessionStore usage
 // import { useSearchLogic } from './hooks/useSearchLogic';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAuth } from '@/features/auth/AuthContext';
+import { Card } from '@/types/card';
 
 export function DeckBuilderContent() {
   const router = useRouter();
@@ -29,7 +31,13 @@ export function DeckBuilderContent() {
   const lastProcessedDeckId = useRef<string | null>(null);
   
   // Shared search cache state - lifted up from SearchSection to share with DeckSection
-  const [searchCache, setSearchCache] = React.useState<Record<string, any>>({});
+  const [searchCache, setSearchCache] = React.useState<Record<number, Card>>({});
+  
+  // Clear cache on mount to remove any old format cards
+  React.useEffect(() => {
+    console.log('🃏 DeckBuilderContent: Clearing search cache to remove old format cards');
+    setSearchCache({});
+  }, []);
   
   // Current search results for navigation
   const [currentSearchResults, setCurrentSearchResults] = React.useState<any[]>([]);
@@ -71,6 +79,7 @@ export function DeckBuilderContent() {
   
   // Modal state for deck settings
   const [showDeckSettingsModal, setShowDeckSettingsModal] = React.useState(false);
+  const [showSearchSettingsModal, setShowSearchSettingsModal] = React.useState(false);
   const [showCoverModal, setShowCoverModal] = React.useState(false);
   
   // Modal handlers (same pattern as SearchLayout)
@@ -87,7 +96,7 @@ export function DeckBuilderContent() {
     } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
       // It's a deck card - find in deck cards
       allCards = currentDeck.cards.map((deckCard: any) => {
-        const fullCardData = searchCache[deckCard.id];
+        const fullCardData = searchCache[deckCard.card_id];
         return fullCardData ? { ...fullCardData, quantity: deckCard.quantity } : deckCard;
       });
       index = allCards.findIndex(c => c.id === card.id);
@@ -112,7 +121,7 @@ export function DeckBuilderContent() {
     } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
       // It's a deck card
       allCards = currentDeck.cards.map((deckCard: any) => {
-        const fullCardData = searchCache[deckCard.id];
+        const fullCardData = searchCache[deckCard.card_id];
         return fullCardData ? { ...fullCardData, quantity: deckCard.quantity } : deckCard;
       });
     }
@@ -292,7 +301,10 @@ export function DeckBuilderContent() {
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <DeckBuilderHeader 
-        onShowDeckSettings={() => setShowDeckSettingsModal(true)}
+        onShowDeckSettings={() => {
+          console.log('🔧 Opening deck settings modal');
+          setShowDeckSettingsModal(true);
+        }}
         onShowCoverModal={() => setShowCoverModal(true)}
         deckOperations={deckOperations}
       />
@@ -307,6 +319,10 @@ export function DeckBuilderContent() {
           fetchMissingCardData={fetchMissingCardData}
           onSearchResultsChange={setCurrentSearchResults}
           onQuantityChange={deckOperations.handleQuantityChange}
+          onShowDeckSettings={() => {
+            console.log('🔧 Opening search settings modal from search section');
+            setShowSearchSettingsModal(true);
+          }}
         />
 
         {/* Right Side - Current Deck */}
@@ -322,7 +338,21 @@ export function DeckBuilderContent() {
       {showDeckSettingsModal && (
         <DeckBuilderSettingsModal
           isOpen={showDeckSettingsModal}
-          onClose={() => setShowDeckSettingsModal(false)}
+          onClose={() => {
+            console.log('🔧 Closing deck settings modal');
+            setShowDeckSettingsModal(false);
+          }}
+        />
+      )}
+
+      {/* Search Settings Modal */}
+      {showSearchSettingsModal && (
+        <DeckBuilderSearchSettingsModal
+          isOpen={showSearchSettingsModal}
+          onClose={() => {
+            console.log('🔧 Closing search settings modal');
+            setShowSearchSettingsModal(false);
+          }}
         />
       )}
 
@@ -408,7 +438,7 @@ export function DeckBuilderContent() {
           } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
             // It's a deck card
             return currentDeck.cards.map((deckCard: any) => {
-              const fullCardData = searchCache[deckCard.id];
+              const fullCardData = searchCache[deckCard.card_id];
               return fullCardData ? { ...fullCardData, quantity: deckCard.quantity } : deckCard;
             });
           }

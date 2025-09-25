@@ -5,17 +5,19 @@ import { DeckBuilderSearchGrid } from '../grids/DeckBuilderSearchGrid';
 import { CompactFilterSection } from '../filters/CompactFilterSection';
 import { useSessionStore } from '@/stores/sessionStore';
 import { Card, ExpandedCard } from '@/types/card';
+import { transformRawCardsToCards } from '@/lib/cardTransform';
 
 interface SearchSectionProps {
-  searchCache: Record<string, Card>;
-  setSearchCache: React.Dispatch<React.SetStateAction<Record<string, Card>>>;
+  searchCache: Record<number, Card>;
+  setSearchCache: React.Dispatch<React.SetStateAction<Record<number, Card>>>;
   onCardClick?: (card: ExpandedCard) => void;
   fetchMissingCardData?: (cardIds: string[]) => Promise<void>;
   onSearchResultsChange?: (results: Card[]) => void;
   onQuantityChange?: (card: ExpandedCard, change: number) => void;
+  onShowDeckSettings?: () => void;
 }
 
-export const SearchSection = React.memo(function SearchSection({ searchCache, setSearchCache, onCardClick, fetchMissingCardData, onSearchResultsChange, onQuantityChange }: SearchSectionProps) {
+export const SearchSection = React.memo(function SearchSection({ searchCache, setSearchCache, onCardClick, fetchMissingCardData, onSearchResultsChange, onQuantityChange, onShowDeckSettings }: SearchSectionProps) {
   const { deckBuilder, setCurrentDeck } = useSessionStore();
   const currentDeck = deckBuilder.currentDeck;
   
@@ -86,7 +88,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   };
 
   // Helper function to get card from cache
-  const getCardFromCache = (cardId: string) => {
+  const getCardFromCache = (cardId: number) => {
     return searchCache[cardId];
   };
 
@@ -97,7 +99,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
     }
     
     // Get full card data from cache
-    const fullCardData = searchCache[cardId];
+    const fullCardData = searchCache[parseInt(cardId)];
     if (!fullCardData) {
       return;
     }
@@ -203,10 +205,12 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
         }
         
         // Cache the cards by product_id for fast deck building
+        // Transform raw API data to clean Card objects once at cache time
+        const cleanCards = transformRawCardsToCards(data.cards);
         setSearchCache(prev => {
           const newCache = { ...prev };
-          data.cards.forEach((card: Card) => {
-            newCache[card.product_id.toString()] = card; // Cache by product_id
+          cleanCards.forEach(card => {
+            newCache[card.product_id] = card;
           });
           return newCache;
         });
@@ -361,7 +365,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
           query={searchQuery || ''}
           onQueryChange={handleQueryChange}
           onSearch={handleSearch}
-          onAdvancedFilters={() => (window as any).openDeckSettingsModal?.()}
+          onAdvancedFilters={onShowDeckSettings || (() => {})}
           hasActiveFilters={hasActiveAdvancedFilters}
         />
       </div>
@@ -379,7 +383,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
             onQuantityChange={handleQuantityChange}
             showRarity={true}
             deckCards={currentDeck?.cards?.map(cardRef => {
-              const card = searchCache[cardRef.card_id.toString()];
+              const card = searchCache[cardRef.card_id];
               return card ? { ...card, quantity: cardRef.quantity } : null;
             }).filter(Boolean) as ExpandedCard[] || []}
             customGridClasses="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"

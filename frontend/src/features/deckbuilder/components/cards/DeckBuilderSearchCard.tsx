@@ -109,7 +109,7 @@ export function DeckBuilderSearchCard({
 
         {/* Rarity (if enabled) */}
         {showRarity && (() => {
-          const rarity = card.attributes.find(attr => attr.name === 'Rarity')?.value;
+          const rarity = card.attributes?.find(attr => attr.name === 'Rarity')?.value;
           return rarity && (
             <div className="text-yellow-400 text-xs">
               {rarity}

@@ -35,8 +35,8 @@ export function DecklistModal({ isOpen, onClose, deckName, cards }: DecklistModa
         name: card.name,
         card_url: card.card_url,
         quantity: card.quantity,
-        CardType: card.attributes.find(attr => attr.name === 'CardType')?.value || 'Unknown',
-        RequiredEnergy: card.attributes.find(attr => attr.name === 'RequiredEnergy')?.value || '0',
+        CardType: card.attributes?.find(attr => attr.name === 'CardType')?.value || 'Unknown',
+        RequiredEnergy: card.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0',
       }));
 
       const imageBlob = await generateDecklistImage({

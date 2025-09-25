@@ -14,16 +14,65 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
     return searchPreferences.filters.some(f => f.field === field && f.value === value);
   };
 
+  // Helper function to check if "No Action Points" filter is active
+  const hasNoActionPointsFilter = () => {
+    return searchPreferences.filters.some(f => f.field === 'CardType' && f.value === 'Action Point' && f.type === 'not');
+  };
+
+  // Helper function to check if "Base Rarity Only" filter is active
+  const hasBaseRarityOnlyFilter = () => {
+    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
+    return baseRarities.every(rarity => 
+      searchPreferences.filters.some(f => 
+        f.field === 'Rarity' && 
+        f.value === rarity && 
+        f.type === 'or'
+      )
+    );
+  };
+
   // Helper function to add or remove a filter
   const toggleFilter = (field: string, value: string, displayText: string, enabled: boolean) => {
     if (enabled) {
-      addFilter({ type: 'and', field, value, displayText });
+      // Special cases for different filter types
+      let filterType: 'and' | 'or' | 'not' = 'and';
+      if (field === 'CardType' && value === 'Action Point') {
+        filterType = 'not';
+      }
+      addFilter({ type: filterType, field, value, displayText });
     } else {
-      // Find and remove the filter
-      const filterIndex = searchPreferences.filters.findIndex(f => f.field === field && f.value === value);
+      // Find and remove the filter (handle all types)
+      const filterIndex = searchPreferences.filters.findIndex(f => 
+        f.field === field && f.value === value
+      );
       if (filterIndex !== -1) {
         removeFilter(filterIndex);
       }
+    }
+  };
+
+  // Helper function to toggle Base Rarity filter (multiple OR filters)
+  const toggleBaseRarityFilter = (enabled: boolean) => {
+    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
+    
+    if (enabled) {
+      // Add all base rarity filters
+      baseRarities.forEach(rarity => {
+        addFilter({ type: 'or', field: 'Rarity', value: rarity, displayText: 'Base Rarity Only' });
+      });
+    } else {
+      // Remove all base rarity filters
+      const filtersToRemove = searchPreferences.filters
+        .map((filter, index) => ({ filter, index }))
+        .filter(({ filter }) => 
+          filter.field === 'Rarity' && 
+          baseRarities.includes(filter.value) && 
+          filter.type === 'or'
+        )
+        .map(({ index }) => index)
+        .reverse(); // Remove in reverse order to avoid index shifting
+      
+      filtersToRemove.forEach(index => removeFilter(index));
     }
   };
 
@@ -36,8 +85,8 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
         <label className="flex items-center space-x-3 cursor-pointer">
           <input
             type="checkbox"
-            checked={hasFilter('print_type', 'Basic')}
-            onChange={(e) => toggleFilter('print_type', 'Basic', 'Basic Prints Only', e.target.checked)}
+            checked={hasFilter('PrintType', 'Base')}
+            onChange={(e) => toggleFilter('PrintType', 'Base', 'Base Prints Only', e.target.checked)}
             className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
           />
           <span className="text-white font-medium">Basic Prints Only</span>
@@ -47,8 +96,8 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
         <label className="flex items-center space-x-3 cursor-pointer">
           <input
             type="checkbox"
-            checked={hasFilter('ActionPointCost', '0')}
-            onChange={(e) => toggleFilter('ActionPointCost', '0', 'No Action Points', e.target.checked)}
+            checked={hasNoActionPointsFilter()}
+            onChange={(e) => toggleFilter('CardType', 'Action Point', 'No Action Points', e.target.checked)}
             className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
           />
           <span className="text-white font-medium">No Action Points</span>
@@ -58,8 +107,8 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
         <label className="flex items-center space-x-3 cursor-pointer">
           <input
             type="checkbox"
-            checked={hasFilter('Rarity', 'Base')}
-            onChange={(e) => toggleFilter('Rarity', 'Base', 'Base Rarity Only', e.target.checked)}
+            checked={hasBaseRarityOnlyFilter()}
+            onChange={(e) => toggleBaseRarityFilter(e.target.checked)}
             className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
           />
           <span className="text-white font-medium">Base Rarity Only</span>

@@ -171,7 +171,7 @@ export function useSearchLogic() {
     page: currentPage,
     per_page: itemsPerPage,
     filters: [
-      { type: 'and' as const, field: 'game', value: 'Union Arena', displayText: 'Game: Union Arena' },
+      // Note: game filter is handled by backend default, no need to include it
       // Add series filter from deck preferences
       ...(currentDeck?.preferences?.series ? [{
         type: 'and' as const, 
@@ -187,9 +187,14 @@ export function useSearchLogic() {
         displayText: `Color: ${currentSearchColor}`
       }] : []),
       // Add default filters as positive inclusions
-      ...(isBasicPrintsOnlyPreset ? [{ type: 'and' as const, field: 'print_type', value: 'Basic', displayText: 'Basic Prints Only' }] : []),
-      ...(isNoActionPointsPreset ? [{ type: 'not' as const, field: 'ActionPointCost', value: '0', displayText: 'No Action Points' }] : []),
-      ...(isBaseRarityOnlyPreset ? [{ type: 'and' as const, field: 'Rarity', value: 'Base', displayText: 'Base Rarity Only' }] : []),
+      ...(isBasicPrintsOnlyPreset ? [{ type: 'and' as const, field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' }] : []),
+      ...(isNoActionPointsPreset ? [{ type: 'not' as const, field: 'CardType', value: 'Action Point', displayText: 'No Action Points' }] : []),
+      ...(isBaseRarityOnlyPreset ? [
+        { type: 'or' as const, field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'Rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'Rarity', value: 'Super Rare', displayText: 'Base Rarity Only' }
+      ] : []),
       // Add deck card type exclusions
       ...deckCardTypeFilters
     ]

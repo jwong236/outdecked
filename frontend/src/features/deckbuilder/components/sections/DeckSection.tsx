@@ -4,10 +4,11 @@ import React from 'react';
 import { GroupedDeckGrid } from '../grids/GroupedDeckGrid';
 import { DeckValidation } from '@/lib/deckValidation';
 import { useSessionStore } from '@/stores/sessionStore';
+import { Card } from '@/types/card';
 
 interface DeckSectionProps {
-  searchCache: Record<string, any>;
-  setSearchCache: (updater: (prev: Record<string, any>) => Record<string, any>) => void;
+  searchCache: Record<number, Card>;
+  setSearchCache: (updater: (prev: Record<number, Card>) => Record<number, Card>) => void;
   onCardClick?: (card: any) => void;
   onQuantityChange?: (card: any, change: number) => void;
 }
@@ -51,30 +52,99 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
   
   // Create deck cards array - cards now only store card_id and quantity, get full data from cache
   const deckCards = React.useMemo(() => {
+    console.log('🃏 DeckSection: currentDeck:', currentDeck);
+    console.log('🃏 DeckSection: currentDeck keys:', currentDeck ? Object.keys(currentDeck) : 'null');
+    console.log('🃏 DeckSection: currentDeck.cards:', (currentDeck as any)?.cards);
+    console.log('🃏 DeckSection: currentDeck.cards length:', (currentDeck as any)?.cards?.length);
+    
     if (!currentDeck || Object.keys(currentDeck).length === 0 || !(currentDeck as any).cards) {
+      console.log('🃏 DeckSection: No deck or no cards, returning empty array');
       return [];
     }
     
-    return (currentDeck as any).cards.map((deckCard: any) => {
-      // Get full card data from cache using string key
-      const cardIdStr = deckCard.card_id.toString();
-      const fullCardData = searchCache[cardIdStr];
+    // Check if cards array is empty
+    if ((currentDeck as any).cards.length === 0) {
+      console.log('🃏 DeckSection: Cards array is empty, returning empty array');
+      return [];
+    }
+    
+    // Filter out any malformed card objects
+    const validCards = (currentDeck as any).cards.filter((card: any) => {
+      const isValid = card && typeof card === 'object' && card.card_id && card.quantity;
+      if (!isValid) {
+        console.warn('🃏 DeckSection: Found malformed card object, filtering out:', card);
+      }
+      return isValid;
+    });
+    
+    if (validCards.length === 0) {
+      console.log('🃏 DeckSection: No valid cards after filtering, returning empty array');
+      return [];
+    }
+    
+    console.log('🃏 DeckSection: Valid cards after filtering:', validCards.length);
+    
+    console.log('🃏 DeckSection: searchCache keys:', Object.keys(searchCache));
+    
+    const cards = validCards.map((deckCard: any, index: number) => {
+      console.log(`🃏 DeckSection: Processing deckCard ${index}:`, deckCard);
+      
+      // Validate deckCard structure
+      if (!deckCard || typeof deckCard !== 'object') {
+        console.error(`🃏 DeckSection: Invalid deckCard at index ${index}:`, deckCard);
+        return null; // Skip invalid cards
+      }
+      
+      if (!deckCard.card_id || !deckCard.quantity) {
+        console.error(`🃏 DeckSection: Missing required fields in deckCard ${index}:`, deckCard);
+        return null; // Skip invalid cards
+      }
+      
+      // Get full card data from cache using number key
+      console.log(`🃏 DeckSection: Looking up card_id ${deckCard.card_id} (type: ${typeof deckCard.card_id}) in cache`);
+      console.log(`🃏 DeckSection: Available cache keys:`, Object.keys(searchCache).map(k => `${k} (${typeof k})`));
+      const fullCardData = searchCache[deckCard.card_id];
+      console.log(`🃏 DeckSection: Cache lookup for card_id ${deckCard.card_id}:`, fullCardData ? 'FOUND' : 'NOT FOUND');
+      
       if (fullCardData) {
+        // Card is already clean and transformed - use directly
         return {
           ...fullCardData,
           quantity: deckCard.quantity
         };
       } else {
         // Fallback for missing cache data
-        return {
+        const fallbackCard = {
           id: deckCard.card_id,
+          product_id: deckCard.card_id,
           quantity: deckCard.quantity,
           name: `Card ${deckCard.card_id}`,
-          image_url: '',
+          clean_name: null,
           card_url: '',
+          game: 'Union Arena',
+          category_id: 0,
+          group_id: 0,
+          image_count: 0,
+          is_presale: false,
+          released_on: '',
+          presale_note: '',
+          modified_on: '',
+          price: null,
+          low_price: null,
+          mid_price: null,
+          high_price: null,
+          created_at: '',
+          attributes: [], // Empty attributes array to prevent errors
         };
+        console.log(`🃏 DeckSection: Created fallback card for ${deckCard.card_id}:`, fallbackCard);
+        return fallbackCard;
       }
-    });
+    }).filter(Boolean); // Remove null entries
+    
+    // Debug logging
+    console.log('🃏 DeckSection: deckCards created:', cards.length, 'cards');
+    
+    return cards;
   }, [(currentDeck as any)?.cards, searchCache]);
   
   // Auto-fetch missing card data when deck changes
@@ -86,8 +156,7 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
     const deckCards = (currentDeck as any).cards;
     const missingCardIds = deckCards
       .filter((deckCard: any) => {
-        const cardIdStr = deckCard.card_id.toString();
-        return !searchCache[cardIdStr] && !requestedCardsRef.current.has(cardIdStr);
+        return !searchCache[deckCard.card_id] && !requestedCardsRef.current.has(deckCard.card_id.toString());
       })
       .map((deckCard: any) => deckCard.card_id.toString());
     

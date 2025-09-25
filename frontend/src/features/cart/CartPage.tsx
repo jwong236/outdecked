@@ -102,6 +102,7 @@ export function CartPage() {
     // Add to print list using sessionStore
     setPrintList(printListItems);
     setShowMoveToProxyConfirm(false);
+    
     // Redirect to proxy printer page
     window.location.href = '/proxy-printer';
   };

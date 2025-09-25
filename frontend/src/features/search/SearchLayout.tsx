@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSearchCards, useSeriesValues, useColorValues, useFilterFields } from '@/lib/hooks';
 import { useUrlState } from '@/lib/useUrlState';
-import { Card } from '@/types/card';
-import { SearchResponse } from '@/lib/api';
+import { Card, SearchResponse } from '@/types/card';
 import { useAuth } from '@/features/auth/AuthContext';
 import { FilterSection } from './FilterSection';
 import { QuickFilters } from './QuickFilters';
@@ -55,8 +54,14 @@ export function SearchLayout({
   const [isNavigatingPages, setIsNavigatingPages] = useState<boolean>(false);
   const [showAdvancedFiltersModal, setShowAdvancedFiltersModal] = useState(false);
   const [query, setQuery] = useState<string>(''); // Temporary UI state
+  const [isClient, setIsClient] = useState(false);
 
   // Search preferences are automatically loaded by sessionStore
+
+  // Set client flag after hydration
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Initialize filters from URL on mount (only once)
   useEffect(() => {
@@ -95,7 +100,10 @@ export function SearchLayout({
     syncFiltersToUrl(getFiltersForAPI());
   }, [searchPreferences, syncFiltersToUrl, getFiltersForAPI]);
 
-  const { data: searchData, isLoading, error } = useSearchCards(getFiltersForAPI());
+  const searchParams = getFiltersForAPI();
+  console.log('🔍 SearchLayout: Calling useSearchCards with params:', searchParams);
+  
+  const { data: searchData, isLoading, error } = useSearchCards(searchParams);
   const { data: seriesData } = useSeriesValues();
   const { data: colorData } = useColorValues();
   const { data: filterFields } = useFilterFields();
@@ -241,11 +249,11 @@ export function SearchLayout({
           <div className="p-4 pt-6 space-y-6">
             {/* Main Filters */}
             <FilterSection
-              series={getSeries()}
+              series={isClient ? (getSeries() || '') : ''}
               onSeriesChange={setSeries}
-              color={getColor()}
+              color={isClient ? (getColor() || '') : ''}
               onColorChange={setColor}
-              cardType={getCardType()}
+              cardType={isClient ? (getCardType() || '') : ''}
               onCardTypeChange={setCardType}
               sort={searchPreferences.sort}
               onSortChange={setSort}
@@ -327,7 +335,7 @@ export function SearchLayout({
                 console.log('🔍 SearchLayout: cards array:', cards);
                 console.log('🔍 SearchLayout: cards length:', cards.length);
                 
-                const expandedCards = cards.map(card => ({ ...card, quantity: 0 }));
+                const expandedCards = cards.map((card: Card) => ({ ...card, quantity: 0 }));
                 console.log('🔍 SearchLayout: expandedCards:', expandedCards);
                 
                 return expandedCards;

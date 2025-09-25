@@ -2,6 +2,8 @@ import { useEffect } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { compactHandItems } from '@/lib/handUtils';
 import { useAuth } from '@/features/auth/AuthContext';
+import { useNotification } from '@/components/shared/NotificationContext';
+import { CardRef } from '@/types/card';
 
 /**
  * Hook to initialize the session when the app starts
@@ -16,8 +18,9 @@ export function useSessionInitialization() {
   const { 
     initializeSession, 
     batchUpdateUserData,
-    sessionState 
+    sessionState
   } = useSessionStore();
+  const { showNotification } = useNotification();
 
   // Initialize session on app startup
   useEffect(() => {
@@ -48,7 +51,7 @@ export function useSessionInitialization() {
       // Get current session state to preserve local data
       const currentState = useSessionStore.getState();
       
-      // Merge database data with local session data
+      // SESSION-WINS BEHAVIOR: Session data completely replaces account data
       batchUpdateUserData({
         user: {
           id: user.id,
@@ -58,37 +61,27 @@ export function useSessionInitialization() {
           display_name: user.display_name,
           avatar_url: user.avatar_url,
         },
-        // Preserve local filters, merge with database preferences
+        // Use account preferences for search settings (these are user preferences, not session data)
         searchPreferences: {
           query: '',
           sort: userData.searchPreferences.sort || 'name_asc',
           page: 1,
           per_page: userData.searchPreferences.per_page || 24,
-          filters: currentState.searchPreferences.filters || [], // Keep local filters, fallback to empty array
+          filters: [
+            { type: 'and', field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' },
+            { type: 'not', field: 'CardType', value: 'Action Point', displayText: 'No Action Points' },
+            { type: 'or', field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
+            { type: 'or', field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+            { type: 'or', field: 'Rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+            { type: 'or', field: 'Rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
+          ],
         },
+        // Use account deck builder data
         deckBuilder: userData.deckBuilder,
-        // Merge local hand items with database hand items (deduplicate by card_id)
-        handCart: {
-          ...userData.handCart,
-          handItems: (() => {
-            const allItems = [
-              ...currentState.handCart.handItems, // Keep local hand items
-              ...userData.handCart.handItems, // Add database hand items
-            ];
-            
-            // Deduplicate by card_id, keeping the item with higher quantity
-            const deduplicated = new Map<number, CardRef>();
-            allItems.forEach(item => {
-              const existing = deduplicated.get(item.card_id);
-              if (!existing || item.quantity > existing.quantity) {
-                deduplicated.set(item.card_id, item);
-              }
-            });
-            
-            return Array.from(deduplicated.values());
-          })(),
-        },
-        proxyPrinter: userData.proxyPrinter,
+        // SESSION WINS: Current session cart completely replaces account cart
+        handCart: currentState.handCart,
+        // SESSION WINS: Current session proxy printer data is kept (doesn't sync to account anyway)
+        proxyPrinter: currentState.proxyPrinter,
         sessionState: {
           ...currentState.sessionState,
           isLoggedIn: true,
@@ -96,15 +89,20 @@ export function useSessionInitialization() {
         },
       });
 
-      console.log('✅ User session populated with database data');
+      console.log('✅ User logged in - session data preserved, account data loaded');
+      
+      // Show success notification
+      showNotification('Logged in successfully. Your current cart has been saved to your account.', 'success');
     } catch (error) {
       console.error('❌ Failed to populate user session:', error);
     }
   };
 
   const handleUserLogout = () => {
-    // Clear user-specific data but keep session structure
-    // Use batch update to avoid multiple actions
+    // Get current session state to preserve local data
+    const currentState = useSessionStore.getState();
+    
+    // Clear user-specific data but preserve local session data (hand, proxy printer, etc.)
     batchUpdateUserData({
       user: {
         id: null,
@@ -120,26 +118,23 @@ export function useSessionInitialization() {
         per_page: 24,
         page: 1,
         filters: [
-          { type: 'and', field: 'game', value: 'Union Arena', displayText: 'Game: Union Arena' },
-          { type: 'and', field: 'print_type', value: 'Basic', displayText: 'Basic Prints Only' },
-          { type: 'and', field: 'ActionPointCost', value: '0', displayText: 'No Action Points' },
-          { type: 'and', field: 'Rarity', value: 'Base', displayText: 'Base Rarity Only' },
+          { type: 'and', field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' },
+          { type: 'not', field: 'CardType', value: 'Action Point', displayText: 'No Action Points' },
+          { type: 'or', field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
+          { type: 'or', field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+          { type: 'or', field: 'Rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+          { type: 'or', field: 'Rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
         ],
       },
       deckBuilder: {
-        ...useSessionStore.getState().deckBuilder,
-        deckList: [],
+        ...currentState.deckBuilder,
+        deckList: [], // Clear user's deck list but keep current deck
       },
-      handCart: {
-        ...useSessionStore.getState().handCart,
-        handItems: [],
-      },
-      proxyPrinter: {
-        ...useSessionStore.getState().proxyPrinter,
-        printList: [],
-      },
+      // PRESERVE local session data - don't clear hand or proxy printer!
+      handCart: currentState.handCart, // Keep hand items
+      proxyPrinter: currentState.proxyPrinter, // Keep proxy printer data
       sessionState: {
-        ...useSessionStore.getState().sessionState,
+        ...currentState.sessionState,
         isLoggedIn: false,
         lastSync: null,
       },

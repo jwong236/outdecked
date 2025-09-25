@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Card } from '@/types/card';
+import { Card, ExpandedCard } from '@/types/card';
 import { ProxyGrid } from '@/features/proxy-printer/ProxyGrid';
 // No longer need CardDetailModal - proxy printer is view-only
 import { SignInModal } from '@/components/shared/modals/SignInModal';
@@ -20,9 +20,44 @@ export function ProxyPrinterPage() {
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showCopyFromDeckModal, setShowCopyFromDeckModal] = useState(false);
+  const [expandedCards, setExpandedCards] = useState<ExpandedCard[]>([]);
 
+  // Convert CardRef objects to minimal display objects for proxy printer
   useEffect(() => {
-    // No need to fetch card data - just use compact items directly
+    if (proxyPrinter.printList.length === 0) {
+      setExpandedCards([]);
+      setIsLoading(false);
+      return;
+    }
+
+    setIsLoading(true);
+    
+    // Convert CardRef objects to minimal ExpandedCard objects for display
+    // We only need basic info for proxy printing, not full card data
+    const displayCards = proxyPrinter.printList.map(item => ({
+      id: 0, // Not needed for proxy printing
+      product_id: item.card_id,
+      name: `Card ${item.card_id}`, // Placeholder name
+      clean_name: null,
+      card_url: getProductImageCard(item.card_id), // Get image URL
+      game: 'Union Arena',
+      category_id: 0,
+      group_id: 0,
+      attributes: [], // Not needed for proxy printing
+      quantity: item.quantity,
+      image_count: 0,
+      is_presale: false,
+      released_on: '',
+      presale_note: '',
+      modified_on: '',
+      price: null,
+      low_price: null,
+      mid_price: null,
+      high_price: null,
+      created_at: '',
+    } as ExpandedCard));
+    
+    setExpandedCards(displayCards);
     setIsLoading(false);
   }, [proxyPrinter.printList]);
 
@@ -317,29 +352,8 @@ export function ProxyPrinterPage() {
           {/* Print List */}
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-6 mb-8">
             <ProxyGrid
-              cards={proxyPrinter.printList.map(item => ({
-                id: 0,
-                product_id: item.card_id,
-                name: `Card ${item.card_id}`, // Placeholder name
-                clean_name: null,
-                card_url: getProductImageIcon(item.card_id),
-                game: 'Union Arena',
-                category_id: 0,
-                group_id: 0,
-                attributes: [], // Required by Card interface
-                quantity: item.quantity, // Required by ExpandedCard
-                image_count: 0,
-                is_presale: false,
-                released_on: '',
-                presale_note: '',
-                modified_on: '',
-                price: null,
-                low_price: null,
-                mid_price: null,
-                high_price: null,
-                created_at: '',
-              }))}
-              onCardClick={handleCardClick}
+              cards={expandedCards}
+              onCardClick={setSelectedCard}
             />
           </div>
 

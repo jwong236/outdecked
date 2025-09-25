@@ -5,8 +5,9 @@ import { useRouter } from 'next/navigation';
 import { Deck, Card, ExpandedCard } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
 import { fetchDeck } from '@/lib/deckUtils';
+import { transformRawCardsToCards } from '@/lib/cardTransform';
 
-export function useDeckOperations(searchCache: Record<string, any>, setSearchCache: (updater: (prev: Record<string, any>) => Record<string, any>) => void) {
+export function useDeckOperations(searchCache: Record<number, Card>, setSearchCache: (updater: (prev: Record<number, Card>) => Record<number, Card>) => void) {
   const router = useRouter();
   const { deckBuilder, setCurrentDeck } = useSessionStore();
   const { setSeries } = useSessionStore();
@@ -180,6 +181,15 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
           card_id: card.product_id,
           quantity: newQuantity
         });
+        
+        // Ensure the card is in the search cache for deck display/validation
+        console.log('🃏 useDeckOperations: Adding card to cache with product_id:', card.product_id, 'type:', typeof card.product_id);
+        
+        // Card should already be clean and transformed - cache directly
+        setSearchCache(prev => ({
+          ...prev,
+          [card.product_id]: card
+        }));
       }
       const updatedDeck = { ...currentDeck, cards: updatedCards };
       setCurrentDeck(updatedDeck);
@@ -247,10 +257,11 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
         });
         
         if (response.ok) {
-          const cards = await response.json();
+          const rawCards = await response.json();
+          const cleanCards = transformRawCardsToCards(rawCards);
           setSearchCache(prev => {
             const newCache = { ...prev };
-            cards.forEach((card: any) => {
+            cleanCards.forEach(card => {
               newCache[card.product_id] = card;
             });
             return newCache;
@@ -502,8 +513,8 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
       const { generateDecklistImage: generateImage } = await import('@/lib/decklistPdfGenerator');
       
       // Check cache first, fetch only missing cards
-      const cardIds = (currentDeck as any).cards.map((deckCard: any) => deckCard.card_id.toString());
-      const missingCardIds = cardIds.filter((id: string) => !searchCache[id]);
+      const cardIds = (currentDeck as any).cards.map((deckCard: any) => deckCard.card_id);
+      const missingCardIds = cardIds.filter((id: number) => !searchCache[id]);
       
       console.log('🖼️ Card IDs in deck:', cardIds);
       console.log('🖼️ Missing from cache:', missingCardIds);
@@ -521,13 +532,14 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
           throw new Error(`Failed to fetch card data: ${response.status}`);
         }
         
-        const cards = await response.json();
-        console.log('🖼️ Fetched missing card data:', cards);
+        const rawCards = await response.json();
+        const cleanCards = transformRawCardsToCards(rawCards);
+        console.log('🖼️ Fetched missing card data:', cleanCards);
         
         // Update cache with new cards
         setSearchCache(prev => {
           const newCache = { ...prev };
-          cards.forEach((card: any) => {
+          cleanCards.forEach(card => {
             newCache[card.product_id] = card;
           });
           return newCache;
@@ -544,8 +556,8 @@ export function useDeckOperations(searchCache: Record<string, any>, setSearchCac
             image_url_small: `https://tcgplayer-cdn.tcgplayer.com/product/${fullCardData.product_id}_in_400x400.jpg`,
             image_url_large: `https://tcgplayer-cdn.tcgplayer.com/product/${fullCardData.product_id}_in_1000x1000.jpg`,
             quantity: deckCard.quantity,
-            CardType: fullCardData.CardType,
-            RequiredEnergy: fullCardData.RequiredEnergy
+            CardType: fullCardData.attributes?.find(attr => attr.name === 'CardType')?.value || 'Unknown',
+            RequiredEnergy: fullCardData.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0'
           };
         } else {
           console.log(`🖼️ Card data not found in cache for ${deckCard.card_id}`);

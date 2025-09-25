@@ -5,6 +5,7 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { BackgroundProvider } from '@/components/shared/BackgroundContext';
 import { AuthProvider } from '@/features/auth/AuthContext';
 import { useSessionInitialization } from '@/hooks/useSessionInitialization';
+import { NotificationProvider } from '@/components/shared/NotificationContext';
 import { useState } from 'react';
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -22,11 +23,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <SessionInitializer />
-        <BackgroundProvider>
-          {children}
-          <ReactQueryDevtools initialIsOpen={false} />
-        </BackgroundProvider>
+        <NotificationProvider>
+          <SessionInitializer />
+          <BackgroundProvider>
+            {children}
+            <ReactQueryDevtools initialIsOpen={false} />
+          </BackgroundProvider>
+        </NotificationProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

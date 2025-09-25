@@ -25,12 +25,20 @@ export function ActiveFilters({
     setIsHydrated(true);
   }, []);
   
-  // Only show pills for basic filters and advanced filters from searchPreferences
+  // Only show pills for basic filters and advanced filters from searchPreferences (excluding default filters)
+  const nonDefaultFilters = searchPreferences.filters.filter(filter => {
+    const isDefaultFilter = 
+      filter.displayText === 'Base Prints Only' ||
+      filter.displayText === 'No Action Points' ||
+      filter.displayText === 'Base Rarity Only';
+    return !isDefaultFilter;
+  });
+  
   const hasActiveFilters = 
     getQuery() || 
     getSeries() ||
     getCardType() ||
-    searchPreferences.filters.length > 0;
+    nonDefaultFilters.length > 0;
 
   // Always show the component, even when empty
 
@@ -106,22 +114,32 @@ export function ActiveFilters({
             {getSeries() && !searchPreferences.filters.some(f => f.field === 'SeriesName') && renderFilterChip('series', getSeries())}
             {getCardType() && !searchPreferences.filters.some(f => f.field === 'CardType') && renderFilterChip('cardType', getCardType())}
             
-            {/* Advanced filters from searchPreferences */}
-            {searchPreferences.filters.map((filter, index) => {
-              const filterType = filter.type === 'and' ? 'AND' : filter.type === 'or' ? 'OR' : 'NOT';
-              
-              return (
-                <FilterPill
-                  key={`advanced-${index}`}
-                  type={filterType}
-                  value={filter.displayText}
-                  onRemove={() => {
-                    // Remove from filters using the store method
-                    removeFilter(index);
-                  }}
-                />
-              );
-            })}
+            {/* Advanced filters from searchPreferences - exclude default filters */}
+            {searchPreferences.filters
+              .map((filter, index) => ({ filter, index }))
+              .filter(({ filter }) => {
+                // Hide default filter pills
+                const isDefaultFilter = 
+                  filter.displayText === 'Base Prints Only' ||
+                  filter.displayText === 'No Action Points' ||
+                  filter.displayText === 'Base Rarity Only';
+                return !isDefaultFilter;
+              })
+              .map(({ filter, index }) => {
+                const filterType = filter.type === 'and' ? 'AND' : filter.type === 'or' ? 'OR' : 'NOT';
+                
+                return (
+                  <FilterPill
+                    key={`advanced-${index}`}
+                    type={filterType}
+                    value={filter.displayText}
+                    onRemove={() => {
+                      // Remove from filters using the store method
+                      removeFilter(index);
+                    }}
+                  />
+                );
+              })}
           </>
         ) : (
           <span className="text-sm text-gray-400 italic">No filters applied</span>
