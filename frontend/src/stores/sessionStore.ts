@@ -153,11 +153,12 @@ const defaultPreferences = {};
 
 const defaultSearchPreferences: SearchParams = {
   query: '',
-  sort: 'name_asc',
+  sort: 'required_energy_asc',
   per_page: 24,
   page: 1,
   filters: [
     { type: 'and', field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' },
+    { type: 'and', field: 'PrintType', value: 'Starter Deck', displayText: 'Starter Deck' },
     { type: 'not', field: 'CardType', value: 'Action Point', displayText: 'No Action Points' },
     { type: 'or', field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
     { type: 'or', field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },

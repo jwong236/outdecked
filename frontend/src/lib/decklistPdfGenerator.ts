@@ -1,8 +1,9 @@
 // No need for jsPDF anymore - we'll use canvas for PNG generation
+import { getCardImageAsBase64 } from './imageUtils';
 
 export interface DeckCard {
   name: string;
-  card_url: string | null;
+  product_id: number;
   quantity: number;
   CardType: string;
   RequiredEnergy: string;
@@ -58,70 +59,20 @@ function groupCardsByType(cards: DeckCard[]): Record<string, DeckCard[]> {
 }
 
 // Helper function to load image as base64 using backend proxy
-const loadImageAsBase64 = async (url: string): Promise<string> => {
+const loadImageAsBase64 = async (productId: number): Promise<string | null> => {
   try {
-    // Extract product_id from TCGPlayer URL
-    const tcgplayerMatch = url.match(/tcgplayer-cdn\.tcgplayer\.com\/product\/(\d+)/);
-    if (!tcgplayerMatch) {
-      throw new Error(`Invalid TCGPlayer URL: ${url}`);
+    console.log(`🖼️ Fetching image for product: ${productId}`);
+    const base64Image = await getCardImageAsBase64(productId, "1000x1000");
+    
+    if (!base64Image) {
+      console.warn(`Image not available for product ${productId}`);
+      return null;
     }
     
-    const productId = tcgplayerMatch[1];
-    const proxyUrl = `/api/images/product/${productId}?size=1000x1000`;
-    
-    console.log(`🖼️ Fetching image from: ${proxyUrl}`);
-    const response = await fetch(proxyUrl);
-    
-    if (!response.ok) {
-      throw new Error(`Proxy fetch failed: ${response.status}`);
-    }
-    
-    const blob = await response.blob();
-    
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result);
-      };
-      reader.onerror = () => {
-        reject(new Error('Failed to convert blob to base64'));
-      };
-      reader.readAsDataURL(blob);
-    });
+    return base64Image;
   } catch (error) {
-    // Fallback to direct method (will likely fail due to CORS)
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          
-          if (!ctx) {
-            reject(new Error('Could not get canvas context'));
-            return;
-          }
-          
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
-          
-          // Convert to base64
-          const base64 = canvas.toDataURL('image/jpeg', 0.8);
-          resolve(base64);
-        } catch (error) {
-          reject(error);
-        }
-      };
-      
-      img.onerror = () => {
-        reject(new Error('Failed to load image'));
-      };
-      
-      img.src = url;
-    });
+    console.error(`Failed to load image for product ${productId}:`, error);
+    return null;
   }
 };
 
@@ -191,11 +142,15 @@ export async function generateDecklistImage(options: DecklistImageOptions): Prom
         
       try {
         // Use proxy method to get base64 image
-        console.log(`🖼️ Loading image for ${card.name}: ${card.card_url}`);
-        if (!card.card_url) {
-          throw new Error(`No card URL for ${card.name}`);
+        console.log(`🖼️ Loading image for ${card.name}: product_id ${card.product_id}`);
+        if (!card.product_id) {
+          throw new Error(`No product_id for ${card.name}`);
         }
-        const base64Image = await loadImageAsBase64(card.card_url);
+        const base64Image = await loadImageAsBase64(card.product_id);
+        
+        if (!base64Image) {
+          throw new Error(`Failed to load image for ${card.name}`);
+        }
         
         // Create image element
         const img = new Image();

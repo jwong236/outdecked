@@ -249,7 +249,8 @@ export function SearchLayout({
   ];
 
   const sortOptions = [
-    { value: 'name_asc', label: 'Default' },
+    { value: 'required_energy_asc', label: 'Default' },
+    { value: 'name_asc', label: 'Name A-Z' },
     { value: 'name_desc', label: 'Name Z-A' },
     { value: 'price_asc', label: 'Price Low-High' },
     { value: 'price_desc', label: 'Price High-Low' },
@@ -257,7 +258,6 @@ export function SearchLayout({
     { value: 'rarity_desc', label: 'Rarity High-Low' },
     { value: 'number_asc', label: 'Card Number Low-High' },
     { value: 'number_desc', label: 'Card Number High-Low' },
-    { value: 'required_energy_asc', label: 'Required Energy Low-High' },
     { value: 'required_energy_desc', label: 'Required Energy High-Low' },
   ];
 

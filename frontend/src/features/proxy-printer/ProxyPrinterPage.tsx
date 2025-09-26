@@ -10,7 +10,7 @@ import { SignInModal } from '@/components/shared/modals/SignInModal';
 // Removed useAuth import - now using sessionStore
 import { useSessionStore } from '@/stores/sessionStore';
 import { apiConfig } from '../../lib/apiConfig';
-import { getProductImageCard, getProductImageIcon } from '@/lib/imageUtils';
+import { getProductImageCard, getProductImageIcon, getCardImageAsBase64 } from '@/lib/imageUtils';
 import jsPDF from 'jspdf';
 
 export function ProxyPrinterPage() {
@@ -113,36 +113,20 @@ export function ProxyPrinterPage() {
   const totalItems = proxyPrinter.printList.reduce((total, item) => total + item.quantity, 0);
 
   // Helper function to load image as base64 using our image endpoint
-  const loadImageAsBase64 = async (imageUrl: string): Promise<string | null> => {
+  const loadImageAsBase64 = async (productId: number): Promise<string | null> => {
     try {
-      // The imageUrl is already in the correct format: /api/images/product/123?size=1000x1000
-      const response = await fetch(imageUrl);
+      console.log(`🖼️ Loading image for product: ${productId}`);
+      const base64Image = await getCardImageAsBase64(productId, "1000x1000");
       
-      if (!response.ok) {
-        // If it's a 400 error, the image is likely not released yet
-        if (response.status === 400) {
-          console.warn(`Image not available (likely unreleased): ${imageUrl}`);
-          return null; // Return null to indicate no image available
-        }
-        throw new Error(`Image fetch failed: ${response.status}`);
+      if (!base64Image) {
+        console.warn(`Image not available for product ${productId}`);
+        return null;
       }
       
-      const blob = await response.blob();
-      
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          resolve(result);
-        };
-        reader.onerror = () => {
-          reject(new Error('Failed to convert blob to base64'));
-        };
-        reader.readAsDataURL(blob);
-      });
+      return base64Image;
     } catch (error) {
-      console.error('Failed to load image:', error);
-      return null; // Return null instead of throwing for unreleased images
+      console.error(`Failed to load image for product ${productId}:`, error);
+      return null;
     }
   };
 
@@ -230,8 +214,7 @@ export function ProxyPrinterPage() {
             const y = effectiveMarginTop + (row * (cardHeight + proxyPrinter.printSettings.cardGap));
             
             // Add card image using product_id
-            const imageUrl = getProductImageCard(card.product_id);
-            const base64Image = await loadImageAsBase64(imageUrl);
+            const base64Image = await loadImageAsBase64(card.product_id);
             
             if (base64Image) {
               // Add image to PDF if available

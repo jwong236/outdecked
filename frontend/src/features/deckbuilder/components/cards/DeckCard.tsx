@@ -4,6 +4,7 @@ import React from 'react';
 import Image from 'next/image';
 import { Card, ExpandedCard } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
+import { getProductImageIcon } from '@/lib/imageUtils';
 
 export interface DeckCardProps {
   card: ExpandedCard;
@@ -66,9 +67,9 @@ export function DeckCard({
     >
       {/* Card Image */}
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-gray-100">
-        {card.card_url ? (
+        {card.product_id ? (
           <Image
-            src={card.card_url}
+            src={getProductImageIcon(card.product_id)}
             alt={card.name}
             fill
             priority={priority}

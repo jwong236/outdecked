@@ -6,6 +6,7 @@ import { Card } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
 import { apiConfig } from '../../lib/apiConfig';
 import { useSessionStore } from '@/stores/sessionStore';
+import { getProductImageIcon } from '@/lib/imageUtils';
 
 export interface ProxyCardProps {
   card: Card;
@@ -73,21 +74,6 @@ export function ProxyCard({
 
   const currentQuantity = getCurrentQuantity();
 
-  // Helper function to get proxied image URL
-  const getProxiedImageUrl = (imageUrl: string) => {
-    if (!imageUrl) return '/placeholder-card.png';
-    
-    // Extract product_id from TCGPlayer URL
-    const tcgplayerMatch = imageUrl.match(/tcgplayer-cdn\.tcgplayer\.com\/product\/(\d+)/);
-    if (tcgplayerMatch) {
-      const productId = tcgplayerMatch[1];
-      return `/api/images/product/${productId}?size=1000x1000`;
-    }
-    
-    // Fallback to direct URL (shouldn't happen for TCGPlayer images)
-    return imageUrl;
-  };
-
   return (
     <div 
       className={`${baseClasses} ${variantClasses[variant]} ${className}`}
@@ -95,9 +81,9 @@ export function ProxyCard({
     >
       {/* Card Image */}
       <div className="relative aspect-[3/4] mb-3 rounded-lg overflow-hidden bg-gray-100">
-        {card.card_url ? (
+        {card.product_id ? (
           <Image
-            src={card.card_url}
+            src={getProductImageIcon(card.product_id)}
             alt={card.name}
             fill
             priority={priority}

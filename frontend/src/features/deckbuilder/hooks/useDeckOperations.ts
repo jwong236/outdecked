@@ -6,6 +6,7 @@ import { Deck, Card, ExpandedCard, CardCache } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
 import { fetchDeck } from '@/lib/deckUtils';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
+import { getProductImageCard } from '@/lib/imageUtils';
 
 export function useDeckOperations(searchCache: CardCache, setSearchCache: (updater: (prev: CardCache) => CardCache) => void) {
   const router = useRouter();
@@ -378,11 +379,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     console.log('🖼️ handleCoverSelection called with:', cardImageUrl);
     console.log('🖼️ Current deck before update:', currentDeck.name, 'current cover:', (currentDeck as any).cover);
     
-    const updatedDeck = {
-      ...currentDeck,
-      cover: cardImageUrl
-    } as any;
-    console.log('🖼️ Updated deck with cover:', updatedDeck.cover);
     // Save to database immediately
     try {
       const response = await fetch(`/api/user/decks/${currentDeck.id}`, {
@@ -391,20 +387,30 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        body: JSON.stringify(updatedDeck),
+        body: JSON.stringify({
+          cover: cardImageUrl,
+          updatedAt: new Date().toISOString()
+        }),
       });
       
       if (response.ok) {
         console.log('Deck cover updated successfully');
+        
+        // Update the session store with the new cover
+        const updatedDeck = {
+          ...currentDeck,
+          cover: cardImageUrl
+        } as any;
+        
+        setCurrentDeck(updatedDeck);
+        console.log('🖼️ Updated deck with cover:', updatedDeck.cover);
       } else {
         console.error('Failed to update deck cover');
       }
     } catch (error) {
       console.error('Error updating deck cover:', error);
     }
-    // TODO: Implement with sessionStore
-    // setShowCoverSelectionModal(false);
-  }, [currentDeck]);
+  }, [currentDeck, setCurrentDeck]);
 
   // Clear deck
   const handleClearDeck = useCallback(() => {
@@ -553,7 +559,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
           console.log(`🖼️ Card ${fullCardData.name}: product_id = ${fullCardData.product_id}`);
           return {
             name: fullCardData.name,
-            card_url: `https://tcgplayer-cdn.tcgplayer.com/product/${fullCardData.product_id}_in_1000x1000.jpg`,
+            product_id: fullCardData.product_id,
             quantity: deckCard.quantity,
             CardType: fullCardData.attributes?.find(attr => attr.name === 'CardType')?.value || 'Unknown',
             RequiredEnergy: fullCardData.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0'
@@ -562,7 +568,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
           console.log(`🖼️ Card data not found in cache for ${deckCard.card_id}`);
           return {
             name: `Card ${deckCard.card_id}`,
-            card_url: null,
+            product_id: deckCard.card_id, // Use card_id as fallback product_id
             quantity: deckCard.quantity,
             CardType: 'Unknown',
             RequiredEnergy: '0'

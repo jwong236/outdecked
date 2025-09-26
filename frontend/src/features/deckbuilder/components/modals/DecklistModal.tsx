@@ -33,7 +33,7 @@ export function DecklistModal({ isOpen, onClose, deckName, cards }: DecklistModa
       // Convert ExpandedCard[] to DeckCard[] for the generator
       const deckCards = cards.map(card => ({
         name: card.name,
-        card_url: card.card_url,
+        product_id: card.product_id,
         quantity: card.quantity,
         CardType: card.attributes?.find(attr => attr.name === 'CardType')?.value || 'Unknown',
         RequiredEnergy: card.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0',

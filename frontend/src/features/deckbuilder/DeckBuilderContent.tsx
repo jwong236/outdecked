@@ -13,6 +13,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 // Removed useAuth import - now using sessionStore
 import { Card, CardCache } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
+import { getProductImageIcon } from '@/lib/imageUtils';
 
 export function DeckBuilderContent() {
   const router = useRouter();
@@ -440,7 +441,7 @@ export function DeckBuilderContent() {
                     <button
                       key={`${deckCard.card_id}-${index}`}
                       onClick={() => {
-                        const imageUrl = `https://tcgplayer-cdn.tcgplayer.com/product/${deckCard.card_id}_in_1000x1000.jpg`;
+                        const imageUrl = getProductImageCard(deckCard.card_id);
                         console.log('🖼️ Setting deck cover to:', imageUrl, 'for card:', fullCardData.name);
                         deckOperations.handleCoverSelection(imageUrl);
                         setShowCoverModal(false);
@@ -448,7 +449,7 @@ export function DeckBuilderContent() {
                       className="relative group aspect-[3/4] bg-white/10 rounded-lg overflow-hidden hover:bg-white/20 transition-colors"
                     >
                       <img
-                        src={`/api/images/product/${deckCard.card_id}?size=400x400`}
+                        src={getProductImageIcon(deckCard.card_id)}
                         alt={fullCardData.name}
                         className="w-full h-full object-cover"
                         onError={(e) => {

@@ -83,8 +83,13 @@ export function useSearchLogic() {
       const savedPrintTypes = currentDeck.preferences?.printTypes || [];
       
       printTypeOptionsData?.forEach(option => {
-        // Check if this print type is in the saved preferences
-        initialPrintTypeFilters[option] = savedPrintTypes.includes(option);
+        if (savedPrintTypes.length > 0) {
+          // Check if this print type is in the saved preferences
+          initialPrintTypeFilters[option] = savedPrintTypes.includes(option);
+        } else {
+          // Default: only Base and Starter Deck are checked
+          initialPrintTypeFilters[option] = option === 'Base' || option === 'Starter Deck';
+        }
       });
       setPrintTypeFilters(initialPrintTypeFilters);
     }
@@ -126,10 +131,10 @@ export function useSearchLogic() {
   // Helper functions to check if current dropdown state matches presets
   const isBasicPrintsOnlyPreset = useMemo(() => {
     if (!printTypeOptionsData) return false;
-    // Check if only "Base" is checked and all others are unchecked
+    // Check if only "Base" and "Starter Deck" are checked and all others are unchecked
     return printTypeOptionsData.every(option => 
-      (option === 'Base' && printTypeFilters[option]) || 
-      (option !== 'Base' && !printTypeFilters[option])
+      ((option === 'Base' || option === 'Starter Deck') && printTypeFilters[option]) || 
+      (option !== 'Base' && option !== 'Starter Deck' && !printTypeFilters[option])
     );
   }, [printTypeFilters, printTypeOptionsData]);
 
@@ -187,7 +192,10 @@ export function useSearchLogic() {
         displayText: `Color: ${currentSearchColor}`
       }] : []),
       // Add default filters as positive inclusions
-      ...(isBasicPrintsOnlyPreset ? [{ type: 'and' as const, field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' }] : []),
+      ...(isBasicPrintsOnlyPreset ? [
+        { type: 'and' as const, field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' },
+        { type: 'and' as const, field: 'PrintType', value: 'Starter Deck', displayText: 'Starter Deck' }
+      ] : []),
       ...(isNoActionPointsPreset ? [{ type: 'not' as const, field: 'CardType', value: 'Action Point', displayText: 'No Action Points' }] : []),
       ...(isBaseRarityOnlyPreset ? [
         { type: 'or' as const, field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
@@ -207,8 +215,9 @@ export function useSearchLogic() {
       
       // Check if this change makes it match the Basic Prints Only preset
       const baseChecked = newFilters['Base'];
-      const othersUnchecked = printTypeOptionsData?.filter(opt => opt !== 'Base').every(opt => !newFilters[opt]) ?? true;
-      const matchesPreset = baseChecked && othersUnchecked;
+      const starterDeckChecked = newFilters['Starter Deck'];
+      const othersUnchecked = printTypeOptionsData?.filter(opt => opt !== 'Base' && opt !== 'Starter Deck').every(opt => !newFilters[opt]) ?? true;
+      const matchesPreset = baseChecked && starterDeckChecked && othersUnchecked;
       
       // Update deck's default filter if needed
       if (currentDeck) {
