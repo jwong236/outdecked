@@ -10,7 +10,7 @@ export interface DeckBuilderSearchGridProps extends Omit<BaseCardGridProps, 'chi
   onQuantityChange?: (card: ExpandedCard, change: number) => void;
   showRarity?: boolean;
   priority?: boolean;
-  deckCards?: ExpandedCard[]; // Pass deck cards to determine if search card is in deck
+  expandedCards?: ExpandedCard[]; // Pass expanded cards to determine if search card is in deck
 }
 
 export function DeckBuilderSearchGrid({
@@ -21,7 +21,7 @@ export function DeckBuilderSearchGrid({
   showRarity = true,
   priority = false,
   gridSize = 'compact', // Use compact grid for better space efficiency
-  deckCards = [],
+  expandedCards = [],
   ...baseProps
 }: DeckBuilderSearchGridProps) {
   return (
@@ -32,8 +32,8 @@ export function DeckBuilderSearchGrid({
     >
       {(card, index) => {
         // Check if this card is in the deck
-        const isInDeck = deckCards.some(deckCard => 
-          deckCard.card_url === card.card_url
+        const isInDeck = expandedCards.some(expandedCard => 
+          expandedCard.card_url === card.card_url
         );
         
         return (

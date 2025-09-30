@@ -232,18 +232,78 @@ def api_cards():
     return handle_api_search()
 
 
+@app.route("/api/search", methods=["GET", "POST"])
+def api_search():
+    """Search cards endpoint (alias for /api/cards for backward compatibility)"""
+    return handle_api_search()
+
+
 @app.route("/api/cards/<int:card_id>")
 def get_card_by_id(card_id):
-    """Get specific card by product_id"""
+    """Get specific card by product_id with full attribute data"""
     conn = get_db_connection()
-    cursor = conn.execute("SELECT * FROM cards WHERE product_id = ?", (card_id,))
-    card = cursor.fetchone()
-    conn.close()
 
-    if card:
-        return jsonify(dict(card))
-    else:
-        return jsonify({"error": "Card not found"}), 404
+    try:
+        # Get card with full attribute data (same structure as batch endpoint)
+        query = (
+            "SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, "
+            "GROUP_CONCAT(cm.name || ':' || cm.value || ':' || cm.display_name, '|||') as metadata, "
+            "COALESCE(cp.market_price, cp.mid_price) as price "
+            "FROM cards c "
+            "LEFT JOIN groups g ON c.group_id = g.id "
+            "LEFT JOIN card_attributes cm ON c.id = cm.card_id "
+            "LEFT JOIN card_prices cp ON c.id = cp.card_id "
+            "WHERE c.product_id = ? "
+            "GROUP BY c.id"
+        )
+
+        cursor = conn.execute(query, (card_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if row:
+            card = dict(row)
+
+            # Parse metadata string into individual attributes
+            attributes = []
+            if card.get("metadata"):
+                metadata_pairs = card["metadata"].split("|||")
+                for pair in metadata_pairs:
+                    if ":" in pair:
+                        parts = pair.split(":", 2)  # Split into max 3 parts
+                        if len(parts) == 3:
+                            name, value, display_name = parts
+                        else:
+                            # Fallback for old format without display_name
+                            name, value = parts
+                            display_name = name
+
+                        card[name] = value
+                        # Also add to attributes array for frontend compatibility
+                        attributes.append(
+                            {
+                                "id": 0,  # Placeholder - not used by frontend
+                                "card_id": card["id"],
+                                "name": name,
+                                "value": value,
+                                "display_name": display_name,
+                                "created_at": card.get("created_at", ""),
+                            }
+                        )
+
+            # Add attributes array to card
+            card["attributes"] = attributes
+
+            # Remove the raw metadata string
+            if "metadata" in card:
+                del card["metadata"]
+
+            return jsonify(card)
+        else:
+            return jsonify({"error": "Card not found"}), 404
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/cards/batch", methods=["POST"])
@@ -284,12 +344,34 @@ def get_cards_batch():
             card = dict(row)
 
             # Parse metadata string into individual attributes
+            attributes = []
             if card.get("metadata"):
                 metadata_pairs = card["metadata"].split("|||")
                 for pair in metadata_pairs:
                     if ":" in pair:
-                        name, value = pair.split(":", 1)
+                        parts = pair.split(":", 2)  # Split into max 3 parts
+                        if len(parts) == 3:
+                            name, value, display_name = parts
+                        else:
+                            # Fallback for old format without display_name
+                            name, value = parts
+                            display_name = name
+
                         card[name] = value
+                        # Also add to attributes array for frontend compatibility
+                        attributes.append(
+                            {
+                                "id": 0,  # Placeholder - not used by frontend
+                                "card_id": card["id"],
+                                "name": name,
+                                "value": value,
+                                "display_name": display_name,
+                                "created_at": card.get("created_at", ""),
+                            }
+                        )
+
+            # Add attributes array to card
+            card["attributes"] = attributes
 
             # Remove the raw metadata string
             if "metadata" in card:
@@ -311,6 +393,20 @@ def api_cards_attributes():
 @app.route("/api/cards/attributes/<field>")
 def api_cards_attribute_values(field):
     """Get distinct values for specific attribute (renamed from /api/filter-values/<field>)"""
+    game = request.args.get("game")
+    return handle_filter_values(field, game)
+
+
+# Backward compatibility endpoints
+@app.route("/api/filter-fields")
+def api_filter_fields():
+    """Filter fields endpoint (backward compatibility)"""
+    return handle_filter_fields()
+
+
+@app.route("/api/filter-values/<field>")
+def api_filter_values(field):
+    """Filter values endpoint (backward compatibility)"""
     game = request.args.get("game")
     return handle_filter_values(field, game)
 
@@ -737,4 +833,11 @@ init_db()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, debug=True, use_reloader=True, host="0.0.0.0", port=port)
+    socketio.run(
+        app,
+        debug=True,
+        use_reloader=True,
+        host="0.0.0.0",
+        port=port,
+        allow_unsafe_werkzeug=True,
+    )

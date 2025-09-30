@@ -26,7 +26,6 @@ def init_db():
             category_id INTEGER,
             group_id INTEGER,
             group_name TEXT,
-            print_type TEXT,
             image_count INTEGER,
             is_presale BOOLEAN DEFAULT FALSE,
             released_on TEXT,
@@ -151,9 +150,6 @@ def init_db():
             cards_per_page INTEGER DEFAULT 24,
             default_sort TEXT DEFAULT 'name',
             theme TEXT DEFAULT 'light',
-            default_print_types TEXT DEFAULT '["Base"]',
-            default_card_types TEXT DEFAULT '["Action Point"]',
-            default_rarities TEXT DEFAULT '["Common", "Uncommon", "Rare", "Super Rare"]',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -273,8 +269,8 @@ def create_default_owner():
     # Set default preferences for owner
     cursor.execute(
         """
-        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme, default_print_types, default_card_types, default_rarities)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
+        VALUES (?, ?, ?, ?, ?)
     """,
         (
             user_id,
@@ -282,9 +278,6 @@ def create_default_owner():
             24,
             "name",
             "light",
-            '["Base"]',
-            '["Action Point"]',
-            '["Common", "Uncommon", "Rare", "Super Rare"]',
         ),
     )
 
@@ -386,7 +379,7 @@ def populate_categories_and_groups():
                     ),
                 )
 
-            print(f"✅ Populated {len(categories)} categories")
+            print(f"Populated {len(categories)} categories")
 
         # Fetch Union Arena groups
         response = requests.get("https://tcgcsv.com/tcgplayer/81/groups")
@@ -411,12 +404,12 @@ def populate_categories_and_groups():
                     ),
                 )
 
-            print(f"✅ Populated {len(groups)} Union Arena groups")
+            print(f"Populated {len(groups)} Union Arena groups")
 
         conn.commit()
 
     except Exception as e:
-        print(f"❌ Error populating categories and groups: {e}")
+        print(f"Error populating categories and groups: {e}")
         conn.rollback()
     finally:
         conn.close()
@@ -461,11 +454,11 @@ def save_cards_to_db(cards):
 
                     if existing:
                         card_id = existing[0]
-                        # Update existing card with TCGCSV fields
+                        # Update existing card with TCGCSV fields (no print_type column)
                         cursor.execute(
                             """
                             UPDATE cards SET name = ?, clean_name = ?, card_url = ?, 
-                                           group_id = ?, group_name = ?, print_type = ?, image_count = ?, 
+                                           group_id = ?, group_name = ?, image_count = ?, 
                                            is_presale = ?, released_on = ?, presale_note = ?, modified_on = ?
                             WHERE product_id = ?
                             """,
@@ -475,7 +468,6 @@ def save_cards_to_db(cards):
                                 card.get("card_url", ""),
                                 card.get("group_id"),
                                 card.get("series", ""),
-                                print_type,
                                 card.get("image_count", 0),
                                 card.get("is_presale", False),
                                 card.get("released_on", ""),
@@ -486,13 +478,13 @@ def save_cards_to_db(cards):
                         )
                         updated_count += 1
                     else:
-                        # Insert new card with TCGCSV fields
+                        # Insert new card with TCGCSV fields (no print_type column)
                         cursor.execute(
                             """
                             INSERT INTO cards (product_id, name, clean_name, card_url, game, 
-                                             category_id, group_id, group_name, print_type, image_count, 
+                                             category_id, group_id, group_name, image_count, 
                                              is_presale, released_on, presale_note, modified_on)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
                             (
                                 card["product_id"],
@@ -503,7 +495,6 @@ def save_cards_to_db(cards):
                                 card.get("category_id", 81),
                                 card.get("group_id"),
                                 card.get("series", ""),
-                                print_type,
                                 card.get("image_count", 0),
                                 card.get("is_presale", False),
                                 card.get("released_on", ""),
@@ -538,6 +529,16 @@ def save_cards_to_db(cards):
                     attributes_saved = save_card_attributes_tcgcsv(
                         cursor, card_id, card
                     )
+
+                    # Save PrintType as a card attribute (now that it's computed)
+                    cursor.execute(
+                        """
+                        INSERT OR REPLACE INTO card_attributes (card_id, name, display_name, value)
+                        VALUES (?, 'PrintType', 'Print Type', ?)
+                        """,
+                        (card_id, print_type),
+                    )
+
                     saved_count += 1
 
                 except Exception as e:
@@ -592,6 +593,8 @@ def save_card_attributes_tcgcsv(cursor, card_id, card_data):
         },
         "affinities": {"name": "Affinities", "display_name": "Affinities"},
         "trigger": {"name": "Trigger", "display_name": "Trigger"},
+        "trigger_type": {"name": "TriggerType", "display_name": "Trigger Type"},
+        "trigger_text": {"name": "TriggerText", "display_name": "Trigger Text"},
     }
 
     # Skip basic fields and price fields

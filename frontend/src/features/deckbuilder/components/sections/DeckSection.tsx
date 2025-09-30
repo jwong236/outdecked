@@ -10,11 +10,14 @@ import { transformRawCardsToCards } from '@/lib/cardTransform';
 interface DeckSectionProps {
   searchCache: CardCache;
   setSearchCache: (updater: (prev: CardCache) => CardCache) => void;
-  onCardClick?: (card: any) => void;
+  onCardClick?: (card: any, source?: 'search' | 'deck') => void;
   onQuantityChange?: (card: any, change: number) => void;
+  expandedCards?: any[]; // Get expanded cards from parent hook
+  deckSortBy: string;
+  setDeckSortBy: (sortBy: string) => void;
 }
 
-export const DeckSection = React.memo(function DeckSection({ searchCache, setSearchCache, onCardClick, onQuantityChange }: DeckSectionProps) {
+export const DeckSection = React.memo(function DeckSection({ searchCache, setSearchCache, onCardClick, onQuantityChange, expandedCards, deckSortBy, setDeckSortBy }: DeckSectionProps) {
   const { deckBuilder, setCurrentDeck } = useSessionStore();
   const currentDeck = deckBuilder.currentDeck;
   
@@ -56,102 +59,8 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
     }
   }, [setSearchCache]);
   
-  // Create deck cards array - cards now only store card_id and quantity, get full data from cache
-  const deckCards = React.useMemo(() => {
-    console.log('🃏 DeckSection: currentDeck:', currentDeck);
-    console.log('🃏 DeckSection: currentDeck keys:', currentDeck ? Object.keys(currentDeck) : 'null');
-    console.log('🃏 DeckSection: currentDeck.cards:', (currentDeck as any)?.cards);
-    console.log('🃏 DeckSection: currentDeck.cards length:', (currentDeck as any)?.cards?.length);
-    
-    if (!currentDeck || Object.keys(currentDeck).length === 0 || !(currentDeck as any).cards) {
-      console.log('🃏 DeckSection: No deck or no cards, returning empty array');
-      return [];
-    }
-    
-    // Check if cards array is empty
-    if ((currentDeck as any).cards.length === 0) {
-      console.log('🃏 DeckSection: Cards array is empty, returning empty array');
-      return [];
-    }
-    
-    // Filter out any malformed card objects
-    const validCards = (currentDeck as any).cards.filter((card: any) => {
-      const isValid = card && typeof card === 'object' && card.card_id && card.quantity;
-      if (!isValid) {
-        console.warn('🃏 DeckSection: Found malformed card object, filtering out:', card);
-      }
-      return isValid;
-    });
-    
-    if (validCards.length === 0) {
-      console.log('🃏 DeckSection: No valid cards after filtering, returning empty array');
-      return [];
-    }
-    
-    console.log('🃏 DeckSection: Valid cards after filtering:', validCards.length);
-    
-    console.log('🃏 DeckSection: searchCache keys:', Object.keys(searchCache));
-    
-    const cards = validCards.map((deckCard: any, index: number) => {
-      console.log(`🃏 DeckSection: Processing deckCard ${index}:`, deckCard);
-      
-      // Validate deckCard structure
-      if (!deckCard || typeof deckCard !== 'object') {
-        console.error(`🃏 DeckSection: Invalid deckCard at index ${index}:`, deckCard);
-        return null; // Skip invalid cards
-      }
-      
-      if (!deckCard.card_id || !deckCard.quantity) {
-        console.error(`🃏 DeckSection: Missing required fields in deckCard ${index}:`, deckCard);
-        return null; // Skip invalid cards
-      }
-      
-      // Get full card data from cache using number key
-      console.log(`🃏 DeckSection: Looking up card_id ${deckCard.card_id} (type: ${typeof deckCard.card_id}) in cache`);
-      console.log(`🃏 DeckSection: Available cache keys:`, Object.keys(searchCache).map(k => `${k} (${typeof k})`));
-      const fullCardData = searchCache[deckCard.card_id];
-      console.log(`🃏 DeckSection: Cache lookup for card_id ${deckCard.card_id}:`, fullCardData ? 'FOUND' : 'NOT FOUND');
-      
-      if (fullCardData) {
-        // Card is already clean and transformed - use directly
-        return {
-          ...fullCardData,
-          quantity: deckCard.quantity
-        };
-      } else {
-        // Fallback for missing cache data
-        const fallbackCard = {
-          id: deckCard.card_id,
-          product_id: deckCard.card_id,
-          quantity: deckCard.quantity,
-          name: `Card ${deckCard.card_id}`,
-          clean_name: null,
-          card_url: '',
-          game: 'Union Arena',
-          category_id: 0,
-          group_id: 0,
-          image_count: 0,
-          is_presale: false,
-          released_on: '',
-          presale_note: '',
-          modified_on: '',
-          price: null,
-          low_price: null,
-          mid_price: null,
-          high_price: null,
-          created_at: '',
-          attributes: [], // Empty attributes array to prevent errors
-        };
-        console.log(`🃏 DeckSection: Created fallback card for ${deckCard.card_id}:`, fallbackCard);
-        return fallbackCard;
-      }
-    }).filter(Boolean); // Remove null entries
-    
-    // Debug logging
-    console.log('🃏 DeckSection: deckCards created:', cards.length, 'cards');
-    
-    return cards;
-  }, [(currentDeck as any)?.cards, searchCache]);
+  // Use expanded cards from parent hook (single source of truth)
+  const expandedCardsArray = expandedCards || [];
   
   // Auto-fetch missing card data when deck changes
   React.useEffect(() => {
@@ -159,8 +68,8 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
       return;
     }
     
-    const deckCards = (currentDeck as any).cards;
-    const missingCardIds = deckCards
+    const currentDeckCards = (currentDeck as any).cards;
+    const missingCardIds = currentDeckCards
       .filter((deckCard: any) => {
         return !searchCache[deckCard.card_id] && !requestedCardsRef.current.has(deckCard.card_id.toString());
       })
@@ -174,11 +83,14 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
     }
   }, [(currentDeck as any)?.cards, searchCache, fetchMissingCardData]);
   
-  // Debug: Log the final deckCards array
+  // Debug: Log the expanded cards
   React.useEffect(() => {
-  }, [deckCards]);
+    console.log('🃏 DeckSection: Expanded cards updated:', {
+      count: expandedCardsArray.length,
+      firstThree: expandedCardsArray.slice(0, 3).map(c => c.name)
+    });
+  }, [expandedCardsArray]);
   
-  const [deckSortBy, setDeckSortBy] = React.useState('name');
 
   // Use the passed onQuantityChange handler instead of our own
   const handleQuantityChange = onQuantityChange || ((card: any, change: number) => {
@@ -187,7 +99,7 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
   });
 
   const handleCardClick = (card: any) => {
-    onCardClick?.(card);
+    onCardClick?.(card, 'deck');
   };
 
   const handleClearDeck = () => {
@@ -221,9 +133,12 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
                 onChange={(e) => setDeckSortBy(e.target.value)}
                 className="px-3 py-1 bg-white/20 border border-white/30 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="name" className="bg-gray-800">Name (A-Z)</option>
-                <option value="required_energy" className="bg-gray-800">Required Energy</option>
-                <option value="rarity" className="bg-gray-800">Rarity</option>
+                <option value="name_asc" className="bg-gray-800">Name (A-Z)</option>
+                <option value="name_desc" className="bg-gray-800">Name (Z-A)</option>
+                <option value="required_energy_asc" className="bg-gray-800">Required Energy (Low-High)</option>
+                <option value="required_energy_desc" className="bg-gray-800">Required Energy (High-Low)</option>
+                <option value="rarity_asc" className="bg-gray-800">Rarity (Low-High)</option>
+                <option value="rarity_desc" className="bg-gray-800">Rarity (High-Low)</option>
               </select>
             </div>
             
@@ -240,17 +155,17 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
           </div>
         </div>
         
-        {deckCards.length > 0 && (
+        {expandedCardsArray.length > 0 && (
           <div className="mb-4">
-            <DeckValidation cards={deckCards} />
+            <DeckValidation cards={expandedCardsArray} />
           </div>
         )}
       </div>
 
       <div className="flex-1 overflow-auto">
-        {deckCards.length > 0 ? (
+        {expandedCardsArray.length > 0 ? (
           <GroupedDeckGrid
-            cards={deckCards}
+            cards={expandedCardsArray}
             onCardClick={handleCardClick}
             onQuantityChange={(card, change) => {
               handleQuantityChange(card, change);

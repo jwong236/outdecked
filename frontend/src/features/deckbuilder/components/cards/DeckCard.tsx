@@ -12,7 +12,7 @@ export interface DeckCardProps {
   onQuantityChange?: (card: ExpandedCard, change: number) => void;
   onRemoveFromDeck?: (card: ExpandedCard) => void;
   onAddToDeck?: (card: ExpandedCard) => void;
-  deckCards?: ExpandedCard[];
+  expandedCards?: ExpandedCard[];
   showDeckActions?: boolean;
   className?: string;
   showPrices?: boolean;
@@ -26,7 +26,7 @@ export function DeckCard({
   onQuantityChange,
   onRemoveFromDeck,
   onAddToDeck,
-  deckCards = [],
+  expandedCards = [],
   showDeckActions = false,
   className = '',
   showPrices = true,
@@ -41,8 +41,8 @@ export function DeckCard({
     onClick?.(card);
   };
 
-  const isInDeck = deckCards.some(deckCard => deckCard.card_url === card.card_url);
-  const deckQuantity = deckCards.find(deckCard => deckCard.card_url === card.card_url)?.quantity || 0;
+  const isInDeck = expandedCards.some(expandedCard => expandedCard.card_url === card.card_url);
+  const deckQuantity = expandedCards.find(expandedCard => expandedCard.card_url === card.card_url)?.quantity || 0;
 
   const baseClasses = `
     group relative bg-white/10 backdrop-blur-sm rounded-lg shadow-md overflow-hidden

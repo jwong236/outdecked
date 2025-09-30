@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
-import { useSeriesValues, useColorValues } from '@/lib/hooks';
+import { useSeriesValues, useColorValues, useFilterValues } from '@/lib/hooks';
 import { FilterDropdown } from './FilterDropdown';
 
 export function SearchFilters() {
@@ -22,9 +22,10 @@ export function SearchFilters() {
 
   const { data: seriesData } = useSeriesValues();
   const { data: colorData } = useColorValues();
+  const { data: printTypeData } = useFilterValues('PrintType');
 
   const sortOptions = [
-    { value: 'name_asc', label: 'Default' },
+    { value: 'recent_series_rarity_desc', label: 'Series' },
     { value: 'name_asc', label: 'Name A-Z' },
     { value: 'name_desc', label: 'Name Z-A' },
     { value: 'price_asc', label: 'Price Low-High' },
@@ -48,11 +49,7 @@ export function SearchFilters() {
 
   const printTypeOptions = [
     { value: '', label: 'All Prints' },
-    { value: 'Base', label: 'Base' },
-    { value: 'Pre-Release', label: 'Pre-Release' },
-    { value: 'Starter Deck', label: 'Starter Deck' },
-    { value: 'Pre-Release Starter', label: 'Pre-Release Starter' },
-    { value: 'Promotion', label: 'Promotion' },
+    ...(printTypeData || []).map(printType => ({ value: printType, label: printType }))
   ];
 
   // Check if Base Print filter is active

@@ -249,16 +249,17 @@ export function SearchLayout({
   ];
 
   const sortOptions = [
-    { value: 'required_energy_asc', label: 'Default' },
+    { value: 'recent_series_rarity_desc', label: 'Series' },
     { value: 'name_asc', label: 'Name A-Z' },
     { value: 'name_desc', label: 'Name Z-A' },
+    { value: 'required_energy_asc', label: 'Required Energy Low-High' },
+    { value: 'required_energy_desc', label: 'Required Energy High-Low' },
     { value: 'price_asc', label: 'Price Low-High' },
     { value: 'price_desc', label: 'Price High-Low' },
     { value: 'rarity_asc', label: 'Rarity Low-High' },
     { value: 'rarity_desc', label: 'Rarity High-Low' },
     { value: 'number_asc', label: 'Card Number Low-High' },
     { value: 'number_desc', label: 'Card Number High-Low' },
-    { value: 'required_energy_desc', label: 'Required Energy High-Low' },
   ];
 
   const hasActiveAdvancedFilters = searchPreferences.filters.length > 0;

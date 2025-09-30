@@ -193,8 +193,8 @@ export function useSearchLogic() {
       }] : []),
       // Add default filters as positive inclusions
       ...(isBasicPrintsOnlyPreset ? [
-        { type: 'and' as const, field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' },
-        { type: 'and' as const, field: 'PrintType', value: 'Starter Deck', displayText: 'Starter Deck' }
+        { type: 'or' as const, field: 'PrintType', value: 'Base', displayText: 'Basic Prints Only' },
+        { type: 'or' as const, field: 'PrintType', value: 'Starter Deck', displayText: 'Basic Prints Only' }
       ] : []),
       ...(isNoActionPointsPreset ? [{ type: 'not' as const, field: 'CardType', value: 'Action Point', displayText: 'No Action Points' }] : []),
       ...(isBaseRarityOnlyPreset ? [

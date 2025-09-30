@@ -9,7 +9,7 @@ export interface DeckGridProps extends Omit<BaseCardGridProps, 'children'> {
   onQuantityChange?: (card: ExpandedCard, change: number) => void;
   onRemoveFromDeck?: (card: ExpandedCard) => void;
   onAddToDeck?: (card: ExpandedCard) => void;
-  deckCards?: ExpandedCard[];
+  expandedCards?: ExpandedCard[];
   showDeckActions?: boolean;
   showPrices?: boolean;
   showRarity?: boolean;
@@ -22,7 +22,7 @@ export function DeckGrid({
   onQuantityChange,
   onRemoveFromDeck,
   onAddToDeck,
-  deckCards = [],
+  expandedCards = [],
   showDeckActions = false,
   showPrices = true,
   showRarity = true,
@@ -41,7 +41,7 @@ export function DeckGrid({
           onQuantityChange={onQuantityChange}
           onRemoveFromDeck={onRemoveFromDeck}
           onAddToDeck={onAddToDeck}
-          deckCards={deckCards}
+          expandedCards={expandedCards}
           showDeckActions={showDeckActions}
           showPrices={showPrices}
           showRarity={showRarity}

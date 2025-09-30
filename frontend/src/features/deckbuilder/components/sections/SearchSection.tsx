@@ -10,7 +10,7 @@ import { transformRawCardsToCards } from '@/lib/cardTransform';
 interface SearchSectionProps {
   searchCache: CardCache;
   setSearchCache: React.Dispatch<React.SetStateAction<CardCache>>;
-  onCardClick?: (card: ExpandedCard) => void;
+  onCardClick?: (card: ExpandedCard, source?: 'search' | 'deck') => void;
   fetchMissingCardData?: (cardIds: string[]) => Promise<void>;
   onSearchResultsChange?: (results: Card[]) => void;
   onQuantityChange?: (card: ExpandedCard, change: number) => void;
@@ -36,7 +36,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   const [debouncedSearchQuery, setDebouncedSearchQuery] = React.useState('');
   const [currentPage, setCurrentPage] = React.useState(1);
   const [itemsPerPage, setItemsPerPage] = React.useState(25);
-  const [currentSort, setCurrentSort] = React.useState('name_asc');
+  const [currentSort, setCurrentSort] = React.useState('required_energy_asc');
   const [currentColor, setCurrentColor] = React.useState(currentDeck?.preferences?.color || '');
   const [colorOptions, setColorOptions] = React.useState<Array<{value: string, label: string}>>([]);
   
@@ -164,53 +164,84 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   const fetchCards = React.useCallback(async () => {
     setSearchLoading(true);
     try {
-      const searchParams = new URLSearchParams({
-        game: 'Union Arena',
-        page: currentPage.toString(),
-        per_page: itemsPerPage.toString(),
-        sort: currentSort
-      });
-      
-      // Add search query if it exists
-      if (debouncedSearchQuery.trim()) {
-        searchParams.append('query', debouncedSearchQuery.trim());
-      }
+      // Build unified filters array
+      const filters = [];
       
       // Add series filter if it exists
       if (currentDeck?.preferences?.series) {
-        searchParams.append('series', currentDeck.preferences.series);
+        filters.push({
+          type: 'and',
+          field: 'SeriesName',
+          value: currentDeck.preferences.series,
+          displayText: `Series: ${currentDeck.preferences.series}`
+        });
       }
       
       // Add color filter if it exists (use deck preference first, fallback to local state)
       const activeColor = currentDeck?.preferences?.color || currentColor;
       if (activeColor) {
-        searchParams.append('color', activeColor);
+        filters.push({
+          type: 'and',
+          field: 'ActivationEnergy',
+          value: activeColor,
+          displayText: `Color: ${activeColor}`
+        });
       }
       
-      // Add card types filter if it exists (API uses 'CardType' parameter, multiple values)
+      // Add card types filter if it exists (multiple values as OR filters)
       if (currentDeck?.preferences?.cardTypes && currentDeck.preferences.cardTypes.length > 0) {
         currentDeck.preferences.cardTypes.forEach(cardType => {
-          searchParams.append('CardType', cardType);
+          filters.push({
+            type: 'or',
+            field: 'CardType',
+            value: cardType,
+            displayText: `Card Type: ${cardType}`
+          });
         });
       }
       
-      // Add print types filter if it exists (API uses 'PrintType' parameter, multiple values)
+      // Add print types filter if it exists (multiple values as OR filters)
       if (currentDeck?.preferences?.printTypes && currentDeck.preferences.printTypes.length > 0) {
         currentDeck.preferences.printTypes.forEach(printType => {
-          searchParams.append('PrintType', printType);
+          filters.push({
+            type: 'or',
+            field: 'PrintType',
+            value: printType,
+            displayText: `Print Type: ${printType}`
+          });
         });
       }
       
-      // Add rarities filter if it exists (API uses field name 'Rarity', multiple values)
+      // Add rarities filter if it exists (multiple values as OR filters)
       if (currentDeck?.preferences?.rarities && currentDeck.preferences.rarities.length > 0) {
         currentDeck.preferences.rarities.forEach(rarity => {
-          searchParams.append('Rarity', rarity);
+          filters.push({
+            type: 'or',
+            field: 'Rarity',
+            value: rarity,
+            displayText: `Rarity: ${rarity}`
+          });
         });
       }
       
-      console.log('🃏 Fetching cards with params:', searchParams.toString());
-      const response = await fetch(`/api/cards?${searchParams}`, {
+      // Build request body with unified filter system
+      const requestBody = {
+        game: 'Union Arena',
+        page: currentPage,
+        per_page: itemsPerPage,
+        sort: currentSort,
+        query: debouncedSearchQuery.trim() || '',
+        filters: filters
+      };
+      
+      console.log('🃏 Fetching cards with unified filters:', requestBody);
+      const response = await fetch('/api/cards', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         credentials: 'include',
+        body: JSON.stringify(requestBody)
       });
       const data = await response.json();
       
@@ -227,6 +258,11 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
         
         // Notify parent component of search results change with clean cards
         if (onSearchResultsChange) {
+          console.log('🔍 SearchSection: Calling onSearchResultsChange with:', {
+            cardsCount: cleanCards.length,
+            firstThree: cleanCards.slice(0, 3).map(c => c.name),
+            currentSort
+          });
           onSearchResultsChange(cleanCards);
         }
         
@@ -299,8 +335,8 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   const sortOptions = [
     { value: 'name_asc', label: 'Name A-Z' },
     { value: 'name_desc', label: 'Name Z-A' },
-    { value: 'required_energy_asc', label: 'Energy Cost Low-High' },
-    { value: 'required_energy_desc', label: 'Energy Cost High-Low' },
+    { value: 'required_energy_asc', label: 'Required Energy Low-High' },
+    { value: 'required_energy_desc', label: 'Required Energy High-Low' },
     { value: 'rarity_asc', label: 'Rarity Low-High' },
     { value: 'rarity_desc', label: 'Rarity High-Low' },
     { value: 'number_asc', label: 'Number Low-High' },
@@ -368,7 +404,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   // const { setShowAdvancedFiltersModal, setSelectedCard, setModalOpen } = useDeckBuilderActions();
 
   const handleCardClick = (card: any) => {
-    onCardClick?.(card);
+    onCardClick?.(card, 'search');
   };
 
   return (
@@ -442,7 +478,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
             onAddToDeck={(card) => handleQuantityChange(card, 1)}
             onQuantityChange={handleQuantityChange}
             showRarity={false}
-            deckCards={currentDeck?.cards?.map(cardRef => {
+            expandedCards={currentDeck?.cards?.map(cardRef => {
               const card = searchCache[cardRef.card_id];
               return card ? { ...card, quantity: cardRef.quantity } : null;
             }).filter(Boolean) as ExpandedCard[] || []}

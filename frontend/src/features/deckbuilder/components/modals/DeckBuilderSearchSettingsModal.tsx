@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { CollapsibleFilterSection } from '@/features/search/CollapsibleFilterSection';
 import { FilterDropdown } from '@/features/search/FilterDropdown';
 import { useSessionStore } from '@/stores/sessionStore';
+import { ArrowPathIcon } from '@heroicons/react/24/outline';
+import { StandardModal } from '@/components/shared/modals/BaseModal';
 
 interface DeckBuilderSearchSettingsModalProps {
   isOpen: boolean;
@@ -219,9 +221,9 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
     
     // Apply preset logic
     if (filter === 'basicPrintsOnly' && value) {
-      // Apply Basic Prints Only preset - only check "Base", uncheck all others
+      // Apply Basic Prints Only preset - check "Base" and "Starter Deck" with OR logic, uncheck all others
       collapsiblePrintTypeOptions?.forEach(option => {
-        const shouldBeChecked = option.value === 'Base';
+        const shouldBeChecked = option.value === 'Base' || option.value === 'Starter Deck';
         if (option.checked !== shouldBeChecked) {
           handlePrintTypeChange(option.value, shouldBeChecked);
         }
@@ -246,41 +248,35 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
     }
   };
 
-  if (!isOpen) return null;
+  const filterIcon = (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+    </svg>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg w-[90vw] max-w-6xl max-h-[90vh] flex flex-col">
-        <div className="p-6 flex-1 overflow-y-auto">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-white">Search Settings</h2>
-            <button
-              onClick={onClose}
-              className="text-white/60 hover:text-white transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+    <StandardModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Search Settings"
+      icon={filterIcon}
+      size="full"
+      className="w-[90vw] max-w-6xl max-h-[90vh] flex flex-col"
+    >
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center space-x-3 text-white/70">
+            <ArrowPathIcon className="animate-spin h-5 w-5" />
+            <span>Loading filter options...</span>
           </div>
+        </div>
+      )}
 
-          {/* Loading State */}
-          {loading && (
-            <div className="flex items-center justify-center py-12">
-              <div className="flex items-center space-x-3 text-white/70">
-                <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Loading filter options...</span>
-              </div>
-            </div>
-          )}
-
-          {/* Two Column Layout */}
-          {!loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      {/* Two Column Layout */}
+      {!loading && (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Left Column - Deck Configuration */}
             <div className="space-y-6">
               {/* Default Filter Toggles */}
@@ -392,12 +388,11 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
                 )}
               </div>
 
-            </div>
-          </div>
-          )}
         </div>
-
       </div>
-    </div>
+      )}
+    </StandardModal>
   );
 }
+
+

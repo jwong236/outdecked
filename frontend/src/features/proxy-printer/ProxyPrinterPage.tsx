@@ -12,6 +12,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { apiConfig } from '../../lib/apiConfig';
 import { getProductImageCard, getProductImageIcon, getCardImageAsBase64 } from '@/lib/imageUtils';
 import jsPDF from 'jspdf';
+import { StandardModal, WarningModal } from '@/components/shared/modals/BaseModal';
 
 export function ProxyPrinterPage() {
   const { user } = useSessionStore();
@@ -615,28 +616,12 @@ export function ProxyPrinterPage() {
 
       {/* Full-size Image Modal */}
       {selectedCard && (
-        <div className="fixed inset-0 z-50">
-          {/* Backdrop */}
-          <div 
-            className="fixed inset-0 bg-black/70 backdrop-blur-sm" 
-            onClick={handleCloseModal}
-          />
-          
-          {/* Modal Content */}
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-lg bg-gray-900/95 backdrop-blur-sm rounded-xl shadow-2xl border border-white/10">
-            {/* Close button - positioned absolutely */}
-            <button
-              onClick={handleCloseModal}
-              className="absolute top-4 right-4 z-10 rounded-full p-2 text-gray-400 hover:text-white hover:bg-white/10 transition-colors duration-150"
-              aria-label="Close modal"
-            >
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-
-            {/* Content - Just the image */}
-            <div className="p-4">
+        <StandardModal
+          isOpen={!!selectedCard}
+          onClose={handleCloseModal}
+          size="md"
+        >
+          {/* Content - Just the image */}
               <div className="relative aspect-[3/4] rounded-lg overflow-hidden bg-gray-800/50 border border-white/10">
                 <Image
                   src={getProductImageCard(selectedCard.product_id)}
@@ -665,27 +650,25 @@ export function ProxyPrinterPage() {
                   }}
                 />
               </div>
-            </div>
-          </div>
-        </div>
+        </StandardModal>
       )}
 
       {/* Clear Print List Confirmation Modal */}
       {showClearConfirm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-white">Clear Print List</h3>
-            </div>
-            
-            <p className="text-gray-200 mb-6">
-              Are you sure you want to clear your print list? This will remove all {totalItems} cards and cannot be undone.
-            </p>
+        <WarningModal
+          isOpen={showClearConfirm}
+          onClose={() => setShowClearConfirm(false)}
+          title="Clear Print List"
+          icon={
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          }
+          size="sm"
+        >
+          <p className="text-gray-200 mb-6">
+            Are you sure you want to clear your print list? This will remove all {totalItems} cards and cannot be undone.
+          </p>
             
             <div className="flex gap-3 justify-end">
               <button
@@ -701,8 +684,7 @@ export function ProxyPrinterPage() {
                 Clear Print List
               </button>
             </div>
-        </div>
-      </div>
+        </WarningModal>
       )}
 
       {/* Sign In Modal for Copy from Deck */}

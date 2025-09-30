@@ -20,7 +20,7 @@ export function GroupedDeckGrid({
   className = '' 
 }: GroupedDeckGridProps) {
   
-  // Group and sort cards
+  // Group cards by CardType (cards are already sorted by useDeckOperations)
   const groupedCards = useMemo(() => {
     // Group cards by CardType
     const groups: Record<string, ExpandedCard[]> = {};
@@ -33,30 +33,8 @@ export function GroupedDeckGrid({
       groups[cardType].push(card);
     });
     
-    // Sort cards within each group
-    Object.keys(groups).forEach(cardType => {
-      groups[cardType].sort((a, b) => {
-        switch (sortBy) {
-          case 'required_energy':
-            // Sort by RequiredEnergy (convert to number for proper sorting)
-            const energyA = parseInt(a.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
-            const energyB = parseInt(b.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
-            return energyA - energyB;
-          case 'rarity':
-            // Sort by rarity (define rarity order)
-            const rarityOrder = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Ultra Rare', 'Secret Rare'];
-            const rarityA = rarityOrder.indexOf(a.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
-            const rarityB = rarityOrder.indexOf(b.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
-            return rarityB - rarityA; // Higher rarity first
-          default:
-            // Sort by name
-            return a.name.localeCompare(b.name);
-        }
-      });
-    });
-    
     return groups;
-  }, [cards, sortBy]);
+  }, [cards]);
   
   // Define card type order
   const cardTypeOrder = ['Character', 'Event', 'Action Point', 'Site'];

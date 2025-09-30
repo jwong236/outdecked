@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useSeriesValues } from '@/lib/hooks';
 import { useSessionStore } from '@/stores/sessionStore';
 import { apiConfig } from '@/lib/apiConfig';
+import { WarningModal } from './BaseModal';
 
 interface CreateDeckModalProps {
   isOpen: boolean;
@@ -127,27 +128,25 @@ export function CreateDeckModal({ isOpen, onClose, onDeckCreated }: CreateDeckMo
     setNewDeckVisibility('private');
   };
 
-  if (!isOpen) return null;
+  const plusIcon = (
+    <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+    </svg>
+  );
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg p-6 max-w-md w-full mx-4">
-        <div className="flex items-center mb-4">
-          <div className="flex-shrink-0 w-10 h-10 mx-auto flex items-center justify-center rounded-full bg-green-100/20">
-            <svg className="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-          </div>
-        </div>
-        
-        <div className="text-center mb-6">
-          <h3 className="text-lg font-medium text-white mb-2">
-            Create New Deck
-          </h3>
-          <p className="text-white/70">
-            Set up your new deck with a name, game, and visibility settings.
-          </p>
-        </div>
+    <WarningModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Create New Deck"
+      icon={plusIcon}
+      size="sm"
+    >
+      <div className="text-center mb-6">
+        <p className="text-white/70">
+          Set up your new deck with a name, game, and visibility settings.
+        </p>
+      </div>
 
         <div className="space-y-4">
           {/* Deck Name */}
@@ -234,7 +233,6 @@ export function CreateDeckModal({ isOpen, onClose, onDeckCreated }: CreateDeckMo
             Create Deck
           </button>
         </div>
-      </div>
-    </div>
+    </WarningModal>
   );
 }

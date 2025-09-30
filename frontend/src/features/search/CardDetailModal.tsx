@@ -6,8 +6,8 @@ import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/2
 import Image from 'next/image';
 import { Card } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
-import { formatTriggerWithIcons } from '../../lib/triggerIcons';
 import { getProductImageCard } from '@/lib/imageUtils';
+import { CardDetailModal as BaseCardDetailModal } from '@/components/shared/modals/BaseModal';
 
 export interface CardDetailModalProps {
   card: Card | null;
@@ -130,20 +130,14 @@ export function CardDetailModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm" 
-        onClick={onClose}
-      />
-      
+    <>
       {/* Navigation Arrows - Outside Modal - only show if navigation props are provided */}
       {onNavigate && allCards.length > 0 && (
         <>
           {(currentIndex > 0 || hasPrevPage) && (
             <button
               onClick={handlePrevious}
-              className="fixed left-8 top-1/2 transform -translate-y-1/2 z-50 bg-white/10 backdrop-blur-sm hover:bg-white/20 px-4 py-3 shadow-xl border border-white/20 transition-all duration-200 rounded-lg text-white"
+              className="fixed left-4 top-1/2 transform -translate-y-1/2 z-[9999] bg-black/50 backdrop-blur-sm hover:bg-black/70 px-4 py-3 shadow-2xl border border-white/30 transition-all duration-200 rounded-lg text-white"
               aria-label="Previous card"
             >
               <ChevronLeftIcon className="h-6 w-6" />
@@ -153,7 +147,7 @@ export function CardDetailModal({
           {(currentIndex < allCards.length - 1 || hasNextPage) && (
             <button
               onClick={handleNext}
-              className="fixed right-8 top-1/2 transform -translate-y-1/2 z-50 bg-white/10 backdrop-blur-sm hover:bg-white/20 px-4 py-3 shadow-xl border border-white/20 transition-all duration-200 rounded-lg text-white"
+              className="fixed right-4 top-1/2 transform -translate-y-1/2 z-[9999] bg-black/50 backdrop-blur-sm hover:bg-black/70 px-4 py-3 shadow-2xl border border-white/30 transition-all duration-200 rounded-lg text-white"
               aria-label="Next card"
             >
               <ChevronRightIcon className="h-6 w-6" />
@@ -163,22 +157,15 @@ export function CardDetailModal({
       )}
 
       {/* Modal Content */}
-      <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-full max-w-4xl bg-gray-900/95 backdrop-blur-sm rounded-xl shadow-2xl border border-white/10 max-h-[90vh] overflow-y-auto">
+      <BaseCardDetailModal isOpen={isOpen} onClose={onClose} size="xl">
                 {/* Header */}
-                <div className="flex items-center justify-between p-6 border-b border-white/10">
+                <div className="p-6 border-b border-white/10">
                   <div className="flex items-center space-x-4">
                     <h2 className="text-2xl font-bold text-white">{card.name}</h2>
                     {card.clean_name && card.clean_name !== card.name && (
                       <span className="text-sm text-gray-300">({card.clean_name})</span>
                     )}
                   </div>
-                  <button
-                    onClick={onClose}
-                    className="rounded-full p-2 text-gray-400 hover:text-white hover:bg-white/10 transition-colors duration-150"
-                    aria-label="Close modal"
-                  >
-                    <XMarkIcon className="h-6 w-6" />
-                  </button>
                 </div>
 
                 {/* Content */}
@@ -246,65 +233,99 @@ export function CardDetailModal({
                             <span className="font-medium text-gray-300">Game:</span>
                             <span className="ml-2 text-white">{card.game}</span>
                           </div>
-                          <div>
-                            <span className="font-medium text-gray-300">Series:</span>
-                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'SeriesName')?.value || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-300">Rarity:</span>
-                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'Rarity')?.value || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-300">Card Type:</span>
-                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'CardType')?.value || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-300">Number:</span>
-                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'Number')?.value || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-300">Activation Energy:</span>
-                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'ActivationEnergy')?.value || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-300">Required Energy:</span>
-                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'RequiredEnergy')?.value || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-300">Action Point Cost:</span>
-                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'ActionPointCost')?.value || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-300">Battle Point BP:</span>
-                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'BattlePointBP')?.value || 'N/A'}</span>
-                          </div>
-                          <div>
-                            <span className="font-medium text-gray-300">Generated Energy:</span>
-                            <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'GeneratedEnergy')?.value || 'N/A'}</span>
-                          </div>
+                          
+                          {/* Key Card Attributes - Specific Order */}
+                          {card.attributes.find(attr => attr.name === 'RequiredEnergy')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Required Energy:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'RequiredEnergy')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'ActionPointCost')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Action Point Cost:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'ActionPointCost')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'ActivationEnergy')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Activation Energy:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'ActivationEnergy')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'GeneratedEnergy')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Generated Energy:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'GeneratedEnergy')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'BattlePointBP')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Battle Point (BP):</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'BattlePointBP')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'CardType')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Card Type:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'CardType')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'Rarity')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Rarity:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'Rarity')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'PrintType')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Print Type:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'PrintType')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'SeriesName')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Series Name:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'SeriesName')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'Number')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Number:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'Number')?.value}</span>
+                            </div>
+                          )}
+                          
+                          {card.attributes.find(attr => attr.name === 'Affinities')?.value && (
+                            <div>
+                              <span className="font-medium text-gray-300">Affinities:</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'Affinities')?.value}</span>
+                            </div>
+                          )}
                         </div>
                         
-                        {/* Trigger */}
-                        {card.attributes.find(attr => attr.name === 'Trigger')?.value && (
-                          <div className="mt-4">
-                            <span className="font-medium text-gray-300">Trigger:</span>
-                            <div className="mt-1 text-sm text-gray-200 leading-relaxed">{formatTriggerWithIcons(card.attributes.find(attr => attr.name === 'Trigger')?.value || '')}</div>
-                          </div>
-                        )}
-                        
-                        {/* Affinities */}
-                        {card.attributes.find(attr => attr.name === 'Affinities')?.value && (
-                          <div className="mt-4">
-                            <span className="font-medium text-gray-300">Affinities:</span>
-                            <div className="mt-1 text-sm text-gray-200">{card.attributes.find(attr => attr.name === 'Affinities')?.value}</div>
-                          </div>
-                        )}
-                        
-                        {/* Description */}
+                        {/* Description - Full Width */}
                         {card.attributes.find(attr => attr.name === 'Description')?.value && (
                           <div className="mt-4">
                             <span className="font-medium text-gray-300">Description:</span>
-                            <p className="mt-1 text-sm text-gray-200">{card.attributes.find(attr => attr.name === 'Description')?.value}</p>
+                            <p className="mt-1 text-sm text-gray-200 leading-relaxed">{card.attributes.find(attr => attr.name === 'Description')?.value}</p>
+                          </div>
+                        )}
+                        
+                        {/* Trigger - Full Width */}
+                        {card.attributes.find(attr => attr.name === 'TriggerText')?.value && (
+                          <div className="mt-4">
+                            <span className="font-medium text-gray-300">Trigger:</span>
+                            <p className="mt-1 text-sm text-gray-200 leading-relaxed">{card.attributes.find(attr => attr.name === 'TriggerText')?.value}</p>
                           </div>
                         )}
                       </div>
@@ -347,7 +368,7 @@ export function CardDetailModal({
                   </div>
                 </div>
 
-      </div>
-    </div>
+      </BaseCardDetailModal>
+    </>
   );
 }

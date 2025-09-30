@@ -380,7 +380,7 @@ def handle_get_user_preferences():
 
     conn = get_db_connection()
     cursor = conn.execute(
-        "SELECT background, cards_per_page, default_sort, theme, default_print_types, default_card_types, default_rarities FROM user_preferences WHERE user_id = ?",
+        "SELECT background, cards_per_page, default_sort, theme FROM user_preferences WHERE user_id = ?",
         (user["id"],),
     )
 
@@ -388,29 +388,11 @@ def handle_get_user_preferences():
     conn.close()
 
     if result:
-        # Parse JSON strings for the new fields
-        import json
-
         preferences = {
             "background": result["background"],
             "cards_per_page": result["cards_per_page"],
             "default_sort": result["default_sort"],
             "theme": result["theme"],
-            "default_print_types": (
-                json.loads(result["default_print_types"])
-                if result["default_print_types"]
-                else ["Base"]
-            ),
-            "default_card_types": (
-                json.loads(result["default_card_types"])
-                if result["default_card_types"]
-                else ["Action Point"]
-            ),
-            "default_rarities": (
-                json.loads(result["default_rarities"])
-                if result["default_rarities"]
-                else ["Common", "Uncommon", "Rare", "Super Rare"]
-            ),
         }
     else:
         preferences = {
@@ -418,9 +400,6 @@ def handle_get_user_preferences():
             "cards_per_page": 24,
             "default_sort": "name",
             "theme": "light",
-            "default_print_types": ["Base"],
-            "default_card_types": ["Action Point"],
-            "default_rarities": ["Common", "Uncommon", "Rare", "Super Rare"],
         }
 
     return jsonify({"preferences": preferences})
@@ -439,26 +418,15 @@ def handle_update_user_preferences():
     cursor = conn.cursor()
 
     # Update specific columns
-    import json
-
     background = preferences.get("background", "/backgrounds/background-1.jpg")
     cards_per_page = preferences.get("cards_per_page", 24)
     default_sort = preferences.get("default_sort", "name")
     theme = preferences.get("theme", "light")
-    default_print_types = json.dumps(preferences.get("default_print_types", ["Base"]))
-    default_card_types = json.dumps(
-        preferences.get("default_card_types", ["Action Point"])
-    )
-    default_rarities = json.dumps(
-        preferences.get(
-            "default_rarities", ["Common", "Uncommon", "Rare", "Super Rare"]
-        )
-    )
 
     cursor.execute(
         """
-        INSERT OR REPLACE INTO user_preferences (user_id, background, cards_per_page, default_sort, theme, default_print_types, default_card_types, default_rarities, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO user_preferences (user_id, background, cards_per_page, default_sort, theme, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
     """,
         (
             user["id"],
@@ -466,9 +434,6 @@ def handle_update_user_preferences():
             cards_per_page,
             default_sort,
             theme,
-            default_print_types,
-            default_card_types,
-            default_rarities,
             datetime.now(),
         ),
     )

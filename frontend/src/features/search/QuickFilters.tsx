@@ -14,9 +14,9 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
     return searchPreferences.filters.some(f => f.field === field && f.value === value);
   };
 
-  // Helper function to check if "No Action Points" filter is active
-  const hasNoActionPointsFilter = () => {
-    return searchPreferences.filters.some(f => f.field === 'CardType' && f.value === 'Action Point' && f.type === 'not');
+  // Helper function to check if "Basic Prints Only" filter is active (both Base and Starter Deck)
+  const hasBasicPrintsOnlyFilter = () => {
+    return hasFilter('PrintType', 'Base') && hasFilter('PrintType', 'Starter Deck');
   };
 
   // Helper function to check if "Base Rarity Only" filter is active
@@ -31,27 +31,29 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
     );
   };
 
-  // Helper function to add or remove a filter
-  const toggleFilter = (field: string, value: string, displayText: string, enabled: boolean) => {
+
+  // Helper function to toggle Basic Prints Only filter (both Base and Starter Deck with OR logic)
+  const toggleBasicPrintsOnlyFilter = (enabled: boolean) => {
     if (enabled) {
-      // Special cases for different filter types
-      let filterType: 'and' | 'or' | 'not' = 'and';
-      if (field === 'CardType' && value === 'Action Point') {
-        filterType = 'not';
-      }
-      addFilter({ type: filterType, field, value, displayText });
+      // Add both Base and Starter Deck filters with OR logic
+      addFilter({ type: 'or', field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' });
+      addFilter({ type: 'or', field: 'PrintType', value: 'Starter Deck', displayText: 'Base Prints Only' });
     } else {
-      // Find and remove the filter (handle all types)
-      const filterIndex = searchPreferences.filters.findIndex(f => 
-        f.field === field && f.value === value
-      );
-      if (filterIndex !== -1) {
-        removeFilter(filterIndex);
-      }
+      // Remove both Base and Starter Deck filters
+      const filtersToRemove = searchPreferences.filters
+        .map((filter, index) => ({ filter, index }))
+        .filter(({ filter }) => 
+          filter.field === 'PrintType' && 
+          (filter.value === 'Base' || filter.value === 'Starter Deck')
+        )
+        .map(({ index }) => index)
+        .reverse(); // Remove in reverse order to avoid index shifting
+      
+      filtersToRemove.forEach(index => removeFilter(index));
     }
   };
 
-  // Helper function to toggle Base Rarity filter (multiple OR filters)
+  // Helper function to toggle Base Rarity filter (multiple OR filters only)
   const toggleBaseRarityFilter = (enabled: boolean) => {
     const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
     
@@ -66,8 +68,7 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
         .map((filter, index) => ({ filter, index }))
         .filter(({ filter }) => 
           filter.field === 'Rarity' && 
-          baseRarities.includes(filter.value) && 
-          filter.type === 'or'
+          baseRarities.includes(filter.value)
         )
         .map(({ index }) => index)
         .reverse(); // Remove in reverse order to avoid index shifting
@@ -82,37 +83,36 @@ export function QuickFilters({ className = '' }: QuickFiltersProps) {
       
       <div className="space-y-4">
         {/* Basic Prints Only */}
-        <label className="flex items-center space-x-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={hasFilter('PrintType', 'Base')}
-            onChange={(e) => toggleFilter('PrintType', 'Base', 'Base Prints Only', e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
-          />
-          <span className="text-white font-medium">Basic Prints Only</span>
-        </label>
-        
-        {/* No Action Points */}
-        <label className="flex items-center space-x-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={hasNoActionPointsFilter()}
-            onChange={(e) => toggleFilter('CardType', 'Action Point', 'No Action Points', e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
-          />
-          <span className="text-white font-medium">No Action Points</span>
-        </label>
+        <div className="space-y-2">
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hasBasicPrintsOnlyFilter()}
+              onChange={(e) => toggleBasicPrintsOnlyFilter(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <span className="text-white font-medium">Basic Prints Only</span>
+          </label>
+          <p className="text-xs text-gray-300 ml-7">
+            Includes: Base, Starter Deck
+          </p>
+        </div>
         
         {/* Base Rarity Only */}
-        <label className="flex items-center space-x-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={hasBaseRarityOnlyFilter()}
-            onChange={(e) => toggleBaseRarityFilter(e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
-          />
-          <span className="text-white font-medium">Base Rarity Only</span>
-        </label>
+        <div className="space-y-2">
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hasBaseRarityOnlyFilter()}
+              onChange={(e) => toggleBaseRarityFilter(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <span className="text-white font-medium">Base Rarity Only</span>
+          </label>
+          <p className="text-xs text-gray-300 ml-7">
+            Includes: Common, Uncommon, Rare, Super Rare
+          </p>
+        </div>
       </div>
     </div>
   );

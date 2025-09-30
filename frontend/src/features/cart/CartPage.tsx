@@ -84,8 +84,8 @@ export function CartPage() {
     };
   }, [handCart.handItems, deckBuilder.deckList]); // Reload when hand items or deck list change
 
-  const handleClearHand = () => {
-    clearHand();
+  const handleClearHand = async () => {
+    await clearHand();
     setHand([]);
     setShowClearConfirm(false);
   };

@@ -24,47 +24,24 @@ def detect_print_type(abbreviation, card_name=None):
         return "Base"
 
 
-def parse_legacy_filters():
-    """Parse legacy flat query parameters into unified filter structure."""
-    filters = []
-
-    # Parse legacy parameters
-    game = request.args.get("game", "Union Arena")
-    series = request.args.get("series", "").strip()
-    color = request.args.get("color", "").strip()
-    card_type = request.args.get("cardType", "").strip()
-
-    # Convert to unified filter structure
-    if game:
-        filters.append({"type": "and", "field": "game", "value": game})
-    if series:
-        filters.append({"type": "and", "field": "SeriesName", "value": series})
-    if color:
-        filters.append({"type": "and", "field": "ActivationEnergy", "value": color})
-    if card_type:
-        filters.append({"type": "and", "field": "CardType", "value": card_type})
-
-    return filters
-
-
 def handle_api_search():
     """Handle the /api/search route with unified filter structure."""
     conn = get_db_connection()
 
-    # Get basic query parameters
-    page = int(request.args.get("page", 1))
-    per_page = int(request.args.get("per_page", 20))
-    search_query = request.args.get("query", "").strip()
-    sort_by = request.args.get("sort", "")
-
-    # Get unified filters from JSON body or query params
+    # Get basic query parameters from JSON body (unified format)
+    page = 1
+    per_page = 20
+    search_query = ""
+    sort_by = ""
     filters = []
+
     if request.is_json and request.json:
-        # Accept filters from JSON body
-        filters = request.json.get("filters", [])
-    else:
-        # Fallback: parse filters from query parameters (for backward compatibility)
-        filters = parse_legacy_filters()
+        data = request.json
+        page = int(data.get("page", 1))
+        per_page = int(data.get("per_page", 20))
+        search_query = data.get("query", "").strip()
+        sort_by = data.get("sort", "")
+        filters = data.get("filters", [])
 
     # Build base query with group name
     base_query = "FROM cards c LEFT JOIN groups g ON c.group_id = g.group_id"
@@ -79,9 +56,9 @@ def handle_api_search():
         search_param = f"%{search_query}%"
         params.extend([search_param, search_param])
 
-    # Process unified filters
+    # Process unified filters - group OR filters by field
     and_conditions = []
-    or_conditions = []
+    or_conditions_by_field = {}  # Group OR conditions by field
     not_conditions = []
 
     for filter_item in filters:
@@ -95,6 +72,9 @@ def handle_api_search():
         # Build condition based on field type
         if field == "game":
             condition = "c.game = ?"
+        elif field == "PrintType":
+            # Use card_attributes table like other attributes
+            condition = "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = ?) = ?"
         elif field in [
             "SeriesName",
             "Rarity",
@@ -106,152 +86,91 @@ def handle_api_search():
             "Affinities",
         ]:
             condition = "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = ?) = ?"
-            params.append(field)
         else:
             # Handle other fields
             condition = f"c.{field} = ?"
 
-        params.append(value)
-
-        # Group conditions by type
+        # Group conditions by type and add parameters
         if filter_type == "and":
             and_conditions.append(condition)
+            # Add field parameter for card_attributes fields
+            if field in [
+                "SeriesName",
+                "Rarity",
+                "CardType",
+                "ActivationEnergy",
+                "RequiredEnergy",
+                "ActionPointCost",
+                "Trigger",
+                "Affinities",
+                "PrintType",
+            ]:
+                params.append(field)
+            params.append(value)
         elif filter_type == "or":
-            or_conditions.append(condition)
+            # Group OR conditions by field
+            if field not in or_conditions_by_field:
+                or_conditions_by_field[field] = []
+            or_conditions_by_field[field].append(condition)
+            # Add field parameter for card_attributes fields
+            if field in [
+                "SeriesName",
+                "Rarity",
+                "CardType",
+                "ActivationEnergy",
+                "RequiredEnergy",
+                "ActionPointCost",
+                "Trigger",
+                "Affinities",
+                "PrintType",
+            ]:
+                params.append(field)
+            params.append(value)
         elif filter_type == "not":
-            not_conditions.append(f"NOT ({condition})")
+            # Handle NULL values properly for NOT filters
+            if field in [
+                "SeriesName",
+                "ActivationEnergy",
+                "CardType",
+                "Rarity",
+                "PrintType",
+                "Trigger",
+                "Description",
+                "Affinities",
+            ]:
+                # For card_attributes fields, exclude only if attribute exists AND equals value
+                not_condition = f"NOT EXISTS (SELECT 1 FROM card_attributes WHERE card_id = c.id AND name = ? AND value = ?)"
+                not_conditions.append(not_condition)
+                params.append(field)  # Field name
+                params.append(value)  # Value to compare against
+            else:
+                # For direct card fields, use standard NOT logic
+                not_conditions.append(f"NOT ({condition})")
+                if field == "game":
+                    params.append(value)
+                else:
+                    params.append(value)
 
     # Combine all conditions
     if and_conditions:
         where_conditions.extend(and_conditions)
-    if or_conditions:
-        where_conditions.append(f"({' OR '.join(or_conditions)})")
+
+    # Add grouped OR conditions
+    for field, conditions in or_conditions_by_field.items():
+        if len(conditions) > 1:
+            or_condition = f"({' OR '.join(conditions)})"
+            where_conditions.append(or_condition)
+        else:
+            where_conditions.extend(conditions)
+
     if not_conditions:
         where_conditions.extend(not_conditions)
 
-    # Handle print type filter
-    print_type = request.args.get("print_type", "")
-    if print_type and print_type != "all":
-        if print_type == "Base":
-            # Base cards are everything that doesn't match special patterns
-            where_conditions.append(
-                "g.abbreviation NOT LIKE '%_RE' AND g.abbreviation NOT LIKE '%_PRE' AND g.abbreviation NOT LIKE '%ST' AND g.abbreviation != 'UEPR' AND c.name NOT LIKE '%Box Topper Foil%'"
-            )
-        elif print_type == "Pre-Release":
-            where_conditions.append("g.abbreviation LIKE '%_RE'")
-        elif print_type == "Starter Deck":
-            where_conditions.append(
-                "g.abbreviation LIKE '%ST' AND g.abbreviation NOT LIKE '%_PRE'"
-            )
-        elif print_type == "Pre-Release Starter":
-            where_conditions.append("g.abbreviation LIKE '%_PRE'")
-        elif print_type == "Promotion":
-            # Promotion is only UEPR cards
-            where_conditions.append("g.abbreviation = 'UEPR'")
-        elif print_type == "Box Topper Foil":
-            # Box Topper Foil cards have "Box Topper Foil" in their name
-            where_conditions.append("c.name LIKE '%Box Topper Foil%'")
+    # Legacy print_type handling removed - now handled by unified filter system
 
-    # Handle filters
-    filter_fields = [
-        "SeriesName",
-        "Rarity",
-        "CardType",
-        "ActivationEnergy",
-        "RequiredEnergy",
-        "ActionPointCost",
-        "Trigger",
-        "Affinities",
-        "PrintType",
-    ]
+    # Legacy direct filter parameter handling removed - now handled by unified filter system
 
-    for field in filter_fields:
-        values = request.args.getlist(field)
-        if values:
-            if field == "PrintType":
-                # Use database print_type column for filtering
-                placeholders = ",".join(["?" for _ in values])
-                where_conditions.append(f"c.print_type IN ({placeholders})")
-                params.extend(values)
-            else:
-                # Regular field handling
-                placeholders = ",".join(["?" for _ in values])
-                where_conditions.append(
-                    f"(SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') IN ({placeholders})"
-                )
-                params.extend(values)
-
-    # Handle advanced filters (and_filters, or_filters, not_filters)
-    import json
-
-    # Process AND filters
-    and_filters_json = request.args.get("and_filters")
-    if and_filters_json:
-        try:
-            and_filters = json.loads(and_filters_json)
-            for filter_obj in and_filters:
-                field = filter_obj.get("field")
-                value = filter_obj.get("value")
-                if field and value:
-                    if field == "PrintType":
-                        # Use database print_type column for filtering
-                        where_conditions.append("c.print_type = ?")
-                        params.append(value)
-                    else:
-                        # Regular field handling
-                        where_conditions.append(
-                            f"(SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') = ?"
-                        )
-                        params.append(value)
-        except json.JSONDecodeError:
-            pass  # Ignore invalid JSON
-
-    # Process OR filters
-    or_filters_json = request.args.get("or_filters")
-    if or_filters_json:
-        try:
-            or_filters = json.loads(or_filters_json)
-            or_conditions = []
-            for filter_obj in or_filters:
-                field = filter_obj.get("field")
-                value = filter_obj.get("value")
-                if field and value:
-                    if field == "PrintType":
-                        # Use database print_type column for filtering
-                        or_conditions.append("(c.print_type = ?)")
-                        params.append(value)
-                    else:
-                        # Regular field handling
-                        or_conditions.append(
-                            f"(SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') = ?"
-                        )
-                        params.append(value)
-            if or_conditions:
-                where_conditions.append(f"({' OR '.join(or_conditions)})")
-        except json.JSONDecodeError:
-            pass  # Ignore invalid JSON
-
-    # Process NOT filters
-    not_filters_json = request.args.get("not_filters")
-    if not_filters_json:
-        try:
-            not_filters = json.loads(not_filters_json)
-            for filter_obj in not_filters:
-                field = filter_obj.get("field")
-                value = filter_obj.get("value")
-                if field and value:
-                    if field == "PrintType":
-                        # Use database print_type column for filtering
-                        where_conditions.append("NOT (c.print_type = ?)")
-                        params.append(value)
-                    else:
-                        # Regular field handling
-                        where_conditions.append(
-                            f"NOT ((SELECT value FROM card_attributes WHERE card_id = c.id AND name = '{field}') = ?)"
-                        )
-                        params.append(value)
-        except json.JSONDecodeError:
-            pass  # Ignore invalid JSON
+    # Legacy advanced filter handling removed - now handled by unified filter system
 
     where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
 
@@ -294,6 +213,18 @@ def handle_api_search():
             order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'RequiredEnergy') AS INTEGER) DESC"
         elif sort_by == "required_energy_asc":
             order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'RequiredEnergy') AS INTEGER) ASC"
+        elif sort_by == "recent_series_rarity_desc":
+            # Sort by most recent series first (published_on DESC), then by rarity DESC
+            order_clause = """ORDER BY g.published_on DESC, 
+                CASE 
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Secret Rare' THEN 1
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Ultra Rare' THEN 2
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 3
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare' THEN 4
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon' THEN 5
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common' THEN 6
+                    ELSE 7
+                END ASC"""
 
     # Get total count - need to match the main query structure with JOINs
     count_query = f"SELECT COUNT(DISTINCT c.id) as total {base_query} LEFT JOIN card_attributes cm ON c.id = cm.card_id LEFT JOIN card_prices cp ON c.id = cp.card_id {where_clause}"
@@ -305,7 +236,7 @@ def handle_api_search():
     # Get paginated results with metadata and prices (TCGCSV-aligned)
     # Use market_price if available, otherwise fall back to mid_price
     search_query = (
-        f"SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, GROUP_CONCAT(cm.name || ':' || cm.value, '|||') as metadata, "
+        f"SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, GROUP_CONCAT(cm.name || ':' || cm.value || ':' || cm.display_name, '|||') as metadata, "
         f"COALESCE(cp.market_price, cp.mid_price) as price {base_query} "
         f"LEFT JOIN card_attributes cm ON c.id = cm.card_id "
         f"LEFT JOIN card_prices cp ON c.id = cp.card_id "
@@ -332,7 +263,7 @@ def handle_api_search():
             "group_id": card.get("group_id", 0),
             "group_name": card.get("group_name"),
             "group_abbreviation": card.get("group_abbreviation"),
-            "print_type": card.get("print_type", "Unknown"),
+            # print_type now comes from card_attributes via metadata processing
             "image_count": card.get("image_count", 0),
             "is_presale": card.get("is_presale", False),
             "released_on": card.get("released_on", ""),
@@ -345,15 +276,37 @@ def handle_api_search():
             "created_at": card.get("created_at", ""),
         }
 
-        # Parse metadata string and add as individual fields
+        # Parse metadata string and add as attributes array
+        attributes = []
         if card["metadata"]:
             metadata_pairs = card["metadata"].split("|||")
             for pair in metadata_pairs:
                 if ":" in pair:
-                    name, field_value = pair.split(":", 1)
+                    parts = pair.split(":", 2)  # Split into max 3 parts
+                    if len(parts) == 3:
+                        name, field_value, display_name = parts
+                    else:
+                        # Fallback for old format without display_name
+                        name, field_value = parts
+                        display_name = name
+
                     # Don't overwrite group fields with any field from metadata
                     if name not in ["group_name", "group_abbreviation"]:
                         processed_card[name] = field_value
+                        # Also add to attributes array for frontend compatibility
+                        attributes.append(
+                            {
+                                "id": 0,  # Placeholder - not used by frontend
+                                "card_id": card["id"],
+                                "name": name,
+                                "value": field_value,
+                                "display_name": display_name,
+                                "created_at": card.get("created_at", ""),
+                            }
+                        )
+
+        # Add attributes array to processed card
+        processed_card["attributes"] = attributes
 
         cards.append(processed_card)
 
@@ -395,14 +348,11 @@ def handle_filter_fields():
     fields = conn.execute(query).fetchall()
     conn.close()
 
-    # Convert to list and add PrintType as a special field
+    # Convert to list - PrintType is now in card_attributes like other fields
     field_list = [
         {"name": field["name"], "display": field["display_name"] or field["name"]}
         for field in fields
     ]
-
-    # Add PrintType as a special field (not from card_attributes)
-    field_list.append({"name": "PrintType", "display": "Print Type"})
 
     # Sort by display name
     field_list.sort(key=lambda x: x["display"])

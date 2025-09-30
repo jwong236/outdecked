@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState, useEffect } from 'react';
+import { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { Deck, Card, ExpandedCard, CardCache } from '@/types/card';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -8,7 +8,7 @@ import { fetchDeck } from '@/lib/deckUtils';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
 import { getProductImageCard } from '@/lib/imageUtils';
 
-export function useDeckOperations(searchCache: CardCache, setSearchCache: (updater: (prev: CardCache) => CardCache) => void) {
+export function useDeckOperations(searchCache: CardCache, setSearchCache: (updater: (prev: CardCache) => CardCache) => void, sortBy: string = 'name') {
   const router = useRouter();
   const { deckBuilder, setCurrentDeck } = useSessionStore();
   const { setSeries } = useSessionStore();
@@ -24,6 +24,9 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
   // Local state for deck name management
   const [originalDeckName, setOriginalDeckName] = useState((currentDeck as any)?.name || '');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  
+  // Track if we're already fetching to prevent infinite loops
+  const fetchingRef = useRef(false);
 
   // Update originalDeckName when currentDeck changes
   useEffect(() => {
@@ -31,6 +34,164 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       setOriginalDeckName((currentDeck as any).name);
     }
   }, [(currentDeck as any)?.name]);
+
+  // First effect: Create expandedCards from current CardRef[] + searchCache (READ-ONLY)
+  const expandedCards = useMemo(() => {
+    if (!isValidDeck(currentDeck) || !currentDeck.cards || currentDeck.cards.length === 0) {
+      return [];
+    }
+
+    console.log('🃏 useDeckOperations: Creating expanded cards array');
+    console.log('🃏 useDeckOperations: deck cards:', currentDeck.cards);
+    console.log('🃏 useDeckOperations: searchCache keys:', Object.keys(searchCache));
+
+    // Filter out invalid cards
+    const validCards = currentDeck.cards.filter(card => 
+      card && typeof card === 'object' && card.card_id && card.quantity
+    );
+
+    if (validCards.length === 0) {
+      return [];
+    }
+
+    // Create ExpandedCard[] array
+    const cards = validCards.map(deckCard => {
+      const fullCardData = searchCache[deckCard.card_id];
+      
+      if (fullCardData) {
+        return {
+          ...fullCardData,
+          quantity: deckCard.quantity
+        } as ExpandedCard;
+      } else {
+        // Fallback for missing cache data
+        return {
+          id: deckCard.card_id,
+          product_id: deckCard.card_id,
+          quantity: deckCard.quantity,
+          name: `Card ${deckCard.card_id}`,
+          clean_name: null,
+          card_url: '',
+          game: 'Union Arena',
+          category_id: 0,
+          group_id: 0,
+          image_count: 0,
+          is_presale: false,
+          released_on: '',
+          presale_note: '',
+          modified_on: '',
+          price: null,
+          low_price: null,
+          mid_price: null,
+          high_price: null,
+          created_at: '',
+          attributes: [],
+        } as ExpandedCard;
+      }
+    }).filter(Boolean);
+
+    // Apply the same sorting and grouping logic as GroupedDeckGrid
+    // Group cards by CardType
+    const groups: Record<string, ExpandedCard[]> = {};
+    
+    cards.forEach(card => {
+      const cardType = card.attributes?.find(attr => attr.name === 'CardType')?.value || 'Unknown';
+      if (!groups[cardType]) {
+        groups[cardType] = [];
+      }
+      groups[cardType].push(card);
+    });
+    
+    // Sort cards within each group based on sortBy parameter
+    Object.keys(groups).forEach(cardType => {
+      groups[cardType].sort((a, b) => {
+        switch (sortBy) {
+          case 'required_energy_asc':
+            // Sort by RequiredEnergy (ascending)
+            const energyA = parseInt(a.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
+            const energyB = parseInt(b.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
+            return energyA - energyB;
+          case 'required_energy_desc':
+            // Sort by RequiredEnergy (descending)
+            const energyA_desc = parseInt(a.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
+            const energyB_desc = parseInt(b.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
+            return energyB_desc - energyA_desc;
+          case 'rarity_asc':
+            // Sort by rarity (ascending - lower rarity first)
+            const rarityOrder = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Ultra Rare', 'Secret Rare'];
+            const rarityA_asc = rarityOrder.indexOf(a.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
+            const rarityB_asc = rarityOrder.indexOf(b.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
+            return rarityA_asc - rarityB_asc;
+          case 'rarity_desc':
+            // Sort by rarity (descending - higher rarity first)
+            const rarityOrder_desc = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Ultra Rare', 'Secret Rare'];
+            const rarityA_desc = rarityOrder_desc.indexOf(a.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
+            const rarityB_desc = rarityOrder_desc.indexOf(b.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
+            return rarityB_desc - rarityA_desc;
+          case 'name_desc':
+            // Sort by name (descending)
+            return b.name.localeCompare(a.name);
+          default:
+            // Sort by name (ascending)
+            return a.name.localeCompare(b.name);
+        }
+      });
+    });
+    
+    // Flatten back to array in the same order as GroupedDeckGrid displays
+    const cardTypeOrder = ['Character', 'Event', 'Action Point', 'Site'];
+    const sortedCards: ExpandedCard[] = [];
+    
+    cardTypeOrder.forEach(cardType => {
+      if (groups[cardType]) {
+        sortedCards.push(...groups[cardType]);
+      }
+    });
+
+    console.log('🃏 useDeckOperations: Created and sorted expanded cards:', sortedCards.length);
+    return sortedCards;
+  }, [currentDeck?.cards, searchCache, sortBy]);
+
+  // Second effect: Fetch missing card data when expandedCards has cards not in cache (WRITES TO CACHE)
+  useEffect(() => {
+    if (!expandedCards || expandedCards.length === 0) {
+      return;
+    }
+
+    // Check which cards need to be fetched
+    const missingCardIds = expandedCards
+      .map(card => card.product_id)
+      .filter(cardId => !searchCache[cardId]);
+
+    // Fetch missing cards if any
+    if (missingCardIds.length > 0 && !fetchingRef.current) {
+      console.log('🃏 useDeckOperations: Missing cards, fetching:', missingCardIds);
+      fetchingRef.current = true;
+      
+      // Fetch missing cards
+      fetch('/api/cards/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ product_ids: missingCardIds }),
+      })
+      .then(response => response.json())
+      .then(rawCards => {
+        const cleanCards = transformRawCardsToCards(rawCards);
+        setSearchCache(prev => {
+          const newCache = { ...prev };
+          cleanCards.forEach(card => {
+            newCache[card.product_id] = card;
+          });
+          return newCache;
+        });
+        fetchingRef.current = false;
+      })
+      .catch(error => {
+        console.error('❌ useDeckOperations: Error fetching card data:', error);
+        fetchingRef.current = false;
+      });
+    }
+  }, [expandedCards, setSearchCache]);
 
   // Update currentDeck in sessionStore
   const createSession = useCallback((deck: Deck) => {
@@ -608,8 +769,8 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     hasUnsavedChanges,
     deckName: isValidDeck(currentDeck) ? currentDeck.name : '',
     hasUnsavedNameChanges: hasUnsavedChanges,
-    // TODO: Implement deckCards with sessionStore
-    // deckCards,
+    // Expanded cards (single source of truth for display and navigation)
+    expandedCards: expandedCards,
     deckCardsForPdf,
     
     // Actions

@@ -9,32 +9,34 @@ import time
 import logging
 from database import save_cards_to_db
 
+
 def to_title_case(text):
     """Convert text to proper title case, handling special cases"""
     # Handle special cases first
     special_cases = {
-        'BLEACH': 'Bleach',
-        'HUNTER X HUNTER': 'Hunter X Hunter',
-        'FULLMETAL ALCHEMIST': 'Fullmetal Alchemist',
-        'CODE GEASS': 'Code Geass',
-        'GODDESS OF VICTORY: NIKKE': 'Goddess of Victory: Nikke',
-        'ATTACK ON TITAN': 'Attack On Titan',
-        'BLACK CLOVER': 'Black Clover',
-        'DEMON SLAYER': 'Demon Slayer',
-        'JUJUTSU KAISEN': 'Jujutsu Kaisen',
-        'ONE PUNCH MAN': 'One Punch Man',
-        'SWORD ART ONLINE': 'Sword Art Online',
-        'RUROUNI KENSHIN': 'Rurouni Kenshin',
-        'KAIJU NO. 8': 'Kaiju No. 8',
-        'YU YU HAKUSHO': 'Yu Yu Hakusho'
+        "BLEACH": "Bleach",
+        "HUNTER X HUNTER": "Hunter X Hunter",
+        "FULLMETAL ALCHEMIST": "Fullmetal Alchemist",
+        "CODE GEASS": "Code Geass",
+        "GODDESS OF VICTORY: NIKKE": "Goddess of Victory: Nikke",
+        "ATTACK ON TITAN": "Attack On Titan",
+        "BLACK CLOVER": "Black Clover",
+        "DEMON SLAYER": "Demon Slayer",
+        "JUJUTSU KAISEN": "Jujutsu Kaisen",
+        "ONE PUNCH MAN": "One Punch Man",
+        "SWORD ART ONLINE": "Sword Art Online",
+        "RUROUNI KENSHIN": "Rurouni Kenshin",
+        "KAIJU NO. 8": "Kaiju No. 8",
+        "YU YU HAKUSHO": "Yu Yu Hakusho",
     }
-    
+
     # Check if it's a special case
     if text in special_cases:
         return special_cases[text]
-    
+
     # For other cases, use standard title case
     return text.title()
+
 
 # Setup logging
 logging.basicConfig(
@@ -131,7 +133,11 @@ class TCGCSVScraper:
                 elif attr_name == "number":
                     attributes["card_number"] = attr_value
                 elif attr_name == "description":
-                    attributes["card_text"] = attr_value
+                    # Clean HTML tags from description
+                    import re
+
+                    cleaned_description = re.sub(r"</?em>", "", attr_value)
+                    attributes["card_text"] = cleaned_description
                 elif attr_name == "seriesname":
                     attributes["series"] = to_title_case(attr_value)
                 elif attr_name == "cardtype":
@@ -149,7 +155,23 @@ class TCGCSVScraper:
                 elif attr_name == "affinities":
                     attributes["affinities"] = attr_value
                 elif attr_name == "trigger":
-                    attributes["trigger"] = attr_value
+                    # Store both trigger type and full trigger text
+                    import re
+
+                    match = re.match(r"\[([^\]]+)\]", attr_value)
+                    if match:
+                        trigger_type = match.group(1)
+                        # Handle special case: [FINAL] -> [Final]
+                        if trigger_type.upper() == "FINAL":
+                            trigger_type = "Final"
+                        attributes["trigger_type"] = trigger_type
+                        attributes["trigger_text"] = (
+                            attr_value  # Store full original text
+                        )
+                    else:
+                        # If no brackets, treat the whole value as both type and text
+                        attributes["trigger_type"] = attr_value
+                        attributes["trigger_text"] = attr_value
                 else:
                     # Store any other attributes with their original name
                     attributes[attr_name] = attr_value

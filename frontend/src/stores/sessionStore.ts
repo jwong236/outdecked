@@ -120,7 +120,7 @@ interface SessionState {
   addToHand: (product_id: number, quantity: number) => void;
   removeFromHand: (product_id: number) => void;
   updateHandQuantity: (product_id: number, quantity: number) => void;
-  clearHand: () => void;
+  clearHand: () => Promise<void>;
   
   // Proxy printer management
   setPrintList: (items: CardRef[]) => void;
@@ -153,13 +153,12 @@ const defaultPreferences = {};
 
 const defaultSearchPreferences: SearchParams = {
   query: '',
-  sort: 'required_energy_asc',
+  sort: 'recent_series_rarity_desc',
   per_page: 24,
   page: 1,
   filters: [
-    { type: 'and', field: 'PrintType', value: 'Base', displayText: 'Base Prints Only' },
-    { type: 'and', field: 'PrintType', value: 'Starter Deck', displayText: 'Starter Deck' },
-    { type: 'not', field: 'CardType', value: 'Action Point', displayText: 'No Action Points' },
+    { type: 'or', field: 'PrintType', value: 'Base', displayText: 'Basic Prints Only' },
+    { type: 'or', field: 'PrintType', value: 'Starter Deck', displayText: 'Basic Prints Only' },
     { type: 'or', field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
     { type: 'or', field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
     { type: 'or', field: 'Rarity', value: 'Rare', displayText: 'Base Rarity Only' },
@@ -562,12 +561,24 @@ export const useSessionStore = create<SessionState>()(
   },
 
   clearAllFilters: () => {
-    set((state) => ({
-      searchPreferences: {
-        ...state.searchPreferences,
-        filters: [],
-      },
-    }), false, 'clearAllFilters');
+    set((state) => {
+      // Only clear non-default filters, preserve default filters
+      const defaultFilters = [
+        { type: 'or' as const, field: 'PrintType', value: 'Base', displayText: 'Basic Prints Only' },
+        { type: 'or' as const, field: 'PrintType', value: 'Starter Deck', displayText: 'Basic Prints Only' },
+        { type: 'or' as const, field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'Rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'Rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
+      ];
+      
+      return {
+        searchPreferences: {
+          ...state.searchPreferences,
+          filters: defaultFilters,
+        },
+      };
+    }, false, 'clearAllFilters');
   },
 
 
@@ -769,10 +780,33 @@ export const useSessionStore = create<SessionState>()(
     });
   },
 
-  clearHand: () => {
+  clearHand: async () => {
+    // Update local state immediately
     set((state) => ({
       handCart: { ...state.handCart, handItems: [] }
     }));
+
+    // Sync to database if user is logged in
+    const state = get();
+    if (state.user.id) {
+      try {
+        console.log('🛒 clearHand: Syncing empty hand to database...');
+        const response = await fetch(apiConfig.getApiUrl('/api/users/me/hand'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ hand: [] }),
+        });
+
+        if (response.ok) {
+          console.log('✅ clearHand: Successfully synced empty hand to database');
+        } else {
+          console.error('❌ clearHand: Failed to sync empty hand to database:', response.status);
+        }
+      } catch (error) {
+        console.error('❌ clearHand: Error syncing empty hand to database:', error);
+      }
+    }
   },
 
   // ===== PROXY PRINTER MANAGEMENT =====

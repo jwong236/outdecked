@@ -10,6 +10,7 @@ import { DeckBuilderSearchSettingsModal } from './components/modals/DeckBuilderS
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { useDeckOperations } from './hooks/useDeckOperations';
 import { useSessionStore } from '@/stores/sessionStore';
+import { StandardModal } from '@/components/shared/modals/BaseModal';
 // Removed useAuth import - now using sessionStore
 import { Card, CardCache } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
@@ -63,8 +64,30 @@ export function DeckBuilderContent() {
   // Current search results for navigation
   const [currentSearchResults, setCurrentSearchResults] = React.useState<any[]>([]);
   
-  // Use deck operations with search cache
-  const deckOperations = useDeckOperations(searchCache, setSearchCache);
+  // Deck sorting state
+  const [deckSortBy, setDeckSortBy] = React.useState('required_energy_asc');
+  
+  // Use deck operations with search cache and sortBy
+  const deckOperations = useDeckOperations(searchCache, setSearchCache, deckSortBy);
+  
+  // Get expanded cards from the hook (single source of truth)
+  const { expandedCards: currentExpandedCards } = deckOperations;
+  
+  // Debug when currentSearchResults changes
+  React.useEffect(() => {
+    console.log('🔍 currentSearchResults updated:', {
+      count: currentSearchResults.length,
+      firstThree: currentSearchResults.slice(0, 3).map(c => c.name)
+    });
+  }, [currentSearchResults]);
+  
+  // Debug when currentExpandedCards changes
+  React.useEffect(() => {
+    console.log('🃏 currentExpandedCards updated:', {
+      count: currentExpandedCards.length,
+      firstThree: currentExpandedCards.slice(0, 3).map(c => c.name)
+    });
+  }, [currentExpandedCards]);
   
   // Function to fetch missing card data and populate cache
   const fetchMissingCardData = async (cardIds: string[]) => {
@@ -98,6 +121,23 @@ export function DeckBuilderContent() {
   // Modal state for card details (same pattern as SearchLayout)
   const [selectedCard, setSelectedCard] = React.useState<any>(null);
   const [selectedCardIndex, setSelectedCardIndex] = React.useState<number>(0);
+  const [selectedCardSource, setSelectedCardSource] = React.useState<'search' | 'deck' | null>(null);
+  
+  // Recalculate selectedCardIndex when search results change (for search cards)
+  React.useEffect(() => {
+    if (selectedCard && selectedCardSource === 'search' && currentSearchResults.length > 0) {
+      const newIndex = currentSearchResults.findIndex(c => c.product_id === selectedCard.product_id);
+      if (newIndex !== -1 && newIndex !== selectedCardIndex) {
+        console.log('🔍 Recalculating index for search card:', {
+          cardName: selectedCard.name,
+          oldIndex: selectedCardIndex,
+          newIndex,
+          searchResultsCount: currentSearchResults.length
+        });
+        setSelectedCardIndex(newIndex);
+      }
+    }
+  }, [currentSearchResults, selectedCard, selectedCardSource, selectedCardIndex]);
   
   // Modal state for deck settings
   const [showDeckSettingsModal, setShowDeckSettingsModal] = React.useState(false);
@@ -105,46 +145,67 @@ export function DeckBuilderContent() {
   const [showCoverModal, setShowCoverModal] = React.useState(false);
   
   // Modal handlers (same pattern as SearchLayout)
-  const handleCardClick = (card: any) => {
-    // Find the card in the appropriate array
+  const handleCardClick = (card: any, source: 'search' | 'deck' = 'search') => {
+    // Find the card in the appropriate array based on source
     let index = 0;
     let allCards: any[] = [];
     
-    // Check if it's a search card or deck card
-    if (searchCache[card.product_id]) {
+    if (source === 'search') {
       // It's a search card - find in current search results (maintains sort order)
       allCards = currentSearchResults;
       index = allCards.findIndex(c => c.product_id === card.product_id);
-    } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
-      // It's a deck card - find in deck cards
-      allCards = currentDeck.cards.map((deckCard: any) => {
-        const fullCardData = searchCache[deckCard.card_id];
-        return fullCardData ? { ...fullCardData, quantity: deckCard.quantity } : deckCard;
+      console.log('🔍 Card Click: Search card clicked:', {
+        cardName: card.name,
+        source,
+        searchResultsCount: currentSearchResults.length,
+        foundIndex: index,
+        allCardsNames: allCards.slice(0, 3).map(c => c.name)
       });
+    } else if (source === 'deck') {
+      // It's a deck card - use the properly sorted expanded cards array
+      allCards = currentExpandedCards;
       index = allCards.findIndex(c => c.product_id === card.product_id);
+      console.log('🔍 Card Click: Deck card clicked:', {
+        cardName: card.name,
+        source,
+        expandedCardsCount: currentExpandedCards.length,
+        foundIndex: index,
+        allCardsNames: allCards.slice(0, 3).map(c => c.name)
+      });
     }
     
     setSelectedCard(card);
     setSelectedCardIndex(index);
+    setSelectedCardSource(source);
   };
 
   const handleCloseModal = () => {
     setSelectedCard(null);
     setSelectedCardIndex(0);
+    setSelectedCardSource(null);
   };
 
   const handleNavigate = (newIndex: number) => {
     let allCards: any[] = [];
     
-    // Get the appropriate cards array
-    if (selectedCard && searchCache[selectedCard.product_id]) {
+    // Get the appropriate cards array based on source
+    if (selectedCardSource === 'search') {
       // It's a search card - use current search results (maintains sort order)
       allCards = currentSearchResults;
-    } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
-      // It's a deck card
-      allCards = currentDeck.cards.map((deckCard: any) => {
-        const fullCardData = searchCache[deckCard.card_id];
-        return fullCardData ? { ...fullCardData, quantity: deckCard.quantity } : deckCard;
+      console.log('🔍 Navigate: Using search results:', {
+        source: selectedCardSource,
+        searchResultsCount: currentSearchResults.length,
+        newIndex,
+        targetCard: allCards[newIndex]?.name
+      });
+    } else if (selectedCardSource === 'deck') {
+      // It's a deck card - use the properly sorted expanded cards array
+      allCards = currentExpandedCards;
+      console.log('🔍 Navigate: Using expanded cards:', {
+        source: selectedCardSource,
+        expandedCardsCount: currentExpandedCards.length,
+        newIndex,
+        targetCard: allCards[newIndex]?.name
       });
     }
     
@@ -392,6 +453,9 @@ export function DeckBuilderContent() {
           setSearchCache={setSearchCache}
           onCardClick={handleCardClick}
           onQuantityChange={deckOperations.handleQuantityChange}
+          expandedCards={currentExpandedCards}
+          deckSortBy={deckSortBy}
+          setDeckSortBy={setDeckSortBy}
         />
       </div>
 
@@ -419,17 +483,20 @@ export function DeckBuilderContent() {
 
       {/* Cover Selection Modal */}
       {showCoverModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-gray-900/95 backdrop-blur-sm rounded-xl shadow-2xl border border-white/10 p-6 max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 mx-auto mb-4 bg-indigo-600/20 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-semibold text-white mb-2">Change Deck Cover</h3>
-              <p className="text-gray-300">Select a card from your deck to use as the cover image.</p>
-            </div>
+        <StandardModal
+          isOpen={showCoverModal}
+          onClose={() => setShowCoverModal(false)}
+          title="Change Deck Cover"
+          icon={
+            <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          }
+          size="lg"
+        >
+          <div className="text-center mb-6">
+            <p className="text-gray-300">Select a card from your deck to use as the cover image.</p>
+          </div>
             
             {deckOperations.currentDeck && 'cards' in deckOperations.currentDeck && deckOperations.currentDeck.cards && deckOperations.currentDeck.cards.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-6">
@@ -480,8 +547,7 @@ export function DeckBuilderContent() {
                 Cancel
               </button>
             </div>
-          </div>
-        </div>
+        </StandardModal>
       )}
       
       {/* Card Detail Modal (same pattern as SearchLayout) */}
@@ -492,16 +558,25 @@ export function DeckBuilderContent() {
         allCards={(() => {
           if (!selectedCard) return [];
           
-          // Get the appropriate cards array based on the selected card
-          if (searchCache[selectedCard.product_id]) {
+          // Get the appropriate cards array based on source
+          if (selectedCardSource === 'search') {
             // It's a search card - use current search results (maintains sort order)
-            return currentSearchResults;
-          } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
-            // It's a deck card
-            return currentDeck.cards.map((deckCard: any) => {
-              const fullCardData = searchCache[deckCard.card_id];
-              return fullCardData ? { ...fullCardData, quantity: deckCard.quantity } : deckCard;
+            console.log('🔍 Modal: Using search results for navigation:', {
+              source: selectedCardSource,
+              searchResultsCount: currentSearchResults.length,
+              selectedCardName: selectedCard.name,
+              selectedCardIndex: selectedCardIndex
             });
+            return currentSearchResults;
+          } else if (selectedCardSource === 'deck') {
+            // It's a deck card - use the properly sorted expanded cards array
+            console.log('🔍 Modal: Using expanded cards for navigation:', {
+              source: selectedCardSource,
+              expandedCardsCount: currentExpandedCards.length,
+              selectedCardName: selectedCard.name,
+              selectedCardIndex: selectedCardIndex
+            });
+            return currentExpandedCards;
           }
           return [];
         })()}
@@ -509,10 +584,22 @@ export function DeckBuilderContent() {
         onNavigate={handleNavigate}
         hasNextPage={(() => {
           if (!selectedCard) return false;
-          if (searchCache[selectedCard.product_id]) {
-            return selectedCardIndex < currentSearchResults.length - 1;
-          } else if (currentDeck && 'cards' in currentDeck && currentDeck.cards) {
-            return selectedCardIndex < currentDeck.cards.length - 1;
+          if (selectedCardSource === 'search') {
+            const hasNext = selectedCardIndex < currentSearchResults.length - 1;
+            console.log('🔍 hasNextPage check (search):', {
+              selectedCardIndex,
+              searchResultsLength: currentSearchResults.length,
+              hasNext
+            });
+            return hasNext;
+          } else if (selectedCardSource === 'deck') {
+            const hasNext = selectedCardIndex < currentExpandedCards.length - 1;
+            console.log('🔍 hasNextPage check (deck):', {
+              selectedCardIndex,
+              expandedCardsLength: currentExpandedCards.length,
+              hasNext
+            });
+            return hasNext;
           }
           return false;
         })()}

@@ -120,9 +120,9 @@ export function ActiveFilters({
               .filter(({ filter }) => {
                 // Hide default filter pills
                 const isDefaultFilter = 
-                  filter.displayText === 'Base Prints Only' ||
-                  filter.displayText === 'No Action Points' ||
-                  filter.displayText === 'Base Rarity Only';
+                  (filter.field === 'PrintType' && (filter.value === 'Base' || filter.value === 'Starter Deck')) ||
+                  (filter.field === 'CardType' && filter.value === 'Action Point' && filter.type === 'not') ||
+                  (filter.field === 'Rarity' && ['Common', 'Uncommon', 'Rare', 'Super Rare'].includes(filter.value));
                 return !isDefaultFilter;
               })
               .map(({ filter, index }) => {
