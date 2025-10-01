@@ -98,6 +98,39 @@ export function CartPage() {
     setShowMoveToProxyConfirm(true);
   };
 
+  const handleBuyHand = async () => {
+    if (hand.length === 0) {
+      alert('No cards in hand to buy');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/tcgplayer/mass-entry', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          card_ids: hand.map(card => ({
+            card_id: card.product_id,
+            quantity: card.quantity || 1
+          }))
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Open the TCGPlayer Mass Entry URL in a new tab
+        window.open(data.url, '_blank');
+      } else {
+        alert('Failed to generate TCGPlayer URL');
+      }
+    } catch (error) {
+      console.error('Error generating buy URL:', error);
+      alert('Error generating TCGPlayer URL');
+    }
+  };
+
   const moveToProxyPrinter = () => {
     // Convert hand items to lightweight references
     const printListItems: CardRef[] = hand.map(card => ({
@@ -344,6 +377,15 @@ export function CartPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                   </svg>
                   Copy to Deck
+                </button>
+                <button 
+                  onClick={handleBuyHand}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors duration-150"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                  </svg>
+                  Buy Hand
                 </button>
                 <button 
                   onClick={handleClearClick}

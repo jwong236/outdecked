@@ -120,28 +120,6 @@ export function CartCard({
           )}
         </div>
 
-        {/* TCGP Button Row */}
-        {card.card_url && (
-          <div className="pt-1 border-t border-white/10">
-            <div className="flex items-center justify-end">
-              <a 
-                href={card.card_url} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center w-8 h-8 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors duration-150"
-                title={card.price ? `$${card.price.toFixed(2)}` : 'View on TCGPlayer'}
-              >
-                <Image
-                  src="/tcg_icon.png"
-                  alt="TCGPlayer"
-                  width={16}
-                  height={16}
-                  className="w-4 h-4"
-                />
-              </a>
-            </div>
-          </div>
-        )}
 
         {/* Quantity Control */}
         <div className="pt-2">

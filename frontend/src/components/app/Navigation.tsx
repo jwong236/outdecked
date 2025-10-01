@@ -1,10 +1,10 @@
 'use client';
 
 import React from 'react';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { createPortal } from 'react-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { 
   HomeIcon, 
@@ -20,44 +20,36 @@ import {
 
 export function Navigation() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [buttonPosition, setButtonPosition] = useState({ top: 0, right: 0 });
   const [isHydrated, setIsHydrated] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout, sessionState, handCart } = useSessionStore();
   const isLoading = !sessionState.isInitialized;
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
-  const isActive = (path: string) => pathname === path;
-
-  const updateButtonPosition = useCallback((el: HTMLButtonElement | null) => {
-    if (el && isProfileOpen) {
-      const rect = el.getBoundingClientRect();
-      setButtonPosition({
-        top: rect.bottom + window.scrollY + 4,
-        right: window.innerWidth - rect.right - window.scrollX
-      });
-    }
-  }, [isProfileOpen]);
-
-  const handleLogout = async () => {
-    setIsProfileOpen(false);
-    // Redirect first to trigger deck save on unmount
-    router.push('/');
-    // Then logout after a brief delay to allow unmount save to complete
-    setTimeout(async () => {
-      await logout();
-    }, 100);
-  };
-
+  // Simple hydration check
   useEffect(() => {
     setIsHydrated(true);
   }, []);
 
-  // Close profile dropdown when clicking outside or scrolling
+  // Calculate dropdown position when opened
+  useEffect(() => {
+    if (isProfileOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8, // 8px gap below button
+        right: window.innerWidth - rect.right, // Distance from right edge
+      });
+    }
+  }, [isProfileOpen]);
+
+  // Click outside detection and scroll handling
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Element;
-      if (!target.closest('.profile-dropdown')) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node) &&
+          buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
         setIsProfileOpen(false);
       }
     };
@@ -65,19 +57,27 @@ export function Navigation() {
     const handleScroll = () => {
       setIsProfileOpen(false);
     };
-
+    
     if (isProfileOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       document.addEventListener('scroll', handleScroll, true);
-      window.addEventListener('scroll', handleScroll, true);
     }
-
+    
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('scroll', handleScroll, true);
-      window.removeEventListener('scroll', handleScroll, true);
     };
   }, [isProfileOpen]);
+
+  const isActive = (path: string) => pathname === path;
+
+  // Removed complex positioning logic - using simpler approach
+
+  const handleLogout = () => {
+    setIsProfileOpen(false);
+    logout();
+    router.push('/');
+  };
 
   // Calculate cart count from sessionStore
   const cartCount = handCart.handItems.reduce((total, item) => total + item.quantity, 0);
@@ -173,9 +173,9 @@ export function Navigation() {
               </div>
             ) : user.id ? (
               // Authenticated user - show profile dropdown
-              <div className="relative profile-dropdown">
+              <div className="relative">
                 <button
-                  ref={updateButtonPosition}
+                  ref={buttonRef}
                   onClick={() => setIsProfileOpen(!isProfileOpen)}
                   className="flex items-center px-2 py-1.5 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-colors"
                 >
@@ -186,12 +186,13 @@ export function Navigation() {
                   </svg>
                 </button>
 
-                {isProfileOpen && typeof window !== 'undefined' && createPortal(
+                {isProfileOpen && isHydrated && createPortal(
                   <div 
-                    className="fixed w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-50 profile-dropdown"
+                    ref={dropdownRef} 
+                    className="fixed w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1 z-[9999]"
                     style={{
-                      top: `${buttonPosition.top}px`,
-                      right: `${buttonPosition.right}px`
+                      top: `${dropdownPosition.top}px`,
+                      right: `${dropdownPosition.right}px`,
                     }}
                   >
                     <div className="px-4 py-2 border-b border-gray-200">

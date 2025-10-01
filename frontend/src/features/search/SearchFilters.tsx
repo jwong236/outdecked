@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSeriesValues, useColorValues, useFilterValues } from '@/lib/hooks';
-import { FilterDropdown } from './FilterDropdown';
+// Removed FilterDropdown import - using native select elements
 
 export function SearchFilters() {
   const { 
@@ -96,46 +96,74 @@ export function SearchFilters() {
 
         {/* Series Filter */}
         <div className="w-full">
-          <FilterDropdown
-            label="Series"
+          <label className="block text-sm font-medium text-white mb-2">
+            Series
+          </label>
+          <select
             value={getSeries()}
-            options={seriesOptions}
-            onChange={setSeries}
-            placeholder="All Series"
-          />
+            onChange={(e) => setSeries(e.target.value)}
+            className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {seriesOptions.map((option) => (
+              <option key={option.value} value={option.value} className="bg-gray-800">
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Color Filter */}
         <div className="w-full">
-          <FilterDropdown
-            label="Color"
+          <label className="block text-sm font-medium text-white mb-2">
+            Color
+          </label>
+          <select
             value={getColor()}
-            options={colorOptions}
-            onChange={setColor}
-            placeholder="All Colors"
-          />
+            onChange={(e) => setColor(e.target.value)}
+            className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {colorOptions.map((option) => (
+              <option key={option.value} value={option.value} className="bg-gray-800">
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Sort Filter */}
         <div className="w-full">
-          <FilterDropdown
-            label="Sort By"
+          <label className="block text-sm font-medium text-white mb-2">
+            Sort By
+          </label>
+          <select
             value={searchPreferences.sort || ''}
-            options={sortOptions}
-            onChange={setSort}
-            placeholder="Default"
-          />
+            onChange={(e) => setSort(e.target.value)}
+            className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {sortOptions.map((option) => (
+              <option key={option.value} value={option.value} className="bg-gray-800">
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Print Type Filter */}
         <div className="w-full">
-          <FilterDropdown
-            label="Print Type"
+          <label className="block text-sm font-medium text-white mb-2">
+            Print Type
+          </label>
+          <select
             value={currentPrintType}
-            options={printTypeOptions}
-            onChange={handlePrintTypeChange}
-            placeholder="All Prints"
-          />
+            onChange={(e) => handlePrintTypeChange(e.target.value)}
+            className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            {printTypeOptions.map((option) => (
+              <option key={option.value} value={option.value} className="bg-gray-800">
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
     </div>

@@ -408,6 +408,7 @@ export const useSessionStore = create<SessionState>()(
 
   updatePreferences: async (newPreferences: Record<string, string>): Promise<boolean> => {
     try {
+      console.log('💾 Saving preferences to database:', newPreferences);
       const response = await fetch(apiConfig.getApiUrl('/api/users/me/preferences'), {
         method: 'PUT',
         headers: {
@@ -417,12 +418,16 @@ export const useSessionStore = create<SessionState>()(
         credentials: 'include',
       });
 
+      console.log('💾 Save preferences response:', response.status, response.ok);
       if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Preferences saved successfully:', result);
         set((state) => ({
           preferences: { ...state.preferences, ...newPreferences }
         }), false, 'updatePreferences');
         return true;
       }
+      console.error('❌ Failed to save preferences, status:', response.status);
       return false;
     } catch (error) {
       console.error('Failed to update preferences:', error);
@@ -446,6 +451,7 @@ export const useSessionStore = create<SessionState>()(
       
       if (response.ok) {
         const data = await response.json();
+        console.log('📦 Loaded preferences from API:', data.preferences);
         set({ preferences: data.preferences }, false, 'loadUserPreferences');
       } else if (response.status === 404) {
         // 404 is normal for new users who don't have preferences yet

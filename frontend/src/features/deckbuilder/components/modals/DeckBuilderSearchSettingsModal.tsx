@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { CollapsibleFilterSection } from '@/features/search/CollapsibleFilterSection';
-import { FilterDropdown } from '@/features/search/FilterDropdown';
+// Removed FilterDropdown import - using native select elements
 import { useSessionStore } from '@/stores/sessionStore';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { StandardModal } from '@/components/shared/modals/BaseModal';
@@ -343,13 +343,18 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
                   Series
                 </h3>
                 <p className="text-white/70 text-sm mb-4">Set the default series filter for this deck.</p>
-                <FilterDropdown
-                  label=""
+                <select
                   value={currentSeries}
-                  options={seriesOptions}
-                  onChange={handleSeriesChange}
-                  placeholder="All Series"
-                />
+                  onChange={(e) => handleSeriesChange(e.target.value)}
+                  className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="" className="bg-gray-800">All Series</option>
+                  {seriesOptions.map((option) => (
+                    <option key={option.value} value={option.value} className="bg-gray-800">
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* Print Type Filters */}

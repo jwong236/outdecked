@@ -1,5 +1,5 @@
 // Search Components
-export { FilterDropdown } from './FilterDropdown';
+// Removed FilterDropdown export - component deleted
 export { ActiveFilters } from './ActiveFilters';
 export { AdvancedFilters } from './AdvancedFilters';
 export { SearchCard } from './SearchCard';
@@ -8,7 +8,7 @@ export { SearchLayout } from './SearchLayout';
 export { CardDetailModal } from './CardDetailModal';
 
 // Types
-export type { DropdownOption, FilterDropdownProps } from './FilterDropdown';
+// Removed FilterDropdown type exports - component deleted
 export type { ActiveFiltersProps } from './ActiveFilters';
 export type { AdvancedFiltersProps } from './AdvancedFilters';
 export type { SearchCardProps } from './SearchCard';

@@ -802,6 +802,110 @@ def clear_cart():
         )
 
 
+# TCGPlayer Integration
+@app.route("/api/tcgplayer/mass-entry", methods=["POST"])
+def generate_tcgplayer_mass_entry_url():
+    """Generate TCGPlayer Mass Entry URL from a list of cards"""
+    try:
+        data = request.get_json()
+        card_ids = data.get("card_ids", [])  # List of {card_id: str, quantity: int}
+
+        if not card_ids:
+            return jsonify({"error": "No cards provided"}), 400
+
+        # Get card data from database
+        conn = get_db_connection()
+        product_ids = [str(card["card_id"]) for card in card_ids]
+        placeholders = ",".join(["?" for _ in product_ids])
+
+        query = f"""
+            SELECT c.name, c.product_id, ca_number.value as number
+            FROM cards c
+            LEFT JOIN card_attributes ca_number ON c.id = ca_number.card_id AND ca_number.name = 'Number'
+            WHERE c.product_id IN ({placeholders})
+        """
+
+        print(f"🔍 Query: {query}")
+        print(f"🔍 Product IDs: {product_ids}")
+        cursor = conn.execute(query, product_ids)
+        rows = cursor.fetchall()
+        print(f"🔍 Found {len(rows)} cards in database")
+        conn.close()
+
+        # Create a map of product_id to card data (convert to string for comparison)
+        card_map = {str(row["product_id"]): row for row in rows}
+        print(f"🔍 Card map keys: {list(card_map.keys())}")
+
+        # Build the Mass Entry format
+        entries = []
+        for card in card_ids:
+            card_id = str(card["card_id"])  # Convert to string for lookup
+            quantity = card.get("quantity", 1)
+
+            print(f"🔍 Looking for card_id: {card_id} (type: {type(card_id)})")
+            if card_id not in card_map:
+                print(f"⚠️ Card {card_id} not found in card_map")
+                continue
+
+            card_data = card_map[card_id]
+            print(f"✅ Found card: {card_data['name']}")
+            card_name = card_data["name"]
+            number = card_data["number"]
+
+            if not number:
+                # If no number attribute, just use name
+                entries.append(f"{quantity} {card_name}")
+                continue
+
+            # Extract set code and card number from Number attribute
+            # Format: UE13BT/YYH-1-038 -> set_code: UE13BT, card_num: 038
+            try:
+                parts = number.split("/")
+                set_code = parts[0] if parts else ""
+
+                # Get the last part after the last dash for card number
+                if len(parts) > 1:
+                    number_parts = parts[1].split("-")
+                    card_num = number_parts[-1] if number_parts else ""
+                else:
+                    card_num = ""
+
+                # Format: {qty} {name} [{set_code}]
+                # TCGPlayer seems to match on name and set code, not individual card numbers
+                if set_code:
+                    entry = f"{quantity} {card_name} [{set_code}]"
+                else:
+                    entry = f"{quantity} {card_name}"
+
+                entries.append(entry)
+            except Exception as e:
+                # Fallback to just name if parsing fails
+                print(f"Error parsing number for {card_name}: {e}")
+                entries.append(f"{quantity} {card_name}")
+
+        # Join with || separator and URL encode
+        from urllib.parse import quote
+
+        cards_param = "||".join(entries)
+        encoded_cards = quote(cards_param)
+
+        # Build the full URL
+        mass_entry_url = f"https://www.tcgplayer.com/massentry?productline=Union%20Arena&c={encoded_cards}"
+
+        return jsonify(
+            {
+                "success": True,
+                "url": mass_entry_url,
+                "entries": entries,
+                "count": len(entries),
+            }
+        )
+
+    except Exception as e:
+        print(f"Error generating TCGPlayer Mass Entry URL: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 # Catch-all route for serving Next.js static files (must be last!)
 @app.route("/<path:path>")
 def serve_frontend(path):

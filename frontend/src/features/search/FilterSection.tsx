@@ -1,6 +1,6 @@
 'use client';
 
-import { FilterDropdown } from './FilterDropdown';
+// Removed FilterDropdown import - using native select elements
 
 interface FilterSectionProps {
   series: string;
@@ -36,40 +36,76 @@ export function FilterSection({
   return (
     <div className={`space-y-4 ${className}`}>
       {/* Series Filter */}
-      <FilterDropdown
-        label="Series"
-        value={series}
-        options={seriesOptions}
-        onChange={onSeriesChange}
-        placeholder="All Series"
-      />
+      <div>
+        <label className="block text-sm font-medium text-white mb-2">
+          Series
+        </label>
+        <select
+          value={series}
+          onChange={(e) => onSeriesChange(e.target.value)}
+          className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {seriesOptions.map((option) => (
+            <option key={option.value} value={option.value} className="bg-gray-800">
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Color Filter */}
-      <FilterDropdown
-        label="Color"
-        value={color}
-        options={colorOptions}
-        onChange={onColorChange}
-        placeholder="All Colors"
-      />
+      <div>
+        <label className="block text-sm font-medium text-white mb-2">
+          Color
+        </label>
+        <select
+          value={color}
+          onChange={(e) => onColorChange(e.target.value)}
+          className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {colorOptions.map((option) => (
+            <option key={option.value} value={option.value} className="bg-gray-800">
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Card Type Filter */}
-      <FilterDropdown
-        label="Card Type"
-        value={cardType}
-        options={cardTypeOptions}
-        onChange={onCardTypeChange}
-        placeholder="All Types"
-      />
+      <div>
+        <label className="block text-sm font-medium text-white mb-2">
+          Card Type
+        </label>
+        <select
+          value={cardType}
+          onChange={(e) => onCardTypeChange(e.target.value)}
+          className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {cardTypeOptions.map((option) => (
+            <option key={option.value} value={option.value} className="bg-gray-800">
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Sort Filter */}
-      <FilterDropdown
-        label="Sort By"
-        value={sort}
-        options={sortOptions}
-        onChange={onSortChange}
-        placeholder="Default"
-      />
+      <div>
+        <label className="block text-sm font-medium text-white mb-2">
+          Sort By
+        </label>
+        <select
+          value={sort}
+          onChange={(e) => onSortChange(e.target.value)}
+          className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          {sortOptions.map((option) => (
+            <option key={option.value} value={option.value} className="bg-gray-800">
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 }

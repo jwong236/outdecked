@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { PlusIcon } from '@heroicons/react/20/solid';
 import { FilterOption } from '@/types/card';
-import { FilterDropdown } from './FilterDropdown';
+// Removed FilterDropdown import - using native select elements
 import { CollapsibleFilterSection, FilterCheckboxOption } from './CollapsibleFilterSection';
 import { useFilterValues } from '@/lib/hooks';
 import { SearchParams } from '@/types/card';
@@ -166,17 +166,20 @@ export function AdvancedFilters({
               <div className="flex flex-col lg:flex-row lg:items-end gap-4">
                 {/* Deck Visibility - Left side */}
                 <div className="flex-1">
-                  <FilterDropdown
-                    label="Deck Visibility"
-                    value={deckVisibility}
-                    options={[
-                      { value: 'private', label: 'Private - Only you can see this deck' },
-                      { value: 'public', label: 'Public - Anyone can see this deck' },
-                      { value: 'unlisted', label: 'Unlisted - Only people with the link can see it' }
-                    ]}
-                    onChange={onDeckVisibilityChange}
-                    placeholder="Select visibility"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Deck Visibility
+                    </label>
+                    <select
+                      value={deckVisibility}
+                      onChange={(e) => onDeckVisibilityChange(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="private" className="bg-gray-800">Private - Only you can see this deck</option>
+                      <option value="public" className="bg-gray-800">Public - Anyone can see this deck</option>
+                      <option value="unlisted" className="bg-gray-800">Unlisted - Only people with the link can see it</option>
+                    </select>
+                  </div>
                 </div>
                 
                 {/* Default Filter Toggles - Right side */}
@@ -229,13 +232,23 @@ export function AdvancedFilters({
               {/* Series Dropdown */}
               {series !== undefined && onSeriesChange && seriesOptions && (
                 <div className="grid grid-cols-1 gap-4">
-                  <FilterDropdown
-                    label="Series"
-                    value={series}
-                    options={seriesOptions}
-                    onChange={onSeriesChange}
-                    placeholder="All Series"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Series
+                    </label>
+                    <select
+                      value={series}
+                      onChange={(e) => onSeriesChange(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="" className="bg-gray-800">All Series</option>
+                      {seriesOptions.map((option) => (
+                        <option key={option.value} value={option.value} className="bg-gray-800">
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
 
@@ -272,13 +285,23 @@ export function AdvancedFilters({
               {/* Sort Dropdown */}
               {sort !== undefined && onSortChange && sortOptions && (
                 <div className="grid grid-cols-1 gap-4">
-                  <FilterDropdown
-                    label="Sort By"
-                    value={sort || ''}
-                    options={sortOptions || []}
-                    onChange={onSortChange || (() => {})}
-                    placeholder="Default"
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-2">
+                      Sort By
+                    </label>
+                    <select
+                      value={sort || ''}
+                      onChange={(e) => onSortChange?.(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="" className="bg-gray-800">Default</option>
+                      {sortOptions?.map((option) => (
+                        <option key={option.value} value={option.value} className="bg-gray-800">
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
             </div>

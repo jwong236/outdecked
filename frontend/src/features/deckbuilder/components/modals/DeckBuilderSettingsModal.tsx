@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { CollapsibleFilterSection } from '@/features/search/CollapsibleFilterSection';
-import { FilterDropdown } from '@/features/search/FilterDropdown';
+// Removed FilterDropdown import - using native select elements
 import { useSessionStore } from '@/stores/sessionStore';
 import { StandardModal } from '@/components/shared/modals/BaseModal';
 import { CogIcon, EyeIcon } from '@heroicons/react/24/outline';
@@ -49,17 +49,15 @@ export function DeckBuilderSettingsModal({ isOpen, onClose }: DeckBuilderSetting
               Visibility
             </h3>
             <p className="text-white/70 text-sm mb-4">Control who can see your deck.</p>
-            <FilterDropdown
-              label=""
+            <select
               value={currentDeck?.visibility || "private"}
-              options={[
-                { value: 'private', label: 'Private - Only you can see this deck' },
-                { value: 'public', label: 'Public - Anyone can see this deck' },
-                { value: 'unlisted', label: 'Unlisted - Only people with the link can see it' }
-              ]}
-              onChange={handleDeckVisibilityChange}
-              placeholder="Select visibility"
-            />
+              onChange={(e) => handleDeckVisibilityChange(e.target.value)}
+              className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="private" className="bg-gray-800">Private - Only you can see this deck</option>
+              <option value="public" className="bg-gray-800">Public - Anyone can see this deck</option>
+              <option value="unlisted" className="bg-gray-800">Unlisted - Only people with the link can see it</option>
+            </select>
           </div>
         </div>
       </div>

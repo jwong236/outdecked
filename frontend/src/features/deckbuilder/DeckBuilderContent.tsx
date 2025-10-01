@@ -217,6 +217,45 @@ export function DeckBuilderContent() {
   };
   
 
+  // Buy Deck handler - generates TCGPlayer Mass Entry URL
+  const handleBuyDeck = async () => {
+    if (!currentDeck || !currentDeck.cards || currentDeck.cards.length === 0) {
+      alert('No cards in deck to buy');
+      return;
+    }
+
+    try {
+      console.log('🛒 Buy Deck - currentDeck.cards:', currentDeck.cards);
+      const cardIds = currentDeck.cards.map(card => ({
+        card_id: card.card_id,
+        quantity: card.quantity || 1
+      }));
+      console.log('🛒 Buy Deck - sending to API:', cardIds);
+
+      const response = await fetch('/api/tcgplayer/mass-entry', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ card_ids: cardIds }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('🛒 Buy Deck - API response:', data);
+        // Open the TCGPlayer Mass Entry URL in a new tab
+        window.open(data.url, '_blank');
+      } else {
+        const errorText = await response.text();
+        console.error('🛒 Buy Deck - API error:', response.status, errorText);
+        alert('Failed to generate TCGPlayer URL');
+      }
+    } catch (error) {
+      console.error('Error generating buy URL:', error);
+      alert('Error generating TCGPlayer URL');
+    }
+  };
+
   // Simple authentication check
   useEffect(() => {
     if (!authLoading && !user) {
@@ -429,6 +468,7 @@ export function DeckBuilderContent() {
         }}
         onShowCoverModal={() => setShowCoverModal(true)}
         deckOperations={deckOperations}
+        onBuyDeck={handleBuyDeck}
       />
 
       {/* Main Grid */}
