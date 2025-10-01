@@ -92,6 +92,18 @@ def handle_create_deck():
             ),
         )
 
+        # Add cards if provided (for deck duplication)
+        if data.get("cards"):
+            deck["cards"] = data["cards"]
+            print(
+                f"🔵 API POST /api/decks - adding {len(data['cards'])} cards to new deck"
+            )
+
+        # Add cover if provided (for deck duplication)
+        if data.get("cover"):
+            deck["cover"] = data["cover"]
+            print(f"🔵 API POST /api/decks - setting cover: {data['cover']}")
+
         # Save deck
         saved_deck = deck_manager.save_deck(deck)
         print(f"🔵 API POST /api/decks - saved_deck: {saved_deck}")
@@ -339,7 +351,7 @@ def handle_add_cards_to_deck(deck_id):
         for card_data in data["cards"]:
             card_id = card_data.get("card_id") or card_data.get("product_id")
             quantity = card_data.get("quantity", 1)
-            
+
             if not card_id:
                 continue
 
@@ -355,10 +367,7 @@ def handle_add_cards_to_deck(deck_id):
                 existing_card["quantity"] = existing_card.get("quantity", 0) + quantity
             else:
                 # Add new card
-                updated_deck["cards"].append({
-                    "card_id": card_id,
-                    "quantity": quantity
-                })
+                updated_deck["cards"].append({"card_id": card_id, "quantity": quantity})
 
         # Save updated deck
         saved_deck = deck_manager.save_deck(updated_deck)

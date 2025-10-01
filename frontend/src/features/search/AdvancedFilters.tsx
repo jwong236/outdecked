@@ -315,61 +315,61 @@ export function AdvancedFilters({
             
             <div className="flex gap-4 items-end">
               <div className="w-1/4">
-                <FilterDropdown
-                  label="Filter Type"
-                  value={newFilter.type}
-                  options={[
-                    { value: 'and', label: 'AND' },
-                    { value: 'or', label: 'OR' },
-                    { value: 'not', label: 'NOT' },
-                  ]}
-                  onChange={(value) => setNewFilter(prev => ({ ...prev, type: value as 'and' | 'or' | 'not' }))}
-                  getOptionClassName={(option) => {
-                    switch (option.value) {
-                      case 'and':
-                        return 'text-blue-600 hover:bg-blue-100 hover:text-blue-900';
-                      case 'or':
-                        return 'text-green-600 hover:bg-green-100 hover:text-green-900';
-                      case 'not':
-                        return 'text-red-600 hover:bg-red-100 hover:text-red-900';
-                      default:
-                        return '';
-                    }
-                  }}
-                  getSelectedValueClassName={(value) => {
-                    switch (value) {
-                      case 'and':
-                        return 'text-blue-600';
-                      case 'or':
-                        return 'text-green-600';
-                      case 'not':
-                        return 'text-red-600';
-                      default:
-                        return 'text-gray-900';
-                    }
-                  }}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Filter Type
+                  </label>
+                  <select
+                    value={newFilter.type}
+                    onChange={(e) => setNewFilter(prev => ({ ...prev, type: e.target.value as 'and' | 'or' | 'not' }))}
+                    className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="and" className="bg-gray-800">AND</option>
+                    <option value="or" className="bg-gray-800">OR</option>
+                    <option value="not" className="bg-gray-800">NOT</option>
+                  </select>
+                </div>
               </div>
 
               <div className="flex-1">
-                <FilterDropdown
-                  label="Field"
-                  value={newFilter.field}
-                  options={finalFieldOptions}
-                  onChange={(value) => setNewFilter(prev => ({ ...prev, field: value }))}
-                  placeholder="Select field"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Field
+                  </label>
+                  <select
+                    value={newFilter.field}
+                    onChange={(e) => setNewFilter(prev => ({ ...prev, field: e.target.value }))}
+                    className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="" className="bg-gray-800">Select field</option>
+                    {finalFieldOptions.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-gray-800">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="flex-1">
-                <FilterDropdown
-                  label="Value"
-                  value={newFilter.value}
-                  options={valueOptions}
-                  onChange={(value) => setNewFilter(prev => ({ ...prev, value }))}
-                  placeholder="Select value"
-                  disabled={!newFilter.field || valueOptions.length === 0}
-                />
+                <div>
+                  <label className="block text-sm font-medium text-white mb-2">
+                    Value
+                  </label>
+                  <select
+                    value={newFilter.value}
+                    onChange={(e) => setNewFilter(prev => ({ ...prev, value: e.target.value }))}
+                    disabled={!newFilter.field || valueOptions.length === 0}
+                    className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    <option value="" className="bg-gray-800">Select value</option>
+                    {valueOptions.map((option) => (
+                      <option key={option.value} value={option.value} className="bg-gray-800">
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               <div className="flex-shrink-0">

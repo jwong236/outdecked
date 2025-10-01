@@ -93,7 +93,10 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
   const isBasicPrintsOnly = React.useMemo(() => {
     if (!currentDeck || !('preferences' in currentDeck)) return false;
     const printTypes = currentDeck.preferences?.printTypes || [];
-    return printTypes.length === 1 && printTypes.includes('Base');
+    // Basic Prints Only means both Base and Starter Deck are checked, and nothing else
+    return printTypes.length === 2 && 
+           printTypes.includes('Base') && 
+           printTypes.includes('Starter Deck');
   }, [currentDeck]);
 
   const isNoActionPoints = React.useMemo(() => {

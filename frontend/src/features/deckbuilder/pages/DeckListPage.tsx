@@ -123,6 +123,53 @@ export function DeckListPage() {
     }
   };
 
+  const handleDuplicateDeck = async (deck: Deck) => {
+    try {
+      console.log('📋 Duplicating deck:', deck);
+      console.log('📋 Original deck cards:', deck.cards);
+      
+      // Create a new deck with the same data
+      const newDeckName = `${deck.name} (Copy)`;
+      const deckData = {
+        name: newDeckName,
+        game: deck.game,
+        description: deck.description || '',
+        visibility: deck.visibility || 'private',
+        cards: deck.cards || [],
+        cover: deck.cover || '',
+        preferences: deck.preferences || {}
+      };
+      
+      console.log('📋 Sending duplicate deck data:', deckData);
+      
+      const response = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(deckData)
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ Deck duplicated successfully:', data);
+        console.log('✅ New deck cards:', data.deck?.cards);
+        // Add new deck ID to session store
+        setDeckList([...deckBuilder.deckList, data.deck.id]);
+        // Reload decks to show the duplicate
+        await loadDecks();
+      } else {
+        const errorData = await response.json();
+        console.error('❌ Failed to duplicate deck:', errorData);
+        alert(`Failed to duplicate deck: ${errorData.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Error duplicating deck:', error);
+      alert('Error duplicating deck');
+    }
+  };
+
   const handleChangeCover = (deck: Deck) => {
     setDeckForCoverChange(deck);
     setShowCoverSelectionModal(true);
@@ -408,6 +455,18 @@ export function DeckListPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                           </svg>
                           Change Cover
+                        </button>
+                        <button
+                          onClick={() => {
+                            document.getElementById(`deck-menu-${deck.id}`)?.classList.add('hidden');
+                            handleDuplicateDeck(deck);
+                          }}
+                          className="w-full px-3 py-2 text-left text-white hover:bg-white/10 transition-colors text-sm flex items-center gap-2"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                          Duplicate Deck
                         </button>
                         <div className="border-t border-white/10 my-1"></div>
                         <button
