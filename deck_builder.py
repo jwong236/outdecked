@@ -15,13 +15,9 @@ def handle_get_decks():
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        print(f"🔵 API GET /api/user/decks - user: {user}, user_id: {user_id}")
 
         deck_manager = create_deck_manager(session, user_id)
         decks = deck_manager.get_all_decks()
-        print(
-            f"🔵 API GET /api/user/decks - returning {len(decks)} deck IDs for user {user_id}"
-        )
 
         # Extract only deck IDs and sort by last modified (newest first)
         deck_ids = []
@@ -37,8 +33,6 @@ def handle_get_decks():
         ]
         decks_with_timestamps.sort(key=lambda x: x[1], reverse=True)
         sorted_deck_ids = [deck_id for deck_id, _ in decks_with_timestamps]
-
-        print(f"🔵 API GET /api/user/decks - deck IDs: {sorted_deck_ids}")
 
         return jsonify(
             {
@@ -57,7 +51,6 @@ def handle_create_deck():
     """Handle POST /api/decks - Save new deck."""
     try:
         data = request.get_json()
-        print(f"🔵 API POST /api/decks - request data: {data}")
 
         # Validate required fields
         if not data or not data.get("name"):
@@ -66,7 +59,6 @@ def handle_create_deck():
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        print(f"🔵 API POST /api/decks - user: {user}, user_id: {user_id}")
 
         deck_manager = create_deck_manager(session, user_id)
 
@@ -95,18 +87,13 @@ def handle_create_deck():
         # Add cards if provided (for deck duplication)
         if data.get("cards"):
             deck["cards"] = data["cards"]
-            print(
-                f"🔵 API POST /api/decks - adding {len(data['cards'])} cards to new deck"
-            )
 
         # Add cover if provided (for deck duplication)
         if data.get("cover"):
             deck["cover"] = data["cover"]
-            print(f"🔵 API POST /api/decks - setting cover: {data['cover']}")
 
         # Save deck
         saved_deck = deck_manager.save_deck(deck)
-        print(f"🔵 API POST /api/decks - saved_deck: {saved_deck}")
 
         return jsonify(
             {
@@ -234,7 +221,6 @@ def handle_get_decks_batch():
         # Check if user is authenticated
         user = get_current_user()
         user_id = user["id"] if user else None
-        print(f"🔵 API POST /api/user/decks/batch - user: {user}, user_id: {user_id}")
 
         data = request.get_json()
         if not data or not data.get("deck_ids"):

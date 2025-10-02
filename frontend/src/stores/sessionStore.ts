@@ -209,7 +209,6 @@ export const useSessionStore = create<SessionState>()(
 
   // ===== SESSION MANAGEMENT =====
   initializeSession: () => {
-    console.log('🔄 Initializing session with default values...');
     set({
       user: defaultUser,
       searchPreferences: defaultSearchPreferences,
@@ -221,11 +220,9 @@ export const useSessionStore = create<SessionState>()(
         isInitialized: true,
       },
     }, false, 'initializeSession');
-    console.log('✅ Session initialized');
   },
 
   clearSession: () => {
-    console.log('🧹 Clearing session...');
     set({
       user: defaultUser,
       preferences: defaultPreferences,
@@ -238,7 +235,6 @@ export const useSessionStore = create<SessionState>()(
         isInitialized: true,
       },
     }, false, 'clearSession');
-    console.log('✅ Session cleared');
   },
 
   // Batch update function to avoid multiple actions
@@ -358,7 +354,6 @@ export const useSessionStore = create<SessionState>()(
   checkAuthStatus: async (): Promise<void> => {
     try {
       const url = apiConfig.getApiUrl('/api/auth/me');
-      console.log('Attempting to fetch:', url);
       
       const response = await fetch(url, {
         method: 'GET',
@@ -368,12 +363,8 @@ export const useSessionStore = create<SessionState>()(
         credentials: 'include',
       });
       
-      console.log('Response status:', response.status);
-      console.log('Response ok:', response.ok);
-      
       if (response.ok) {
         const data = await response.json();
-        console.log('🔍 SESSION DEBUG - User data from API:', data.user);
         get().setUser(data.user);
         
         // Load ALL user data in one coordinated call
@@ -408,7 +399,6 @@ export const useSessionStore = create<SessionState>()(
 
   updatePreferences: async (newPreferences: Record<string, string>): Promise<boolean> => {
     try {
-      console.log('💾 Saving preferences to database:', newPreferences);
       const response = await fetch(apiConfig.getApiUrl('/api/users/me/preferences'), {
         method: 'PUT',
         headers: {
@@ -418,16 +408,12 @@ export const useSessionStore = create<SessionState>()(
         credentials: 'include',
       });
 
-      console.log('💾 Save preferences response:', response.status, response.ok);
       if (response.ok) {
-        const result = await response.json();
-        console.log('✅ Preferences saved successfully:', result);
         set((state) => ({
           preferences: { ...state.preferences, ...newPreferences }
         }), false, 'updatePreferences');
         return true;
       }
-      console.error('❌ Failed to save preferences, status:', response.status);
       return false;
     } catch (error) {
       console.error('Failed to update preferences:', error);
@@ -438,7 +424,6 @@ export const useSessionStore = create<SessionState>()(
   loadUserPreferences: async (): Promise<void> => {
     try {
       const url = apiConfig.getApiUrl('/api/users/me/preferences');
-      console.log('Loading user preferences:', url);
       
       const response = await fetch(url, {
         headers: {
@@ -447,18 +432,13 @@ export const useSessionStore = create<SessionState>()(
         credentials: 'include',
       });
       
-      console.log('Preferences response status:', response.status);
-      
       if (response.ok) {
         const data = await response.json();
-        console.log('📦 Loaded preferences from API:', data.preferences);
         set({ preferences: data.preferences }, false, 'loadUserPreferences');
       } else if (response.status === 404) {
         // 404 is normal for new users who don't have preferences yet
-        console.log('No user preferences found (404) - this is normal for new users');
         set({ preferences: defaultPreferences }, false, 'loadUserPreferencesDefault404');
       } else {
-        console.log('Unexpected response status for preferences:', response.status);
         set({ preferences: defaultPreferences }, false, 'loadUserPreferencesDefaultError');
       }
     } catch (error) {
@@ -469,7 +449,6 @@ export const useSessionStore = create<SessionState>()(
 
   loadAllUserData: async (): Promise<void> => {
     try {
-      console.log('🔄 Loading all user data from database...');
       
       // Load user preferences
       await get().loadUserPreferences();

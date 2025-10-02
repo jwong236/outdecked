@@ -30,9 +30,7 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
 
   // Load background from user preferences when user logs in or preferences change
   useEffect(() => {
-    console.log('🎨 BackgroundContext - Preferences changed:', { user: !!user, background: preferences.background, isHydrated });
     if (user && preferences.background) {
-      console.log('✅ Setting background from preferences:', preferences.background);
       setBackground(preferences.background);
       // Also save to localStorage for immediate access on page transitions
       if (isHydrated) {
@@ -40,13 +38,10 @@ export function BackgroundProvider({ children }: { children: ReactNode }) {
       }
     } else if (!user) {
       // Reset to default when user logs out
-      console.log('🔄 User logged out, resetting to default background');
       setBackground('/backgrounds/background-1.jpg');
       if (isHydrated) {
         localStorage.setItem('background', '/backgrounds/background-1.jpg');
       }
-    } else if (user && !preferences.background) {
-      console.log('⚠️ User logged in but no background preference found');
     }
   }, [user, preferences.background, isHydrated]);
 

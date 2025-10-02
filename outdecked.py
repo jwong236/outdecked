@@ -825,16 +825,12 @@ def generate_tcgplayer_mass_entry_url():
             WHERE c.product_id IN ({placeholders})
         """
 
-        print(f"🔍 Query: {query}")
-        print(f"🔍 Product IDs: {product_ids}")
         cursor = conn.execute(query, product_ids)
         rows = cursor.fetchall()
-        print(f"🔍 Found {len(rows)} cards in database")
         conn.close()
 
         # Create a map of product_id to card data (convert to string for comparison)
         card_map = {str(row["product_id"]): row for row in rows}
-        print(f"🔍 Card map keys: {list(card_map.keys())}")
 
         # Build the Mass Entry format
         entries = []
@@ -842,13 +838,10 @@ def generate_tcgplayer_mass_entry_url():
             card_id = str(card["card_id"])  # Convert to string for lookup
             quantity = card.get("quantity", 1)
 
-            print(f"🔍 Looking for card_id: {card_id} (type: {type(card_id)})")
             if card_id not in card_map:
-                print(f"⚠️ Card {card_id} not found in card_map")
                 continue
 
             card_data = card_map[card_id]
-            print(f"✅ Found card: {card_data['name']}")
             card_name = card_data["name"]
             number = card_data["number"]
 
@@ -880,7 +873,6 @@ def generate_tcgplayer_mass_entry_url():
                 entries.append(entry)
             except Exception as e:
                 # Fallback to just name if parsing fails
-                print(f"Error parsing number for {card_name}: {e}")
                 entries.append(f"{quantity} {card_name}")
 
         # Join with || separator and URL encode
@@ -902,7 +894,6 @@ def generate_tcgplayer_mass_entry_url():
         )
 
     except Exception as e:
-        print(f"Error generating TCGPlayer Mass Entry URL: {e}")
         return jsonify({"error": str(e)}), 500
 
 

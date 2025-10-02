@@ -394,7 +394,6 @@ def handle_get_user_preferences():
             "default_sort": result["default_sort"],
             "theme": result["theme"],
         }
-        print(f"📖 Reading preferences from DB for user {user['id']}: {preferences}")
     else:
         preferences = {
             "background": "/backgrounds/background-1.jpg",
@@ -402,7 +401,6 @@ def handle_get_user_preferences():
             "default_sort": "name",
             "theme": "light",
         }
-        print(f"⚠️ No preferences found in DB for user {user['id']}, using defaults")
 
     return jsonify({"preferences": preferences})
 
@@ -416,8 +414,6 @@ def handle_update_user_preferences():
     data = request.get_json()
     preferences = data.get("preferences", {})
 
-    print(f"📦 Updating preferences for user {user['id']}: {preferences}")
-
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -426,10 +422,6 @@ def handle_update_user_preferences():
     cards_per_page = preferences.get("cards_per_page", 24)
     default_sort = preferences.get("default_sort", "name")
     theme = preferences.get("theme", "light")
-
-    print(
-        f"💾 Saving to DB - background: {background}, cards_per_page: {cards_per_page}, default_sort: {default_sort}, theme: {theme}"
-    )
 
     # Check if preferences exist
     existing = cursor.execute(
@@ -472,19 +464,6 @@ def handle_update_user_preferences():
         )
 
     conn.commit()
-    print(f"✅ Preferences committed to database for user {user['id']}")
-
-    # Verify the write by reading it back immediately
-    verify_cursor = conn.execute(
-        "SELECT background FROM user_preferences WHERE user_id = ?",
-        (user["id"],),
-    )
-    verify_result = verify_cursor.fetchone()
-    if verify_result:
-        print(f"🔍 Verification read: background = {verify_result['background']}")
-    else:
-        print(f"⚠️ Verification failed: No row found for user {user['id']}")
-
     conn.close()
 
     return jsonify({"success": True, "message": "Preferences updated"})

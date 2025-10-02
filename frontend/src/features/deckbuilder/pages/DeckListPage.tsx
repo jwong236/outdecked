@@ -125,9 +125,6 @@ export function DeckListPage() {
 
   const handleDuplicateDeck = async (deck: Deck) => {
     try {
-      console.log('📋 Duplicating deck:', deck);
-      console.log('📋 Original deck cards:', deck.cards);
-      
       // Create a new deck with the same data
       const newDeckName = `${deck.name} (Copy)`;
       const deckData = {
@@ -140,8 +137,6 @@ export function DeckListPage() {
         preferences: deck.preferences || {}
       };
       
-      console.log('📋 Sending duplicate deck data:', deckData);
-      
       const response = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
         method: 'POST',
         headers: {
@@ -153,15 +148,12 @@ export function DeckListPage() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Deck duplicated successfully:', data);
-        console.log('✅ New deck cards:', data.deck?.cards);
         // Add new deck ID to session store
         setDeckList([...deckBuilder.deckList, data.deck.id]);
         // Reload decks to show the duplicate
         await loadDecks();
       } else {
         const errorData = await response.json();
-        console.error('❌ Failed to duplicate deck:', errorData);
         alert(`Failed to duplicate deck: ${errorData.error || 'Unknown error'}`);
       }
     } catch (error) {
