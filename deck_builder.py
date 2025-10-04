@@ -5,7 +5,7 @@ Handles deck CRUD operations and deck builder functionality.
 
 from flask import request, jsonify, session
 from deck_manager import create_deck_manager
-from models import DECK_VALIDATION_RULES
+from deck_validation import validate_deck, get_validation_rules, get_card_exceptions
 from auth import get_current_user
 
 
@@ -467,13 +467,42 @@ def handle_update_card_quantity(deck_id, card_id):
 def handle_get_validation_rules():
     """Handle GET /api/deck-validation-rules - Get deck validation rules."""
     try:
-        return jsonify({"success": True, "rules": DECK_VALIDATION_RULES})
+        game = request.args.get("game", "Union Arena")
+        rules = get_validation_rules(game)
+        exceptions = get_card_exceptions()
+
+        return jsonify({"success": True, "rules": rules, "card_exceptions": exceptions})
     except Exception as e:
         return (
             jsonify(
                 {
                     "success": False,
                     "error": f"Failed to load validation rules: {str(e)}",
+                }
+            ),
+            500,
+        )
+
+
+def handle_validate_deck():
+    """Handle POST /api/decks/validate - Validate deck without saving."""
+    try:
+        data = request.get_json()
+
+        if not data:
+            return jsonify({"success": False, "error": "No deck data provided"}), 400
+
+        # Validate the deck using the centralized validation system
+        validation_result = validate_deck(data)
+
+        return jsonify({"success": True, "validation": validation_result})
+
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": f"Failed to validate deck: {str(e)}",
                 }
             ),
             500,

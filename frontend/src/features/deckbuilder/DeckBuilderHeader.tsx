@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { HandRaisedIcon } from '@heroicons/react/24/outline';
 
 interface DeckBuilderHeaderProps {
   onShowDeckSettings: () => void;
@@ -17,6 +18,7 @@ export function DeckBuilderHeader({ onShowDeckSettings, onShowCoverModal, deckOp
     handleDeckNameChange,
     backToDeckList,
     moveCardsFromHand,
+    moveCardsToHand,
     handlePrintToProxy,
     generateDecklistImage,
     setShowPrintConfirmModal
@@ -78,10 +80,16 @@ export function DeckBuilderHeader({ onShowDeckSettings, onShowCoverModal, deckOp
             onClick={moveCardsFromHand}
             className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center"
           >
-            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-            </svg>
+            <HandRaisedIcon className="w-4 h-4 mr-2" />
             Add from Hand
+          </button>
+
+          <button
+            onClick={moveCardsToHand}
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center"
+          >
+            <HandRaisedIcon className="w-4 h-4 mr-2" />
+            Add To Hand
           </button>
 
           <button

@@ -35,6 +35,20 @@ export function CardDetailModal({
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
+  // Debug: Log card data received by modal
+  useEffect(() => {
+    if (card) {
+      console.log('🔍 CardDetailModal received card:', {
+        name: card.name,
+        product_id: card.product_id,
+        hasAttributes: !!card.attributes,
+        attributesCount: card.attributes?.length || 0,
+        attributes: card.attributes,
+        fullCard: card
+      });
+    }
+  }, [card]);
+
   useEffect(() => {
     if (card) {
       setImageLoading(true);
@@ -237,17 +251,17 @@ export function CardDetailModal({
                           </div>
                           
                           {/* Key Card Attributes - Specific Order */}
-                          {card.attributes.find(attr => attr.name === 'RequiredEnergy')?.value && (
+                          {card.attributes.find(attr => attr.name === 'required_energy')?.value && (
                             <div>
                               <span className="font-medium text-gray-300">Required Energy:</span>
-                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'RequiredEnergy')?.value}</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'required_energy')?.value}</span>
                             </div>
                           )}
                           
-                          {card.attributes.find(attr => attr.name === 'ActionPointCost')?.value && (
+                          {card.attributes.find(attr => attr.name === 'action_point_cost')?.value && (
                             <div>
                               <span className="font-medium text-gray-300">Action Point Cost:</span>
-                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'ActionPointCost')?.value}</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'action_point_cost')?.value}</span>
                             </div>
                           )}
                           
@@ -258,38 +272,38 @@ export function CardDetailModal({
                             </div>
                           )}
                           
-                          {card.attributes.find(attr => attr.name === 'GeneratedEnergy')?.value && (
+                          {card.attributes.find(attr => attr.name === 'generated_energy')?.value && (
                             <div>
                               <span className="font-medium text-gray-300">Generated Energy:</span>
-                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'GeneratedEnergy')?.value}</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'generated_energy')?.value}</span>
                             </div>
                           )}
                           
-                          {card.attributes.find(attr => attr.name === 'BattlePointBP')?.value && (
+                          {card.attributes.find(attr => attr.name === 'battle_point')?.value && (
                             <div>
                               <span className="font-medium text-gray-300">Battle Point (BP):</span>
-                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'BattlePointBP')?.value}</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'battle_point')?.value}</span>
                             </div>
                           )}
                           
-                          {card.attributes.find(attr => attr.name === 'CardType')?.value && (
+                          {card.attributes.find(attr => attr.name === 'card_type')?.value && (
                             <div>
                               <span className="font-medium text-gray-300">Card Type:</span>
-                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'CardType')?.value}</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'card_type')?.value}</span>
                             </div>
                           )}
                           
-                          {card.attributes.find(attr => attr.name === 'Rarity')?.value && (
+                          {card.attributes.find(attr => attr.name === 'rarity')?.value && (
                             <div>
                               <span className="font-medium text-gray-300">Rarity:</span>
-                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'Rarity')?.value}</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'rarity')?.value}</span>
                             </div>
                           )}
                           
-                          {card.attributes.find(attr => attr.name === 'PrintType')?.value && (
+                          {card.attributes.find(attr => attr.name === 'print_type')?.value && (
                             <div>
                               <span className="font-medium text-gray-300">Print Type:</span>
-                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'PrintType')?.value}</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'print_type')?.value}</span>
                             </div>
                           )}
                           
@@ -316,18 +330,18 @@ export function CardDetailModal({
                         </div>
                         
                         {/* Description - Full Width */}
-                        {card.attributes.find(attr => attr.name === 'Description')?.value && (
+                        {card.attributes.find(attr => attr.name === 'card_text')?.value && (
                           <div className="mt-4">
                             <span className="font-medium text-gray-300">Description:</span>
-                            <p className="mt-1 text-sm text-gray-200 leading-relaxed">{card.attributes.find(attr => attr.name === 'Description')?.value}</p>
+                            <p className="mt-1 text-sm text-gray-200 leading-relaxed">{card.attributes.find(attr => attr.name === 'card_text')?.value}</p>
                           </div>
                         )}
                         
                         {/* Trigger - Full Width */}
-                        {card.attributes.find(attr => attr.name === 'TriggerText')?.value && (
+                        {card.attributes.find(attr => attr.name === 'trigger_text')?.value && (
                           <div className="mt-4">
                             <span className="font-medium text-gray-300">Trigger:</span>
-                            <p className="mt-1 text-sm text-gray-200 leading-relaxed">{card.attributes.find(attr => attr.name === 'TriggerText')?.value}</p>
+                            <p className="mt-1 text-sm text-gray-200 leading-relaxed">{card.attributes.find(attr => attr.name === 'trigger_text')?.value}</p>
                           </div>
                         )}
                       </div>

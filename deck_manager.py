@@ -6,7 +6,8 @@ Handles localStorage-based deck storage and validation.
 import json
 import uuid
 from datetime import datetime
-from models import DECK_TEMPLATE, DECK_CARD_TEMPLATE, DECK_VALIDATION_RULES
+from models import DECK_TEMPLATE, DECK_CARD_TEMPLATE
+from deck_validation import validate_deck, get_card_max_copies
 from database import get_session
 from models import UserDeck
 from sqlalchemy import text
@@ -110,52 +111,15 @@ class DeckManager:
         return False
 
     def validate_deck(self, deck_data):
-        """Validate deck legality and update validation status."""
-        game = deck_data.get("game", "default")
-        rules = DECK_VALIDATION_RULES.get(game, DECK_VALIDATION_RULES["default"])
+        """Validate deck legality and update validation status using the new validation system."""
+        # Use the centralized validation function
+        validation_result = validate_deck(deck_data)
 
-        # Count total cards
-        total_cards = 0
-        card_counts = {}
-
-        for card in deck_data.get("cards", []):
-            quantity = card.get("quantity", 1)
-            total_cards += quantity
-
-            # Check max copies per card
-            card_name = card.get("name", "")
-            if card_name:
-                card_counts[card_name] = card_counts.get(card_name, 0) + quantity
-
-        # Update deck data
-        deck_data["total_cards"] = total_cards
-
-        # Validate rules
-        is_legal = True
-        validation_errors = []
-
-        # Check card count
-        if total_cards < rules["min_cards"]:
-            is_legal = False
-            validation_errors.append(
-                f"Deck has {total_cards} cards, minimum is {rules['min_cards']}"
-            )
-        elif total_cards > rules["max_cards"]:
-            is_legal = False
-            validation_errors.append(
-                f"Deck has {total_cards} cards, maximum is {rules['max_cards']}"
-            )
-
-        # Check max copies per card
-        for card_name, count in card_counts.items():
-            if count > rules["max_copies_per_card"]:
-                is_legal = False
-                validation_errors.append(
-                    f"'{card_name}' has {count} copies, maximum is {rules['max_copies_per_card']}"
-                )
-
-        deck_data["is_legal"] = is_legal
-        deck_data["validation_errors"] = validation_errors
+        # Update deck data with validation results
+        deck_data["is_legal"] = validation_result["is_valid"]
+        deck_data["validation_errors"] = validation_result["errors"]
+        deck_data["validation_warnings"] = validation_result["warnings"]
+        deck_data["total_cards"] = validation_result["stats"]["total_cards"]
 
         return deck_data
 
@@ -174,10 +138,9 @@ class DeckManager:
         if existing_card:
             # Update quantity
             new_quantity = existing_card.get("quantity", 1) + quantity
-            game = deck_data.get("game", "default")
-            max_copies = DECK_VALIDATION_RULES.get(
-                game, DECK_VALIDATION_RULES["default"]
-            )["max_copies_per_card"]
+            game = deck_data.get("game", "Union Arena")
+            card_number = card_data.get("card_number") or card_data.get("name", "")
+            max_copies = get_card_max_copies(card_number, game)
 
             if new_quantity <= max_copies:
                 existing_card["quantity"] = new_quantity
@@ -230,10 +193,9 @@ class DeckManager:
 
         for card in deck_data["cards"]:
             if card.get("card_id") == card_id:
-                game = deck_data.get("game", "default")
-                max_copies = DECK_VALIDATION_RULES.get(
-                    game, DECK_VALIDATION_RULES["default"]
-                )["max_copies_per_card"]
+                game = deck_data.get("game", "Union Arena")
+                card_number = card.get("card_number") or card.get("name", "")
+                max_copies = get_card_max_copies(card_number, game)
 
                 if new_quantity <= 0:
                     # Remove card

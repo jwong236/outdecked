@@ -50,7 +50,7 @@ COPY start.sh ./
 RUN chmod +x start.sh
 
 # Copy built Next.js frontend from previous stage
-COPY --from=frontend-builder /app/frontend/out /app/frontend/
+COPY --from=frontend-builder /app/frontend/out /app/frontend/out
 
 # Create app user for security
 RUN useradd --create-home --shell /bin/bash app && chown -R app:app /app

@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Deck } from '@/types/card';
-import { analyzeDeck } from '@/lib/deckValidation';
+// Removed analyzeDeck import - validation now handled by backend
 // Removed useAuth import - now using sessionStore
 import { PageTitle } from '@/components/shared/PageTitle';
 import { SignInModal } from '@/components/shared/modals/SignInModal';
@@ -27,6 +27,7 @@ export function DeckListPage() {
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [showCoverSelectionModal, setShowCoverSelectionModal] = useState(false);
   const [deckForCoverChange, setDeckForCoverChange] = useState<Deck | null>(null);
+  const [sortBy, setSortBy] = useState<'name' | 'series' | 'color' | 'cost' | 'most_recent'>('most_recent');
 
   // Load series data
   const { data: seriesData } = useSeriesValues();
@@ -252,6 +253,38 @@ export function DeckListPage() {
     }).format(dateObj);
   };
 
+  // Sort decks based on selected criteria
+  const sortedDecks = useMemo(() => {
+    if (!decks.length) return [];
+    
+    return [...decks].sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'series':
+          const seriesA = a.preferences?.filters?.find((f: any) => f.field === 'series')?.value || 'All Series';
+          const seriesB = b.preferences?.filters?.find((f: any) => f.field === 'series')?.value || 'All Series';
+          return seriesA.localeCompare(seriesB);
+        case 'color':
+          // For now, we'll sort by the first card's color if available
+          // This would need to be enhanced based on your color data structure
+          return 0; // Placeholder - would need actual color data
+        case 'cost':
+          // Sort by total deck cost (sum of all card prices)
+          const costA = a.cards.reduce((sum, card) => sum + (card.quantity * 0), 0); // Placeholder - would need actual price data
+          const costB = b.cards.reduce((sum, card) => sum + (card.quantity * 0), 0); // Placeholder - would need actual price data
+          return costB - costA; // Descending order (most expensive first)
+        case 'most_recent':
+          // Sort by most recently updated/created
+          const dateA = new Date(a.updated_at || a.created_at || 0);
+          const dateB = new Date(b.updated_at || b.created_at || 0);
+          return dateB.getTime() - dateA.getTime(); // Descending order (most recent first)
+        default:
+          return 0;
+      }
+    });
+  }, [decks, sortBy]);
+
   // Show loading state while checking authentication
   if (authLoading) {
     return null; // Don't show anything while checking auth
@@ -284,13 +317,35 @@ export function DeckListPage() {
       {/* Deck List */}
       <div className="px-4 sm:px-6 lg:px-8">
         <div className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 shadow-lg p-6">
+          {/* Sort Dropdown */}
+          <div className="mb-6 flex justify-end">
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'name' | 'series' | 'color' | 'cost' | 'most_recent')}
+                className="px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none pr-8"
+              >
+                <option value="most_recent" className="bg-gray-800 text-white">Most Recent</option>
+                <option value="name" className="bg-gray-800 text-white">Sort by Name</option>
+                <option value="series" className="bg-gray-800 text-white">Sort by Series</option>
+                <option value="color" className="bg-gray-800 text-white">Sort by Color</option>
+                <option value="cost" className="bg-gray-800 text-white">Sort by Cost</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
             </div>
           ) : decks.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {decks.map((deck) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              {sortedDecks.map((deck) => (
               <div
                 key={deck.id}
                 className="bg-white/10 backdrop-blur-sm rounded-lg border border-white/20 hover:bg-white/15 hover:border-white/30 transition-all duration-300 p-4"
@@ -321,77 +376,12 @@ export function DeckListPage() {
 
                   {/* Right Column - Deck Info and Statistics */}
                   <div className="flex-1 min-w-0 flex flex-col">
-                    {/* Header with name, validation, and delete button */}
+                    {/* Header with name and delete button */}
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
-                        <h3 className="text-white font-semibold text-lg truncate">
+                        <h3 className="text-white font-semibold text-lg leading-tight h-10 flex items-center">
                           {deck.name}
                         </h3>
-                        {/* Validation Indicator */}
-                        {(() => {
-                          // Use backend validation if available, fallback to frontend validation
-                          if (deck.is_legal !== undefined) {
-                            // Backend validation available
-                            if (deck.is_legal) {
-                              return (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-green-600/20 border border-green-500/30 rounded text-xs flex-shrink-0">
-                                  <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  <span className="text-green-400 font-medium">Valid</span>
-                                </div>
-                              );
-                            } else {
-                              return (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-red-600/20 border border-red-500/30 rounded text-xs flex-shrink-0">
-                                  <svg className="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                  </svg>
-                                  <span className="text-red-400 font-medium">Invalid</span>
-                                </div>
-                              );
-                            }
-                          } else {
-                            // Fallback to frontend validation for backwards compatibility
-                            const deckCards = deck.cards.map(cardRef => ({
-                              card_id: cardRef.card_id,
-                              quantity: cardRef.quantity,
-                              Trigger: '',
-                              name: 'Unknown Card'
-                            } as any));
-                            const validation = analyzeDeck(deckCards);
-                            const hasExcessCards = validation.errors.some(error => error.includes('has') && error.includes('copies'));
-                            
-                            if (hasExcessCards) {
-                              return (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-red-600/20 border border-red-500/30 rounded text-xs flex-shrink-0">
-                                  <svg className="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                  </svg>
-                                  <span className="text-red-400 font-medium">Invalid</span>
-                                </div>
-                              );
-                            } else if (!validation.isValid) {
-                              return (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-yellow-600/20 border border-yellow-500/30 rounded text-xs flex-shrink-0">
-                                  <svg className="w-3 h-3 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                  </svg>
-                                  <span className="text-yellow-400 font-medium">Issues</span>
-                                </div>
-                              );
-                            } else {
-                              return (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-green-600/20 border border-green-500/30 rounded text-xs flex-shrink-0">
-                                  <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  <span className="text-green-400 font-medium">Valid</span>
-                                </div>
-                              );
-                            }
-                          }
-                        })()}
         </div>
 
                       {/* More Options Button */}
@@ -472,12 +462,76 @@ export function DeckListPage() {
                       </div>
         </div>
 
-                    {/* All Statistics */}
+                    {/* Validation Status */}
+                    <div className="mb-3">
+                      {(() => {
+                        // Use backend validation if available, fallback to frontend validation
+                        if (deck.is_legal !== undefined) {
+                          // Backend validation available
+                          if (deck.is_legal) {
+                            return (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-green-600/20 border border-green-500/30 rounded text-xs w-fit">
+                                <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-green-400 font-medium">Valid</span>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-red-600/20 border border-red-500/30 rounded text-xs w-fit">
+                                <svg className="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                <span className="text-red-400 font-medium">Invalid</span>
+                              </div>
+                            );
+                          }
+                        } else {
+                          // Fallback to frontend validation for backwards compatibility
+                          const deckCards = deck.cards.map(cardRef => ({
+                            card_id: cardRef.card_id,
+                            quantity: cardRef.quantity,
+                            Trigger: '',
+                            name: 'Unknown Card'
+                          } as any));
+                          // Use backend validation status if available, otherwise show as valid
+                          const hasExcessCards = deck.is_legal === false;
+                          
+                          if (hasExcessCards) {
+                            return (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-red-600/20 border border-red-500/30 rounded text-xs w-fit">
+                                <svg className="w-3 h-3 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                <span className="text-red-400 font-medium">Invalid</span>
+                              </div>
+                            );
+                          } else if (!validation.isValid) {
+                            return (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-yellow-600/20 border border-yellow-500/30 rounded text-xs w-fit">
+                                <svg className="w-3 h-3 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                <span className="text-yellow-400 font-medium">Issues</span>
+                              </div>
+                            );
+                          } else {
+                            return (
+                              <div className="flex items-center gap-1 px-2 py-1 bg-green-600/20 border border-green-500/30 rounded text-xs w-fit">
+                                <svg className="w-3 h-3 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-green-400 font-medium">Valid</span>
+                              </div>
+                            );
+                          }
+                        }
+                      })()}
+                    </div>
+
+                    {/* Deck Information */}
                     <div className="space-y-2 text-sm text-white mb-4">
-                      <div className="flex justify-between">
-                        <span>Game:</span>
-                        <span className="text-white">{deck.game}</span>
-                      </div>
                       <div className="flex justify-between">
                         <span>Cards:</span>
                         <span className="text-white">
@@ -493,10 +547,6 @@ export function DeckListPage() {
                         }`}>
                           {deck.visibility || 'private'}
                         </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Updated:</span>
-                        <span>{formatDate(deck.last_modified || deck.created_date || new Date())}</span>
                       </div>
         </div>
 

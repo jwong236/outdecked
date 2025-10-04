@@ -60,31 +60,11 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
           quantity: deckCard.quantity
         } as ExpandedCard;
       } else {
-        // Fallback for missing cache data
-        return {
-          id: deckCard.card_id,
-          product_id: deckCard.card_id,
-          quantity: deckCard.quantity,
-          name: `Card ${deckCard.card_id}`,
-          clean_name: null,
-          card_url: '',
-          game: 'Union Arena',
-          category_id: 0,
-          group_id: 0,
-          image_count: 0,
-          is_presale: false,
-          released_on: '',
-          presale_note: '',
-          modified_on: '',
-          price: null,
-          low_price: null,
-          mid_price: null,
-          high_price: null,
-          created_at: '',
-          attributes: [],
-        } as ExpandedCard;
+        // Fallback for missing cache data - return null to indicate missing data
+        // This will be filtered out and the card will be fetched
+        return null;
       }
-    }).filter(Boolean);
+    }).filter((card): card is ExpandedCard => card !== null);
 
     // Apply the same sorting and grouping logic as GroupedDeckGrid
     // Group cards by CardType
@@ -147,15 +127,15 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     return sortedCards;
   }, [currentDeck?.cards, searchCache, sortBy]);
 
-  // Second effect: Fetch missing card data when expandedCards has cards not in cache (WRITES TO CACHE)
+  // Second effect: Fetch missing card data when deck has cards not in cache (WRITES TO CACHE)
   useEffect(() => {
-    if (!expandedCards || expandedCards.length === 0) {
+    if (!isValidDeck(currentDeck) || !currentDeck.cards || currentDeck.cards.length === 0) {
       return;
     }
 
-    // Check which cards need to be fetched
-    const missingCardIds = expandedCards
-      .map(card => card.product_id)
+    // Check which cards need to be fetched from the deck cards directly
+    const missingCardIds = currentDeck.cards
+      .map(deckCard => deckCard.card_id)
       .filter(cardId => !searchCache[cardId]);
 
     // Fetch missing cards if any
@@ -469,6 +449,26 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     console.log(`Copied ${handItems.length} card types from hand to deck!`);
   }, [currentDeck, setCurrentDeck, searchCache, setSearchCache]);
 
+  // Copy cards from deck to hand
+  const moveCardsToHand = useCallback(async () => {
+    if (!isValidDeck(currentDeck) || !currentDeck.cards || currentDeck.cards.length === 0) {
+      console.log('No cards in deck to copy to hand');
+      return;
+    }
+
+    const { addToHand } = useSessionStore.getState();
+    
+    // Add each deck card to hand
+    currentDeck.cards.forEach(deckCard => {
+      addToHand(deckCard.card_id, deckCard.quantity);
+    });
+
+    console.log(`✅ Added ${currentDeck.cards.length} card types from deck to hand!`);
+    
+    // Redirect to cart page to view the updated hand
+    router.push('/cart');
+  }, [currentDeck, router]);
+
   // Print to proxy
   const handlePrintToProxy = useCallback(() => {
     console.log('🖨️ handlePrintToProxy called!');
@@ -779,6 +779,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     handleDeckNameChange,
     handleQuantityChange,
     moveCardsFromHand,
+    moveCardsToHand,
     handlePrintToProxy,
     setDefaultCover,
     handleCoverSelection,

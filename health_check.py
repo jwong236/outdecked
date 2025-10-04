@@ -15,7 +15,7 @@ from typing import Dict, List, Tuple, Any, Optional
 import uuid
 
 # Test configuration
-BASE_URL = "http://localhost:5000"
+BASE_URL = "http://localhost:8080"
 TEST_USERNAME = f"health_check_{int(time.time())}"
 TEST_EMAIL = f"health_check_{int(time.time())}@example.com"
 TEST_PASSWORD = "HealthCheck123!"

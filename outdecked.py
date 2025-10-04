@@ -69,9 +69,10 @@ from deck_builder import (
     handle_remove_card_from_deck,
     handle_update_card_quantity,
     handle_get_validation_rules,
+    handle_validate_deck,
 )
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="frontend/out", static_url_path="/")
 app.config.from_object(Config)
 
 # Configure sessions
@@ -104,7 +105,7 @@ logger = logging.getLogger(__name__)
 @app.route("/")
 def index():
     """Serve the Next.js frontend"""
-    return send_from_directory("frontend", "index.html")
+    return send_from_directory("frontend/out", "index.html")
 
 
 # Catch-all route moved to end of file
@@ -113,12 +114,12 @@ def index():
 @app.route("/admin")
 def admin():
     """Admin route"""
-    return send_from_directory("frontend", "index.html")
+    return send_from_directory("frontend/out", "index.html")
 
 
 @app.route("/scraping")
 def scraping():
-    return send_from_directory("frontend", "index.html")
+    return send_from_directory("frontend/out", "index.html")
 
 
 # Removed /api/start-scraping - moved to /api/admin/scraping/start with auth
@@ -134,12 +135,12 @@ def scraping():
 @app.route("/deckbuilder/")
 def deckbuilder():
     # Serve the main deckbuilder page - handles both deck list and individual deck editing via query parameters
-    return send_from_directory("frontend", "deckbuilder.html")
+    return send_from_directory("frontend/out", "deckbuilder.html")
 
 
 @app.route("/auth")
 def auth():
-    return send_from_directory("frontend", "auth.html")
+    return send_from_directory("frontend/out", "auth.html")
 
 
 # User Deck Management (Require Auth)
@@ -203,26 +204,32 @@ def remove_card_from_user_deck(deck_id, card_id):
     return handle_remove_card_from_deck(deck_id, card_id)
 
 
+@app.route("/api/decks/validate", methods=["POST"])
+def validate_deck():
+    """Validate deck without saving"""
+    return handle_validate_deck()
+
+
 # Removed /api/deck-validation-rules - validation should be frontend-only
 
 
 @app.route("/proxy-printer")
 def proxy_printer():
-    return send_from_directory("frontend", "index.html")
+    return send_from_directory("frontend/out", "index.html")
 
 
 @app.route("/cart")
 def cart():
-    return send_from_directory("frontend", "index.html")
+    return send_from_directory("frontend/out", "index.html")
 
 
 @app.route("/search")
 @app.route("/search/")
 def search():
     try:
-        return send_from_directory("frontend", "search/index.html")
+        return send_from_directory("frontend/out", "search.html")
     except FileNotFoundError:
-        return send_from_directory("frontend", "index.html")
+        return send_from_directory("frontend/out", "index.html")
 
 
 # Legacy search route removed - using Next.js frontend with /api/search endpoint
@@ -940,7 +947,7 @@ def serve_frontend(path):
             continue
 
     # If nothing works, serve the main index.html for client-side routing
-    return send_from_directory("frontend", "index.html")
+    return send_from_directory("frontend/out", "index.html")
 
 
 # Initialize database when app starts (for Cloud Run)

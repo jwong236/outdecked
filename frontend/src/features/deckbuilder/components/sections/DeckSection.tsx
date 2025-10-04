@@ -141,7 +141,7 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
         
         {expandedCardsArray.length > 0 && (
           <div className="mb-4">
-            <DeckValidation cards={expandedCardsArray} />
+            <DeckValidation deck={currentDeck} expandedCards={expandedCardsArray} />
           </div>
         )}
       </div>

@@ -14,7 +14,7 @@ import { StandardModal } from '@/components/shared/modals/BaseModal';
 // Removed useAuth import - now using sessionStore
 import { Card, CardCache } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
-import { getProductImageIcon } from '@/lib/imageUtils';
+import { getProductImageIcon, getProductImageCard } from '@/lib/imageUtils';
 
 export function DeckBuilderContent() {
   const router = useRouter();
@@ -36,6 +36,20 @@ export function DeckBuilderContent() {
   const [searchCache, setSearchCache] = React.useState<CardCache>({});
   
   // Note: Cache is now persistent across deck loads for better performance
+  
+  // Debug: Log CardCache contents
+  React.useEffect(() => {
+    console.log('🔍 CardCache contents:', {
+      totalCards: Object.keys(searchCache).length,
+      cacheKeys: Object.keys(searchCache).slice(0, 10),
+      sampleCard: Object.values(searchCache)[0] ? {
+        product_id: Object.values(searchCache)[0].product_id,
+        name: Object.values(searchCache)[0].name,
+        attributesCount: Object.values(searchCache)[0].attributes?.length || 0,
+        attributes: Object.values(searchCache)[0].attributes?.slice(0, 3) || []
+      } : null
+    });
+  }, [searchCache]);
   
   
   // Current search results for navigation
@@ -108,37 +122,41 @@ export function DeckBuilderContent() {
   
   // Modal handlers (same pattern as SearchLayout)
   const handleCardClick = (card: any, source: 'search' | 'deck' = 'search') => {
-    // Find the card in the appropriate array based on source
-    let index = 0;
-    let allCards: any[] = [];
+    // Get full card data from search cache using product_id
+    const fullCardData = searchCache[card.product_id];
     
-    if (source === 'search') {
-      // It's a search card - find in current search results (maintains sort order)
-      allCards = currentSearchResults;
-      index = allCards.findIndex(c => c.product_id === card.product_id);
-      console.log('🔍 Card Click: Search card clicked:', {
-        cardName: card.name,
+    if (fullCardData) {
+      // Find the card in the appropriate array for navigation
+      let index = 0;
+      let allCards: any[] = [];
+      
+      if (source === 'search') {
+        allCards = currentSearchResults;
+        index = allCards.findIndex(c => c.product_id === card.product_id);
+      } else if (source === 'deck') {
+        allCards = currentExpandedCards;
+        index = allCards.findIndex(c => c.product_id === card.product_id);
+      }
+      
+      setSelectedCard(fullCardData); // Use full card data from cache
+      setSelectedCardIndex(index);
+      setSelectedCardSource(source);
+      
+      console.log('🔍 Card Click:', {
+        cardName: fullCardData.name,
         source,
-        searchResultsCount: currentSearchResults.length,
-        foundIndex: index,
-        allCardsNames: allCards.slice(0, 3).map(c => c.name)
+        hasAttributes: fullCardData.attributes?.length || 0,
+        productId: card.product_id,
+        fullCardData: fullCardData,
+        attributes: fullCardData.attributes
       });
-    } else if (source === 'deck') {
-      // It's a deck card - use the properly sorted expanded cards array
-      allCards = currentExpandedCards;
-      index = allCards.findIndex(c => c.product_id === card.product_id);
-      console.log('🔍 Card Click: Deck card clicked:', {
+    } else {
+      console.error('🔍 Card not found in cache:', { 
+        productId: card.product_id, 
         cardName: card.name,
-        source,
-        expandedCardsCount: currentExpandedCards.length,
-        foundIndex: index,
-        allCardsNames: allCards.slice(0, 3).map(c => c.name)
+        cacheKeys: Object.keys(searchCache).slice(0, 5)
       });
     }
-    
-    setSelectedCard(card);
-    setSelectedCardIndex(index);
-    setSelectedCardSource(source);
   };
 
   const handleCloseModal = () => {

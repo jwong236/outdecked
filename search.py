@@ -88,6 +88,8 @@ def handle_api_search():
             "action_point_cost",
             "trigger_type",
             "affinities",
+            "PrintType",  # Add PrintType to attributes list
+            "Rarity",  # Add Rarity to attributes list
         ]:
             # Generate unique parameter names for each field value
             existing_params = [
@@ -190,9 +192,9 @@ def handle_api_search():
         elif sort_by == "name_desc":
             order_clause = "ORDER BY c.name DESC"
         elif sort_by == "number_desc":
-            order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Number'), -3) AS INTEGER) DESC"
+            order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'card_number'), -3) AS INTEGER) DESC"
         elif sort_by == "number_asc":
-            order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Number'), -3) AS INTEGER) ASC"
+            order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'card_number'), -3) AS INTEGER) ASC"
         elif sort_by == "required_energy_desc":
             order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'required_energy') AS INTEGER) DESC"
         elif sort_by == "required_energy_asc":
@@ -201,12 +203,12 @@ def handle_api_search():
             # Sort by most recent series first (published_on DESC), then by rarity DESC
             order_clause = """ORDER BY g.published_on DESC, 
                 CASE 
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Secret Rare' THEN 1
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Ultra Rare' THEN 2
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 3
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare' THEN 4
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon' THEN 5
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common' THEN 6
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Secret Rare' THEN 1
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Ultra Rare' THEN 2
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Super Rare' THEN 3
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Rare' THEN 4
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Uncommon' THEN 5
+                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Common' THEN 6
                     ELSE 7
                 END ASC"""
 
