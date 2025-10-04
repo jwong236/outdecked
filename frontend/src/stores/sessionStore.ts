@@ -158,16 +158,16 @@ const defaultSearchPreferences: SearchParams = {
   page: 1,
   filters: [
     // Basic Prints Only - Base OR Starter Deck
-    { type: 'or', field: 'print_type', value: 'Base', displayText: 'Print Type: Base' },
-    { type: 'or', field: 'print_type', value: 'Starter Deck', displayText: 'Print Type: Starter Deck' },
+    { type: 'or', field: 'print_type', value: 'Base', displayText: 'Base Prints Only' },
+    { type: 'or', field: 'print_type', value: 'Starter Deck', displayText: 'Base Prints Only' },
     // No Action Points - exclude Action Point cards
-    { type: 'not', field: 'card_type', value: 'Action Point', displayText: 'Card Type: Action Point' },
+    { type: 'not', field: 'card_type', value: 'Action Point', displayText: 'No Action Points' },
     // Base Rarity Only - Common OR Uncommon OR Rare OR Super Rare OR Action Point
-    { type: 'or', field: 'rarity', value: 'Common', displayText: 'Rarity: Common' },
-    { type: 'or', field: 'rarity', value: 'Uncommon', displayText: 'Rarity: Uncommon' },
-    { type: 'or', field: 'rarity', value: 'Rare', displayText: 'Rarity: Rare' },
-    { type: 'or', field: 'rarity', value: 'Super Rare', displayText: 'Rarity: Super Rare' },
-    { type: 'or', field: 'rarity', value: 'Action Point', displayText: 'Rarity: Action Point' },
+    { type: 'or', field: 'rarity', value: 'Common', displayText: 'Base Rarity Only' },
+    { type: 'or', field: 'rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+    { type: 'or', field: 'rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+    { type: 'or', field: 'rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
+    { type: 'or', field: 'rarity', value: 'Action Point', displayText: 'Base Rarity Only' },
   ],
 };
 
