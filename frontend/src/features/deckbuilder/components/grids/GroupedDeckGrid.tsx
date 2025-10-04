@@ -26,7 +26,7 @@ export function GroupedDeckGrid({
     const groups: Record<string, ExpandedCard[]> = {};
     
     cards.forEach(card => {
-      const cardType = card.attributes?.find(attr => attr.name === 'CardType')?.value || 'Unknown';
+      const cardType = card.attributes?.find(attr => attr.name === 'card_type')?.value || 'Unknown';
       if (!groups[cardType]) {
         groups[cardType] = [];
       }

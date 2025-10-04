@@ -75,13 +75,7 @@ export interface Deck {
   description?: string;
   cards: CardRef[]; 
   visibility: 'private' | 'public' | 'unlisted';
-  preferences: {
-    series: string;
-    color: string;
-    cardTypes: string[];
-    printTypes: string[];
-    rarities: string[];
-  };
+  preferences: SearchParams; // Use unified SearchParams structure
   created_date: string;
   last_modified: string;
   is_legal?: boolean;

@@ -36,7 +36,6 @@ export function DeckListPage() {
 
   // Handle edit deck - just redirect to deck builder page
   const handleEditDeck = (deckId: string) => {
-    console.log('🃏 Edit Deck clicked for:', deckId);
     // Just redirect to deck builder page - DeckBuilderContent will handle loading the deck data
     router.push(`/deckbuilder?deckId=${deckId}`);
   };
@@ -75,9 +74,7 @@ export function DeckListPage() {
     }
 
     try {
-      console.log('🃏 DeckListPage: Loading full deck data for IDs:', deckBuilder.deckList);
       const fullDecks = await fetchDecksBatch(deckBuilder.deckList);
-      console.log('🃏 DeckListPage: Loaded full deck data:', fullDecks);
       setDecks(fullDecks);
     } catch (error) {
       console.error('Error loading decks:', error);
@@ -218,7 +215,6 @@ export function DeckListPage() {
         const updatedDeckIds = deckBuilder.deckList.filter(id => id !== deckToDelete.id);
         setDeckList(updatedDeckIds);
         
-        console.log('✅ Deck deleted successfully from database and sessionStore');
       } catch (error) {
         console.error('Error deleting deck:', error);
         

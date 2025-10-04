@@ -29,16 +29,6 @@ export function DeckBuilderContent() {
   const { deckBuilder, setCurrentDeck, clearCurrentDeck } = useSessionStore();
   const currentDeck = deckBuilder.currentDeck;
   
-  // Debug currentDeck changes
-  React.useEffect(() => {
-    console.log('🃏 DeckBuilderContent: currentDeck changed:', {
-      hasCurrentDeck: !!currentDeck,
-      currentDeckId: currentDeck?.id,
-      currentDeckName: currentDeck?.name,
-      cardsCount: currentDeck?.cards?.length || 0,
-      stackTrace: new Error().stack?.split('\n').slice(1, 4).join('\n')
-    });
-  }, [currentDeck]);
   const { clearAllFilters } = useSessionStore();
   const lastProcessedDeckId = useRef<string | null>(null);
   
@@ -47,19 +37,6 @@ export function DeckBuilderContent() {
   
   // Note: Cache is now persistent across deck loads for better performance
   
-  // Verification: Log cache format to ensure consistency
-  React.useEffect(() => {
-    if (Object.keys(searchCache).length > 0) {
-      const sampleCard = Object.values(searchCache)[0];
-      console.log('🔍 Cache verification - Sample card:', {
-        hasAttributes: !!sampleCard?.attributes,
-        attributesType: Array.isArray(sampleCard?.attributes) ? 'array' : typeof sampleCard?.attributes,
-        attributesLength: sampleCard?.attributes?.length,
-        productId: sampleCard?.product_id,
-        cacheKeys: Object.keys(searchCache).slice(0, 3) // First 3 keys
-      });
-    }
-  }, [searchCache]);
   
   // Current search results for navigation
   const [currentSearchResults, setCurrentSearchResults] = React.useState<any[]>([]);
@@ -73,21 +50,6 @@ export function DeckBuilderContent() {
   // Get expanded cards from the hook (single source of truth)
   const { expandedCards: currentExpandedCards } = deckOperations;
   
-  // Debug when currentSearchResults changes
-  React.useEffect(() => {
-    console.log('🔍 currentSearchResults updated:', {
-      count: currentSearchResults.length,
-      firstThree: currentSearchResults.slice(0, 3).map(c => c.name)
-    });
-  }, [currentSearchResults]);
-  
-  // Debug when currentExpandedCards changes
-  React.useEffect(() => {
-    console.log('🃏 currentExpandedCards updated:', {
-      count: currentExpandedCards.length,
-      firstThree: currentExpandedCards.slice(0, 3).map(c => c.name)
-    });
-  }, [currentExpandedCards]);
   
   // Function to fetch missing card data and populate cache
   const fetchMissingCardData = async (cardIds: string[]) => {
@@ -260,9 +222,7 @@ export function DeckBuilderContent() {
 
   // Load deck data when deckId changes
   useEffect(() => {
-    console.log('🃏 DeckBuilderContent: useEffect triggered with deckId:', deckId);
     if (!deckId) {
-      console.log('🃏 DeckBuilderContent: No deckId, returning early');
       return;
     }
     
@@ -281,12 +241,12 @@ export function DeckBuilderContent() {
           const migratedDeck = {
             ...data.deck,
             visibility: data.deck.preferences?.visibility || data.deck.visibility || 'private',
-            preferences: {
-              series: data.deck.preferences?.series || data.deck.preferences?.defaultSeries || data.deck.defaultSeries || '',
-              color: data.deck.preferences?.color || data.deck.preferences?.defaultColorFilter || '',
-              cardTypes: data.deck.preferences?.cardTypes || [],
-              printTypes: data.deck.preferences?.printTypes || [],
-              rarities: data.deck.preferences?.rarities || []
+            preferences: data.deck.preferences || {
+              query: '',
+              sort: 'name_asc',
+              page: 1,
+              per_page: 25,
+              filters: []
             }
           };
           
@@ -302,17 +262,13 @@ export function DeckBuilderContent() {
           
           // Convert database format cards to session format
           if (migratedDeck.cards && migratedDeck.cards.length > 0) {
-            console.log('🃏 Loading deck cards from database:', migratedDeck.cards);
             migratedDeck.cards = migratedDeck.cards.map((card: any) => ({
               card_id: card.card_id || card.id,
               quantity: card.quantity
             }));
-            console.log('🃏 Converted to session format:', migratedDeck.cards);
           }
           
-          console.log('🃏 DeckBuilderContent: About to set currentDeck:', migratedDeck);
           setCurrentDeck(migratedDeck);
-          console.log('🃏 DeckBuilderContent: currentDeck set, new value:', useSessionStore.getState().deckBuilder.currentDeck);
           
           // Note: Card data fetching will be handled by a separate effect
         }
@@ -331,7 +287,6 @@ export function DeckBuilderContent() {
         .map((card: any) => card.card_id);
       
       if (missingCardIds.length > 0) {
-        console.log('🃏 Fetching missing card data for deck:', missingCardIds);
         fetchMissingCardData(missingCardIds);
       }
     }
@@ -350,9 +305,6 @@ export function DeckBuilderContent() {
   useEffect(() => {
     const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
       const deckToSave = currentDeckRef.current;
-      console.log('🃏 BeforeUnload: deckToSave:', deckToSave);
-      console.log('🃏 BeforeUnload: has id?', !!(deckToSave && 'id' in deckToSave && deckToSave.id));
-      console.log('🃏 BeforeUnload: has cards?', (deckToSave && 'cards' in deckToSave && deckToSave.cards) ? deckToSave.cards.length : 0);
       
       if (deckToSave && Object.keys(deckToSave).length > 0 && 'id' in deckToSave && deckToSave.id && !isSavingRef.current) {
         isSavingRef.current = true;
@@ -365,7 +317,6 @@ export function DeckBuilderContent() {
         event.returnValue = 'Your deck changes are being saved automatically.';
         
         try {
-          console.log('🃏 Using fetch to save deck before unload');
           const response = await fetch(`/api/user/decks/${(deckToSave as any).id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -373,9 +324,7 @@ export function DeckBuilderContent() {
             body: data,
           });
           
-          console.log('🃏 Save response status:', response.status);
           if (response.ok) {
-            console.log('✅ Deck saved before page unload');
           } else {
             console.error('❌ Failed to save deck:', response.status);
           }
@@ -400,11 +349,6 @@ export function DeckBuilderContent() {
         isSavingRef.current = true;
         try {
           const deckId = (deckToSave as any).id;
-          console.log('🔄 Saving deck on component unmount...', {
-            deckId: deckId,
-            deckData: deckToSave,
-            userAuthenticated: !!user
-          });
           const response = await fetch(`/api/user/decks/${deckId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -412,15 +356,8 @@ export function DeckBuilderContent() {
             body: JSON.stringify(deckToSave),
           });
           
-          console.log('🔄 Deck save response:', {
-            status: response.status,
-            statusText: response.statusText,
-            ok: response.ok,
-            headers: Object.fromEntries(response.headers.entries())
-          });
           
           if (response.ok) {
-            console.log('✅ Deck saved before component unmount');
           } else {
             let errorText = '';
             try {

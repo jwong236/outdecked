@@ -3,21 +3,12 @@
 # Ensure we're in the right directory
 cd /app
 
-# Force database recreation for schema updates
-echo "Forcing database recreation due to schema changes..."
-if [ -f "cards.db" ]; then
-    echo "Removing old database file..."
-    rm -f cards.db
-fi
-
-# Create fresh database with new schema
-echo "Creating fresh database with updated schema..."
+# Initialize database if needed (Cloud SQL will be used in production)
+echo "Initializing database if needed..."
 python -c "
-from scraper import TCGCSVScraper
-scraper = TCGCSVScraper()
-print('Starting Union Arena card scraping...')
-cards = scraper.scrape_all_union_arena_cards()
-print(f'Scraping completed! Total cards: {len(cards)}')
+from database import init_db
+init_db()
+print('Database initialization completed')
 "
 
 # Start the Flask application

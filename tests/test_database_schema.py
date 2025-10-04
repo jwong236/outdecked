@@ -13,7 +13,7 @@ def get_db_connection():
     """Get database connection"""
     db_path = Path("cards.db")
     if not db_path.exists():
-        print(f"❌ Database file not found: {db_path}")
+        print(f"[FAIL] Database file not found: {db_path}")
         return None
 
     try:
@@ -21,13 +21,13 @@ def get_db_connection():
         conn.row_factory = sqlite3.Row  # Enable column access by name
         return conn
     except Exception as e:
-        print(f"❌ Error connecting to database: {e}")
+        print(f"[FAIL] Error connecting to database: {e}")
         return None
 
 
 def test_table_exists(conn, table_name, description):
     """Test if a table exists"""
-    print(f"\n🔍 Testing {description}")
+    print(f"\n[TEST] Testing {description}")
 
     try:
         cursor = conn.execute(
@@ -37,13 +37,13 @@ def test_table_exists(conn, table_name, description):
         result = cursor.fetchone()
 
         if result:
-            print(f"   ✅ Table '{table_name}' exists")
+            print(f"   [OK] Table '{table_name}' exists")
             return True
         else:
-            print(f"   ❌ Table '{table_name}' does not exist")
+            print(f"   [FAIL] Table '{table_name}' does not exist")
             return False
     except Exception as e:
-        print(f"   ❌ Error checking table: {e}")
+        print(f"   [FAIL] Error checking table: {e}")
         return False
 
 
@@ -73,32 +73,32 @@ def test_table_schema(conn, table_name, expected_columns):
                 extra_columns.append(actual_col)
 
         if not missing_columns and not extra_columns:
-            print(f"   ✅ Schema matches exactly")
+            print(f"   [OK] Schema matches exactly")
             return True
         else:
             if missing_columns:
-                print(f"   ❌ Missing columns: {missing_columns}")
+                print(f"   [FAIL] Missing columns: {missing_columns}")
             if extra_columns:
-                print(f"   ⚠️  Extra columns: {extra_columns}")
+                print(f"   [WARN]  Extra columns: {extra_columns}")
             return False
 
     except Exception as e:
-        print(f"   ❌ Error checking schema: {e}")
+        print(f"   [FAIL] Error checking schema: {e}")
         return False
 
 
 def test_table_data(conn, table_name, description):
     """Test basic data in table"""
-    print(f"\n📊 Testing data in table '{table_name}'")
+    print(f"\n[INFO] Testing data in table '{table_name}'")
 
     try:
         # Get row count
         cursor = conn.execute(f"SELECT COUNT(*) as count FROM {table_name}")
         count = cursor.fetchone()["count"]
-        print(f"   📈 Row count: {count:,}")
+        print(f"   [COUNT] Row count: {count:,}")
 
         if count == 0:
-            print(f"   ⚠️  Table is empty")
+            print(f"   [WARN]  Table is empty")
             return True
 
         # Get sample data
@@ -112,7 +112,7 @@ def test_table_data(conn, table_name, description):
         return True
 
     except Exception as e:
-        print(f"   ❌ Error checking data: {e}")
+        print(f"   [FAIL] Error checking data: {e}")
         return False
 
 
@@ -151,20 +151,20 @@ def test_foreign_keys(conn):
         print(f"   Orphaned card_prices: {orphaned_prices}")
 
         if orphaned_attrs == 0 and orphaned_prices == 0:
-            print(f"   ✅ All foreign key relationships are valid")
+            print(f"   [OK] All foreign key relationships are valid")
             return True
         else:
-            print(f"   ⚠️  Some foreign key relationships are broken")
+            print(f"   [WARN]  Some foreign key relationships are broken")
             return False
 
     except Exception as e:
-        print(f"   ❌ Error checking foreign keys: {e}")
+        print(f"   [FAIL] Error checking foreign keys: {e}")
         return False
 
 
 def main():
     """Test database schema"""
-    print("🗄️  Testing Database Schema")
+    print("[DB]  Testing Database Schema")
     print("=" * 50)
 
     # Connect to database
@@ -252,23 +252,23 @@ def main():
 
         # Summary
         print("\n" + "=" * 50)
-        print("📊 SUMMARY")
+        print("[INFO] SUMMARY")
         print("=" * 50)
 
         successful = sum(1 for _, success, _ in results if success)
         total = len(results)
 
         for table_name, success, test_type in results:
-            status = "✅ PASS" if success else "❌ FAIL"
+            status = "[OK] PASS" if success else "[FAIL] FAIL"
             print(f"{status} {table_name} ({test_type})")
 
-        print(f"\n🎯 Results: {successful}/{total} tests passed")
+        print(f"\n[RESULT] Results: {successful}/{total} tests passed")
 
         if successful == total:
             print("🎉 Database schema is up to date!")
             return 0
         else:
-            print("⚠️  Some schema issues found. Check the results above.")
+            print("[WARN]  Some schema issues found. Check the results above.")
             return 1
 
     finally:

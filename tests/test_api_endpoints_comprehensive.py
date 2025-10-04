@@ -21,15 +21,15 @@ class TestSearchAPI:
 
     def test_search_basic(self):
         """Test basic search functionality"""
-        print(f"\n🔍 Testing basic search endpoint...")
+        print(f"\n[TEST] Testing basic search endpoint...")
         response = requests.get(
             f"{BASE_URL}/api/search?game=Union Arena&page=1&per_page=5"
         )
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Found {data['pagination']['total_cards']} total cards")
-        print(f"   ✅ Returned {len(data['cards'])} cards in this page")
+        print(f"   [OK] Found {data['pagination']['total_cards']} total cards")
+        print(f"   [OK] Returned {len(data['cards'])} cards in this page")
 
         # Print example card data
         if data["cards"]:
@@ -45,14 +45,14 @@ class TestSearchAPI:
 
     def test_search_with_query(self):
         """Test search with query parameter"""
-        print(f"\n🔍 Testing search with query...")
+        print(f"\n[TEST] Testing search with query...")
         response = requests.get(
             f"{BASE_URL}/api/search?game=Union Arena&q=Attack&per_page=3"
         )
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Query 'Attack' found {data['pagination']['total_cards']} cards")
+        print(f"   [OK] Query 'Attack' found {data['pagination']['total_cards']} cards")
 
         # Print example results
         for i, card in enumerate(data["cards"][:3]):
@@ -65,7 +65,7 @@ class TestSearchAPI:
 
     def test_search_with_anime_filter(self):
         """Test search with anime (series) filter"""
-        print(f"\n🔍 Testing search with anime filter...")
+        print(f"\n[TEST] Testing search with anime filter...")
         response = requests.get(
             f"{BASE_URL}/api/search?game=Union Arena&anime=Attack%20On%20Titan&per_page=3"
         )
@@ -73,7 +73,7 @@ class TestSearchAPI:
 
         data = response.json()
         print(
-            f"   ✅ Attack On Titan filter found {data['pagination']['total_cards']} cards"
+            f"   [OK] Attack On Titan filter found {data['pagination']['total_cards']} cards"
         )
 
         # Print example results
@@ -86,14 +86,16 @@ class TestSearchAPI:
 
     def test_search_with_color_filter(self):
         """Test search with color filter"""
-        print(f"\n🔍 Testing search with color filter...")
+        print(f"\n[TEST] Testing search with color filter...")
         response = requests.get(
             f"{BASE_URL}/api/search?game=Union Arena&color=Red&per_page=3"
         )
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Red color filter found {data['pagination']['total_cards']} cards")
+        print(
+            f"   [OK] Red color filter found {data['pagination']['total_cards']} cards"
+        )
 
         # Print example results
         for i, card in enumerate(data["cards"][:3]):
@@ -105,7 +107,7 @@ class TestSearchAPI:
 
     def test_search_with_print_type_filter(self):
         """Test search with print type filter"""
-        print(f"\n🔍 Testing search with print type filter...")
+        print(f"\n[TEST] Testing search with print type filter...")
         response = requests.get(
             f"{BASE_URL}/api/search?game=Union Arena&print_type=Base&per_page=3"
         )
@@ -113,7 +115,7 @@ class TestSearchAPI:
 
         data = response.json()
         print(
-            f"   ✅ Base print type filter found {data['pagination']['total_cards']} cards"
+            f"   [OK] Base print type filter found {data['pagination']['total_cards']} cards"
         )
 
         # Print example results
@@ -126,7 +128,7 @@ class TestSearchAPI:
 
     def test_search_with_advanced_filters(self):
         """Test search with advanced filters (and_filters, or_filters, not_filters)"""
-        print(f"\n🔍 Testing search with advanced filters...")
+        print(f"\n[TEST] Testing search with advanced filters...")
 
         # Test with and_filters
         and_filters = [{"field": "PrintType", "value": "Base"}]
@@ -137,7 +139,7 @@ class TestSearchAPI:
 
         data = response.json()
         print(
-            f"   ✅ Advanced and_filters found {data['pagination']['total_cards']} cards"
+            f"   [OK] Advanced and_filters found {data['pagination']['total_cards']} cards"
         )
 
         # Print example results
@@ -150,7 +152,7 @@ class TestSearchAPI:
 
     def test_search_pagination(self):
         """Test search pagination"""
-        print(f"\n🔍 Testing search pagination...")
+        print(f"\n[TEST] Testing search pagination...")
 
         # Test first page
         response1 = requests.get(
@@ -166,9 +168,9 @@ class TestSearchAPI:
         assert response2.status_code == 200
         data2 = response2.json()
 
-        print(f"   ✅ Page 1: {len(data1['cards'])} cards")
-        print(f"   ✅ Page 2: {len(data2['cards'])} cards")
-        print(f"   ✅ Total cards: {data1['pagination']['total_cards']}")
+        print(f"   [OK] Page 1: {len(data1['cards'])} cards")
+        print(f"   [OK] Page 2: {len(data2['cards'])} cards")
+        print(f"   [OK] Total cards: {data1['pagination']['total_cards']}")
 
         # Ensure different results on different pages
         if len(data1["cards"]) > 0 and len(data2["cards"]) > 0:
@@ -176,7 +178,7 @@ class TestSearchAPI:
 
     def test_search_sorting(self):
         """Test search sorting"""
-        print(f"\n🔍 Testing search sorting...")
+        print(f"\n[TEST] Testing search sorting...")
 
         # Test sorting by name
         response = requests.get(
@@ -185,7 +187,7 @@ class TestSearchAPI:
         assert response.status_code == 200
         data = response.json()
 
-        print(f"   ✅ Sorted by name, found {len(data['cards'])} cards")
+        print(f"   [OK] Sorted by name, found {len(data['cards'])} cards")
 
         # Print first few results to verify sorting
         for i, card in enumerate(data["cards"][:3]):
@@ -199,12 +201,12 @@ class TestFilterAPI:
 
     def test_filter_fields(self):
         """Test filter fields endpoint"""
-        print(f"\n🔍 Testing filter fields endpoint...")
+        print(f"\n[TEST] Testing filter fields endpoint...")
         response = requests.get(f"{BASE_URL}/api/filter-fields")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Found {len(data)} filter fields")
+        print(f"   [OK] Found {len(data)} filter fields")
 
         # Print all available fields
         for field in data:
@@ -221,16 +223,16 @@ class TestFilterAPI:
         # Check that PrintType is included
         print_type_field = next((f for f in data if f["name"] == "PrintType"), None)
         assert print_type_field is not None
-        print(f"   ✅ PrintType field found: {print_type_field}")
+        print(f"   [OK] PrintType field found: {print_type_field}")
 
     def test_filter_values_series_name(self):
         """Test filter values for SeriesName"""
-        print(f"\n🔍 Testing filter values for SeriesName...")
+        print(f"\n[TEST] Testing filter values for SeriesName...")
         response = requests.get(f"{BASE_URL}/api/filter-values/SeriesName")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Found {len(data)} series names")
+        print(f"   [OK] Found {len(data)} series names")
 
         # Print all series names
         for series in data:
@@ -242,12 +244,12 @@ class TestFilterAPI:
 
     def test_filter_values_rarity(self):
         """Test filter values for Rarity"""
-        print(f"\n🔍 Testing filter values for Rarity...")
+        print(f"\n[TEST] Testing filter values for Rarity...")
         response = requests.get(f"{BASE_URL}/api/filter-values/Rarity")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Found {len(data)} rarity values")
+        print(f"   [OK] Found {len(data)} rarity values")
 
         # Print all rarity values
         for rarity in data:
@@ -260,12 +262,12 @@ class TestFilterAPI:
 
     def test_filter_values_print_type(self):
         """Test filter values for PrintType"""
-        print(f"\n🔍 Testing filter values for PrintType...")
+        print(f"\n[TEST] Testing filter values for PrintType...")
         response = requests.get(f"{BASE_URL}/api/filter-values/PrintType")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Found {len(data)} print type values")
+        print(f"   [OK] Found {len(data)} print type values")
 
         # Print all print type values
         for print_type in data:
@@ -286,12 +288,12 @@ class TestFilterAPI:
 
     def test_filter_values_affinities_special_splitting(self):
         """Test filter values for Affinities with special splitting"""
-        print(f"\n🔍 Testing filter values for Affinities...")
+        print(f"\n[TEST] Testing filter values for Affinities...")
         response = requests.get(f"{BASE_URL}/api/filter-values/Affinities")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Found {len(data)} affinity values")
+        print(f"   [OK] Found {len(data)} affinity values")
 
         # Print all affinity values
         for affinity in data:
@@ -308,7 +310,7 @@ class TestFilterAPI:
 
     def test_filter_values_dynamic_fields(self):
         """Test that filter values works with any field name"""
-        print(f"\n🔍 Testing filter values for dynamic fields...")
+        print(f"\n[TEST] Testing filter values for dynamic fields...")
         test_fields = [
             "CardType",
             "BattlePointBP",
@@ -321,7 +323,7 @@ class TestFilterAPI:
             assert response.status_code == 200
 
             data = response.json()
-            print(f"   ✅ Field '{field}': {len(data)} values")
+            print(f"   [OK] Field '{field}': {len(data)} values")
 
             # Print first few values
             for value in data[:3]:
@@ -331,12 +333,12 @@ class TestFilterAPI:
 
     def test_filter_values_nonexistent_field(self):
         """Test filter values with non-existent field returns empty array"""
-        print(f"\n🔍 Testing filter values for non-existent field...")
+        print(f"\n[TEST] Testing filter values for non-existent field...")
         response = requests.get(f"{BASE_URL}/api/filter-values/NonExistentField123")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Non-existent field returned {len(data)} values (should be 0)")
+        print(f"   [OK] Non-existent field returned {len(data)} values (should be 0)")
         assert data == []
 
 
@@ -345,12 +347,12 @@ class TestCardAPI:
 
     def test_card_details(self):
         """Test individual card details endpoint"""
-        print(f"\n🔍 Testing card details endpoint...")
+        print(f"\n[TEST] Testing card details endpoint...")
         response = requests.get(f"{BASE_URL}/api/cards/653527")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Card details for ID 1:")
+        print(f"   [OK] Card details for ID 1:")
         print(f"   📄 Name: {data.get('name')}")
         print(f"   📄 Game: {data.get('game')}")
         print(f"   📄 Product ID: {data.get('product_id')}")
@@ -362,28 +364,28 @@ class TestCardAPI:
 
     def test_card_by_url(self):
         """Test card lookup by URL (functionality not implemented)"""
-        print(f"\n🔍 Testing card lookup by URL...")
-        print(f"   ⚠️  URL lookup functionality not implemented")
-        print(f"   ✅ Skipping URL lookup test")
+        print(f"\n[TEST] Testing card lookup by URL...")
+        print(f"   [WARN]  URL lookup functionality not implemented")
+        print(f"   [OK] Skipping URL lookup test")
 
         # This test is skipped since URL lookup is not implemented
         assert True
 
     def test_card_not_found(self):
         """Test card not found scenarios"""
-        print(f"\n🔍 Testing card not found scenarios...")
+        print(f"\n[TEST] Testing card not found scenarios...")
 
         # Test with non-existent ID
         response = requests.get(f"{BASE_URL}/api/cards/999999999")
         assert response.status_code == 404
 
         data = response.json()
-        print(f"   ✅ Non-existent card ID returned 404: {data.get('error')}")
+        print(f"   [OK] Non-existent card ID returned 404: {data.get('error')}")
         assert "error" in data
 
         # URL lookup functionality not implemented, so skip this test
-        print(f"   ⚠️  URL lookup functionality not implemented")
-        print(f"   ✅ Skipping invalid URL test")
+        print(f"   [WARN]  URL lookup functionality not implemented")
+        print(f"   [OK] Skipping invalid URL test")
 
 
 class TestGamesAPI:
@@ -391,12 +393,12 @@ class TestGamesAPI:
 
     def test_games_endpoint(self):
         """Test games endpoint returns all categories"""
-        print(f"\n🔍 Testing games endpoint...")
+        print(f"\n[TEST] Testing games endpoint...")
         response = requests.get(f"{BASE_URL}/api/games")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Found {len(data)} games")
+        print(f"   [OK] Found {len(data)} games")
 
         # Print first few games
         for i, game in enumerate(data[:5]):
@@ -417,16 +419,16 @@ class TestGamesAPI:
             if "Union Arena" in game["name"] or "Union Arena" in game["display"]
         ]
         assert len(union_arena_games) > 0
-        print(f"   ✅ Union Arena found in games list")
+        print(f"   [OK] Union Arena found in games list")
 
     def test_game_stats_endpoint(self):
         """Test game stats endpoint"""
-        print(f"\n🔍 Testing game stats endpoint...")
+        print(f"\n[TEST] Testing game stats endpoint...")
         response = requests.get(f"{BASE_URL}/api/analytics/games")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Found {len(data)} game stats")
+        print(f"   [OK] Found {len(data)} game stats")
 
         # Print game stats
         for stat in data:
@@ -446,12 +448,12 @@ class TestStatsAPI:
 
     def test_stats_endpoint(self):
         """Test stats endpoint"""
-        print(f"\n🔍 Testing stats endpoint...")
+        print(f"\n[TEST] Testing stats endpoint...")
         response = requests.get(f"{BASE_URL}/api/analytics")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Database stats:")
+        print(f"   [OK] Database stats:")
         print(f"   📄 Total cards: {data['total_cards']}")
         print(f"   📄 Total games: {data['total_games']}")
         print(f"   📄 Game breakdown: {len(data['game_stats'])} games")
@@ -464,12 +466,12 @@ class TestStatsAPI:
 
     def test_api_stats_endpoint(self):
         """Test API stats endpoint"""
-        print(f"\n🔍 Testing API stats endpoint...")
+        print(f"\n[TEST] Testing API stats endpoint...")
         response = requests.get(f"{BASE_URL}/api/analytics")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ API stats:")
+        print(f"   [OK] API stats:")
         print(f"   📄 Total cards: {data['total_cards']}")
         print(f"   📄 Total games: {data['total_games']}")
         print(f"   📄 Total series: {data['total_series']}")
@@ -485,12 +487,12 @@ class TestHealthAPI:
 
     def test_health_check(self):
         """Test health check endpoint"""
-        print(f"\n🔍 Testing health check endpoint...")
+        print(f"\n[TEST] Testing health check endpoint...")
         response = requests.get(f"{BASE_URL}/api/health")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ Health check: {data['status']}")
+        print(f"   [OK] Health check: {data['status']}")
         print(f"   📄 Timestamp: {data['timestamp']}")
 
         assert "status" in data
@@ -503,12 +505,12 @@ class TestDeckBuilderAPI:
 
     def test_deck_validation_rules(self):
         """Test user decks endpoint"""
-        print(f"\n🔍 Testing user decks endpoint...")
+        print(f"\n[TEST] Testing user decks endpoint...")
         response = requests.get(f"{BASE_URL}/api/user/decks")
         assert response.status_code == 200
 
         data = response.json()
-        print(f"   ✅ User decks response:")
+        print(f"   [OK] User decks response:")
         print(f"   📄 Success: {data.get('success')}")
         print(f"   📄 Count: {data.get('data', {}).get('count', 0)}")
 
@@ -518,13 +520,13 @@ class TestDeckBuilderAPI:
 
     def test_decks_endpoint(self):
         """Test decks endpoint (should return empty list for now)"""
-        print(f"\n🔍 Testing decks endpoint...")
+        print(f"\n[TEST] Testing decks endpoint...")
         response = requests.get(f"{BASE_URL}/api/user/decks")
         assert response.status_code == 200
 
         data = response.json()
         deck_count = data.get("data", {}).get("count", 0)
-        print(f"   ✅ Found {deck_count} decks")
+        print(f"   [OK] Found {deck_count} decks")
 
         assert isinstance(data, dict)
         assert data.get("success") is True
@@ -532,7 +534,7 @@ class TestDeckBuilderAPI:
 
     def test_user_decks_persistence(self):
         """Test user deck persistence endpoints"""
-        print(f"\n🔍 Testing user deck persistence...")
+        print(f"\n[TEST] Testing user deck persistence...")
 
         # Create a session to maintain cookies
         session = requests.Session()
@@ -580,12 +582,12 @@ class TestDeckBuilderAPI:
         deck_count = loaded_data["data"]["count"]
         assert deck_count >= 1  # At least one deck should be saved
 
-        print(f"   ✅ Successfully saved and loaded {deck_count} decks")
+        print(f"   [OK] Successfully saved and loaded {deck_count} decks")
 
         # Verify deck data integrity (simplified check)
         assert loaded_data["data"]["count"] > 0
 
-        print(f"   ✅ Deck data integrity verified")
+        print(f"   [OK] Deck data integrity verified")
 
 
 class TestScrapingAPI:
@@ -593,17 +595,17 @@ class TestScrapingAPI:
 
     def test_scraping_status(self):
         """Test scraping status endpoint (requires authentication)"""
-        print(f"\n🔍 Testing scraping status endpoint...")
+        print(f"\n[TEST] Testing scraping status endpoint...")
         response = requests.get(f"{BASE_URL}/api/admin/scraping/status")
 
         if response.status_code == 401:
-            print(f"   ⚠️  Scraping status endpoint requires authentication")
-            print(f"   ✅ Skipping scraping status test (401 Unauthorized)")
+            print(f"   [WARN]  Scraping status endpoint requires authentication")
+            print(f"   [OK] Skipping scraping status test (401 Unauthorized)")
             assert response.status_code == 401
         else:
             assert response.status_code == 200
             data = response.json()
-            print(f"   ✅ Scraping status: {data['status']}")
+            print(f"   [OK] Scraping status: {data['status']}")
             print(f"   📄 Current operation: {data['statistics']['current_operation']}")
             print(f"   📄 Is running: {data['statistics']['is_running']}")
 

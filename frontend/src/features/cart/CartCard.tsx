@@ -6,6 +6,14 @@ import { getProductImageIcon } from '@/lib/imageUtils';
 import { Card, ExpandedCard } from '@/types/card';
 import { QuantityControl } from '@/components/shared/ui/QuantityControl';
 
+// Helper function to format price safely
+const formatPrice = (price: number | string | null | undefined) => {
+  if (price === undefined || price === null || price === 0 || price === '0') return 'N/A';
+  const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+  if (isNaN(numPrice)) return 'N/A';
+  return `$${numPrice.toFixed(2)}`;
+};
+
 export interface CartCardProps {
   card: ExpandedCard;
   onClick?: (card: ExpandedCard) => void;
@@ -114,7 +122,7 @@ export function CartCard({
           {showPrices && (
             <div className="absolute bottom-0 right-0">
               <span className="text-xs text-white/70 font-medium">
-                {card.price ? `$${card.price.toFixed(2)}` : 'N/A'}
+                {formatPrice(card.price)}
               </span>
             </div>
           )}

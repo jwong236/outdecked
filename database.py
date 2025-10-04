@@ -1,773 +1,284 @@
 """
-Database operations for OutDecked card management system.
-Aligned with TCGCSV architecture for better data structure.
+Enhanced database operations for OutDecked card management system.
+SQLAlchemy-based implementation with environment-based database switching.
+Supports both SQLite (development) and PostgreSQL (production).
 """
 
-import sqlite3
 import os
 import requests
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, scoped_session
+from models import (
+    Base,
+    User,
+    UserPreference,
+    UserSession,
+    UserHand,
+    UserDeck,
+    Card,
+    CardAttribute,
+    CardPrice,
+    Category,
+    Group,
+)
+from datetime import datetime
+import json
 
 
-def init_db():
-    """Initialize the database with TCGCSV-aligned schema."""
-    conn = sqlite3.connect("cards.db")
-    cursor = conn.cursor()
+class DatabaseManager:
+    """Enhanced database manager for SQLAlchemy operations."""
 
-    # Main cards table - matches TCGCSV product structure exactly
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS cards (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            product_id INTEGER UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            clean_name TEXT,
-            card_url TEXT,
-            game TEXT NOT NULL,
-            category_id INTEGER,
-            group_id INTEGER,
-            group_name TEXT,
-            image_count INTEGER,
-            is_presale BOOLEAN DEFAULT FALSE,
-            released_on TEXT,
-            presale_note TEXT,
-            modified_on TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
+    def __init__(self):
+        self.engine = None
+        self.Session = None
+        self._setup_database()
 
-    # Card attributes table - matches TCGCSV extendedData structure exactly
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS card_attributes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            display_name TEXT NOT NULL,
-            value TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (card_id) REFERENCES cards (id),
-            UNIQUE(card_id, name)
-        )
-        """
-    )
+    def _setup_database(self):
+        """Setup database engine and session factory - PostgreSQL for all environments."""
+        # Always use PostgreSQL
+        self._setup_postgresql()
 
-    # Price data table - matches TCGCSV price structure
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS card_prices (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            card_id INTEGER NOT NULL,
-            market_price REAL,
-            low_price REAL,
-            mid_price REAL,
-            high_price REAL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (card_id) REFERENCES cards (id),
-            UNIQUE(card_id)
-        )
-        """
-    )
+        # Create session factory
+        self.Session = scoped_session(sessionmaker(bind=self.engine))
 
-    # Categories table - matches TCGCSV categories
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category_id INTEGER UNIQUE NOT NULL,
-            name TEXT NOT NULL,
-            display_name TEXT,
-            description TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
+    def _setup_postgresql(self):
+        """Setup PostgreSQL connection for all environments."""
+        # Check for DATABASE_URL first (for local testing)
+        database_url = os.environ.get("DATABASE_URL")
+        if database_url:
+            self.engine = create_engine(database_url)
+            return
 
-    # Groups table - matches TCGCSV groups
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS groups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            group_id INTEGER UNIQUE NOT NULL,
-            category_id INTEGER NOT NULL,
-            name TEXT NOT NULL,
-            abbreviation TEXT,
-            is_supplemental BOOLEAN DEFAULT FALSE,
-            published_on TEXT,
-            modified_on TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (category_id) REFERENCES categories (category_id)
-        )
-        """
-    )
+        # Fall back to individual environment variables
+        db_host = os.environ.get("DB_HOST", "localhost")
+        db_port = os.environ.get("DB_PORT", "5432")
+        db_name = os.environ.get("DB_NAME", "outdecked")
+        db_user = os.environ.get("DB_USER", "postgres")
+        db_password = os.environ.get("DB_PASSWORD", "Applemon236!")
 
-    # Attributes fields table to track available fields per game
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS attributes_fields (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            game TEXT NOT NULL,
-            field_name TEXT NOT NULL,
-            field_display_name TEXT NOT NULL,
-            field_type TEXT DEFAULT 'text',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(game, field_name)
-        )
-        """
-    )
+        # Cloud SQL connection string
+        if db_host.startswith("/cloudsql/"):
+            # Cloud SQL Proxy connection
+            connection_string = (
+                f"postgresql://{db_user}:{db_password}@/{db_name}?host={db_host}"
+            )
+        else:
+            # Direct connection
+            connection_string = (
+                f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+            )
 
-    # User Management Tables
-    # Users table
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            role TEXT NOT NULL DEFAULT 'user',
-            display_name TEXT,
-            avatar_url TEXT,
-            is_active BOOLEAN DEFAULT TRUE,
-            is_verified BOOLEAN DEFAULT FALSE,
-            email_verification_token TEXT,
-            password_reset_token TEXT,
-            password_reset_expires TIMESTAMP,
-            last_login TIMESTAMP,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-        """
-    )
+        self.engine = create_engine(connection_string, echo=False)
 
-    # User preferences table
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS user_preferences (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            background TEXT DEFAULT 'background-1.jpg',
-            cards_per_page INTEGER DEFAULT 24,
-            default_sort TEXT DEFAULT 'name',
-            theme TEXT DEFAULT 'light',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-        )
-        """
-    )
+    def get_session(self):
+        """Get a new database session."""
+        return self.Session()
 
-    # User sessions table
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS user_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            session_token TEXT UNIQUE NOT NULL,
-            expires_at TIMESTAMP NOT NULL,
-            ip_address TEXT,
-            user_agent TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-        )
-        """
-    )
+    def init_db(self):
+        """Initialize the database with all tables."""
+        try:
+            # Create all tables
+            Base.metadata.create_all(self.engine)
+            print("Database tables created successfully")
 
-    # User hands table
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS user_hands (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            hand_data TEXT NOT NULL,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-            UNIQUE(user_id)
-        )
-        """
-    )
+            # Populate categories and groups
+            self.populate_categories_and_groups()
 
-    # User decks table
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS user_decks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            deck_id TEXT NOT NULL,
-            deck_data TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
-            UNIQUE(user_id, deck_id)
-        )
-        """
-    )
+            # Create default accounts
+            self.create_default_owner()
+            self.create_test_user()
 
-    # Create indexes for better performance
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)")
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_user_preferences_user_id ON user_preferences(user_id)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(session_token)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_user_hands_user_id ON user_hands(user_id)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_user_decks_user_id ON user_decks(user_id)"
-    )
-    cursor.execute(
-        "CREATE INDEX IF NOT EXISTS idx_user_decks_deck_id ON user_decks(deck_id)"
-    )
+        except Exception as e:
+            print(f"Error initializing database: {e}")
+            raise
 
-    conn.commit()
-    conn.close()
+    def populate_categories_and_groups(self):
+        """Populate categories and groups tables from TCGCSV."""
+        session = self.get_session()
 
-    # Populate categories and groups from TCGCSV
-    populate_categories_and_groups()
+        try:
+            # Fetch categories from TCGCSV
+            response = requests.get("https://tcgcsv.com/tcgplayer/categories")
+            if response.status_code == 200:
+                data = response.json()
+                categories = data.get("results", [])
+
+                for category_data in categories:
+                    # Check if category already exists
+                    existing = (
+                        session.query(Category)
+                        .filter_by(category_id=category_data["categoryId"])
+                        .first()
+                    )
+                    if not existing:
+                        category = Category(
+                            category_id=category_data["categoryId"],
+                            name=category_data["name"],
+                            display_name=category_data.get("displayName", ""),
+                            description=category_data.get("categoryDescription", ""),
+                        )
+                        session.add(category)
+
+                session.commit()
+                print(f"Populated {len(categories)} categories")
+
+            # Fetch Union Arena groups
+            response = requests.get("https://tcgcsv.com/tcgplayer/81/groups")
+            if response.status_code == 200:
+                data = response.json()
+                groups = data.get("results", [])
+
+                for group_data in groups:
+                    # Check if group already exists
+                    existing = (
+                        session.query(Group)
+                        .filter_by(group_id=group_data["groupId"])
+                        .first()
+                    )
+                    if not existing:
+                        group = Group(
+                            group_id=group_data["groupId"],
+                            category_id=81,
+                            name=group_data["name"],
+                            abbreviation=group_data.get("abbreviation"),
+                            is_supplemental=group_data.get("isSupplemental", False),
+                            published_on=group_data.get("publishedOn"),
+                            modified_on=group_data.get("modifiedOn"),
+                        )
+                        session.add(group)
+
+                session.commit()
+                print(f"Populated {len(groups)} Union Arena groups")
+
+        except Exception as e:
+            print(f"Error populating categories and groups: {e}")
+            session.rollback()
+        finally:
+            session.close()
+
+    def create_default_owner(self):
+        """Create default owner account."""
+        session = self.get_session()
+
+        try:
+            # Check if owner already exists
+            owner = session.query(User).filter_by(role="owner").first()
+            if not owner:
+                from werkzeug.security import generate_password_hash
+
+                owner = User(
+                    username="admin",
+                    email="admin@outdecked.com",
+                    password_hash=generate_password_hash("admin123"),
+                    role="owner",
+                    display_name="Administrator",
+                    is_active=True,
+                    is_verified=True,
+                )
+                session.add(owner)
+                session.commit()
+                print("Default owner account created")
+        except Exception as e:
+            print(f"Error creating default owner: {e}")
+            session.rollback()
+        finally:
+            session.close()
+
+    def create_test_user(self):
+        """Create test user account."""
+        session = self.get_session()
+
+        try:
+            # Check if test user already exists
+            test_user = session.query(User).filter_by(username="testuser").first()
+            if not test_user:
+                from werkzeug.security import generate_password_hash
+
+                test_user = User(
+                    username="testuser",
+                    email="test@outdecked.com",
+                    password_hash=generate_password_hash("test123"),
+                    role="user",
+                    display_name="Test User",
+                    is_active=True,
+                    is_verified=True,
+                )
+                session.add(test_user)
+                session.commit()
+                print("Test user account created")
+        except Exception as e:
+            print(f"Error creating test user: {e}")
+            session.rollback()
+        finally:
+            session.close()
+
+    def get_database_info(self):
+        """Get information about the current database connection."""
+        return {
+            "type": "PostgreSQL",
+            "host": os.environ.get("DB_HOST", "localhost"),
+            "database": os.environ.get("DB_NAME", "outdecked"),
+        }
+
+    def test_connection(self):
+        """Test the database connection."""
+        session = self.get_session()
+        try:
+            # Simple query to test connection
+            result = session.execute(text("SELECT 1")).fetchone()
+            return result[0] == 1
+        except Exception as e:
+            print(f"Database connection test failed: {e}")
+            return False
+        finally:
+            session.close()
 
 
-def create_default_owner():
-    """Create default owner account if it doesn't exist"""
-    import hashlib
-
-    # Use direct connection to avoid circular dependency
-    conn = sqlite3.connect("cards.db")
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-
-    # Check if owner already exists
-    cursor.execute("SELECT id FROM users WHERE role = 'owner'")
-    if cursor.fetchone():
-        conn.close()
-        return
-
-    # Create owner account
-    username = "owner"
-    email = "owner@outdecked.com"
-    password = "admin123"  # Should be changed after first login
-
-    # Hash password (simple hash for now, should use bcrypt in production)
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
-
-    cursor.execute(
-        """
-        INSERT INTO users (username, email, password_hash, role, display_name, is_verified)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """,
-        (username, email, password_hash, "owner", "System Owner", True),
-    )
-
-    user_id = cursor.lastrowid
-
-    # Set default preferences for owner
-    cursor.execute(
-        """
-        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
-        VALUES (?, ?, ?, ?, ?)
-    """,
-        (
-            user_id,
-            "/backgrounds/background-1.jpg",
-            24,
-            "name",
-            "light",
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    print(f"✅ Created default owner account: {username}")
-    print("⚠️  IMPORTANT: Change the default password after first login!")
-
-
-def create_test_user():
-    """Create test user account for testing purposes"""
-    import hashlib
-
-    conn = sqlite3.connect("cards.db")
-    cursor = conn.cursor()
-
-    # Check if test user already exists
-    cursor.execute("SELECT id FROM users WHERE username = 'testuser'")
-    if cursor.fetchone():
-        conn.close()
-        return
-
-    username = "testuser"
-    email = "testuser@example.com"
-    password = "testpass123"
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
-
-    cursor.execute(
-        """
-        INSERT INTO users (username, email, password_hash, role, display_name, is_active)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """,
-        (username, email, password_hash, "user", "Test User", True),
-    )
-
-    user_id = cursor.lastrowid
-
-    # Set default preferences for test user
-    cursor.execute(
-        """
-        INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme, default_print_types, default_card_types, default_rarities)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """,
-        (
-            user_id,
-            "/backgrounds/background-1.jpg",
-            24,
-            "name",
-            "light",
-            '["Base"]',
-            '["Action Point"]',
-            '["Common", "Uncommon", "Rare", "Super Rare"]',
-        ),
-    )
-
-    conn.commit()
-    conn.close()
-
-    print(f"✅ Created test user account: {username}")
+# Global database manager instance
+db_manager = DatabaseManager()
 
 
 def get_db_connection():
-    """Get a database connection, initializing the database if it doesn't exist."""
-    if not os.path.exists("cards.db"):
-        print("Database file not found, initializing new database...")
-        init_db()
-        create_default_owner()
-        create_test_user()
-
-    conn = sqlite3.connect("cards.db")
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Legacy function for backward compatibility - returns SQLAlchemy session."""
+    return db_manager.get_session()
 
 
+def get_session():
+    """Get a new database session."""
+    return db_manager.get_session()
+
+
+def init_db():
+    """Initialize the database."""
+    db_manager.init_db()
+
+
+def get_cloud_sql_connection():
+    """Legacy function for backward compatibility."""
+    return db_manager.get_session()
+
+
+# Legacy functions for backward compatibility
 def populate_categories_and_groups():
-    """Populate categories and groups tables from TCGCSV"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    try:
-        # Fetch categories from TCGCSV
-        response = requests.get("https://tcgcsv.com/tcgplayer/categories")
-        if response.status_code == 200:
-            data = response.json()
-            categories = data.get("results", [])
-
-            for category in categories:
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO categories (category_id, name, display_name, description)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (
-                        category["categoryId"],
-                        category["name"],
-                        category.get("displayName", ""),
-                        category.get("categoryDescription", ""),
-                    ),
-                )
-
-            print(f"Populated {len(categories)} categories")
-
-        # Fetch Union Arena groups
-        response = requests.get("https://tcgcsv.com/tcgplayer/81/groups")
-        if response.status_code == 200:
-            data = response.json()
-            groups = data.get("results", [])
-
-            for group in groups:
-                cursor.execute(
-                    """
-                    INSERT OR REPLACE INTO groups (group_id, category_id, name, abbreviation, is_supplemental, published_on, modified_on)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        group["groupId"],
-                        81,
-                        group["name"],
-                        group.get("abbreviation"),
-                        group.get("isSupplemental", False),
-                        group.get("publishedOn"),
-                        group.get("modifiedOn"),
-                    ),
-                )
-
-            print(f"Populated {len(groups)} Union Arena groups")
-
-        conn.commit()
-
-    except Exception as e:
-        print(f"Error populating categories and groups: {e}")
-        conn.rollback()
-    finally:
-        conn.close()
+    """Legacy function for backward compatibility."""
+    db_manager.populate_categories_and_groups()
 
 
-def save_cards_to_db(cards):
-    """Save scraped cards to database with TCGCSV-aligned structure."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    saved_count = 0
-    failed_cards = []
-    updated_count = 0
-    inserted_count = 0
-
-    try:
-        for card in cards:
-            if card["name"] and card.get("product_id"):
-                try:
-                    # Get group abbreviation for print_type computation
-                    group_abbreviation = None
-                    if card.get("group_id"):
-                        cursor.execute(
-                            "SELECT abbreviation FROM groups WHERE group_id = ?",
-                            (card["group_id"],),
-                        )
-                        group_result = cursor.fetchone()
-                        if group_result:
-                            group_abbreviation = group_result[0]
-
-                    # Compute print_type
-                    from search import detect_print_type
-
-                    print_type = detect_print_type(group_abbreviation, card["name"])
-
-                    # Check if card already exists by product_id
-                    cursor.execute(
-                        "SELECT id FROM cards WHERE product_id = ?",
-                        (card["product_id"],),
-                    )
-                    existing = cursor.fetchone()
-
-                    if existing:
-                        card_id = existing[0]
-                        # Update existing card with TCGCSV fields (no print_type column)
-                        cursor.execute(
-                            """
-                            UPDATE cards SET name = ?, clean_name = ?, card_url = ?, 
-                                           group_id = ?, group_name = ?, image_count = ?, 
-                                           is_presale = ?, released_on = ?, presale_note = ?, modified_on = ?
-                            WHERE product_id = ?
-                            """,
-                            (
-                                card["name"],
-                                card.get("clean_name", ""),
-                                card.get("card_url", ""),
-                                card.get("group_id"),
-                                card.get("series", ""),
-                                card.get("image_count", 0),
-                                card.get("is_presale", False),
-                                card.get("released_on", ""),
-                                card.get("presale_note", ""),
-                                card.get("modified_on", ""),
-                                card["product_id"],
-                            ),
-                        )
-                        updated_count += 1
-                    else:
-                        # Insert new card with TCGCSV fields (no print_type column)
-                        cursor.execute(
-                            """
-                            INSERT INTO cards (product_id, name, clean_name, card_url, game, 
-                                             category_id, group_id, group_name, image_count, 
-                                             is_presale, released_on, presale_note, modified_on)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                            """,
-                            (
-                                card["product_id"],
-                                card["name"],
-                                card.get("clean_name", ""),
-                                card.get("card_url", ""),
-                                card["game"],
-                                card.get("category_id", 81),
-                                card.get("group_id"),
-                                card.get("series", ""),
-                                card.get("image_count", 0),
-                                card.get("is_presale", False),
-                                card.get("released_on", ""),
-                                card.get("presale_note", ""),
-                                card.get("modified_on", ""),
-                            ),
-                        )
-                        card_id = cursor.lastrowid
-                        inserted_count += 1
-
-                    # Save price data
-                    if any(
-                        card.get(field)
-                        for field in ["price", "low_price", "mid_price", "high_price"]
-                    ):
-                        cursor.execute(
-                            """
-                            INSERT OR REPLACE INTO card_prices 
-                            (card_id, market_price, low_price, mid_price, high_price)
-                            VALUES (?, ?, ?, ?, ?)
-                            """,
-                            (
-                                card_id,
-                                card.get("price"),
-                                card.get("low_price"),
-                                card.get("mid_price"),
-                                card.get("high_price"),
-                            ),
-                        )
-
-                    # Save attributes using TCGCSV structure
-                    attributes_saved = save_card_attributes_tcgcsv(
-                        cursor, card_id, card
-                    )
-
-                    # Save PrintType as a card attribute (now that it's computed)
-                    cursor.execute(
-                        """
-                        INSERT OR REPLACE INTO card_attributes (card_id, name, display_name, value)
-                        VALUES (?, 'PrintType', 'Print Type', ?)
-                        """,
-                        (card_id, print_type),
-                    )
-
-                    saved_count += 1
-
-                except Exception as e:
-                    print(f"ERROR: Failed to save card {card['name']}: {e}")
-                    failed_cards.append(card["name"])
-
-        conn.commit()
-        print(
-            f"DB COMMIT: Committed {saved_count} cards to database ({inserted_count} new, {updated_count} updated)"
-        )
-
-        if failed_cards:
-            print(f"WARNING: Failed to save {len(failed_cards)} cards: {failed_cards}")
-
-    except Exception as e:
-        print(f"ERROR: Database transaction failed: {e}")
-        conn.rollback()
-        raise e
-    finally:
-        conn.close()
-
-    return saved_count, failed_cards
+def create_default_owner():
+    """Legacy function for backward compatibility."""
+    db_manager.create_default_owner()
 
 
-def save_card_attributes_tcgcsv(cursor, card_id, card_data):
-    """Save card attributes using TCGCSV structure (name, display_name, value)"""
-    attributes_count = 0
-
-    # Define TCGCSV field mappings
-    tcgcsv_mappings = {
-        "rarity": {"name": "Rarity", "display_name": "Rarity"},
-        "card_number": {"name": "Number", "display_name": "Number"},
-        "card_text": {"name": "Description", "display_name": "Description"},
-        "series": {"name": "SeriesName", "display_name": "Series Name"},
-        "card_type": {"name": "CardType", "display_name": "Card Type"},
-        "activation_energy": {
-            "name": "ActivationEnergy",
-            "display_name": "Activation Energy",
-        },
-        "required_energy": {
-            "name": "RequiredEnergy",
-            "display_name": "Required Energy",
-        },
-        "action_point_cost": {
-            "name": "ActionPointCost",
-            "display_name": "Action Point Cost",
-        },
-        "battle_point": {"name": "BattlePointBP", "display_name": "Battle Point (BP)"},
-        "generated_energy": {
-            "name": "GeneratedEnergy",
-            "display_name": "Generated Energy",
-        },
-        "affinities": {"name": "Affinities", "display_name": "Affinities"},
-        "trigger": {"name": "Trigger", "display_name": "Trigger"},
-        "trigger_type": {"name": "TriggerType", "display_name": "Trigger Type"},
-        "trigger_text": {"name": "TriggerText", "display_name": "Trigger Text"},
-    }
-
-    # Skip basic fields and price fields
-    skip_fields = [
-        "name",
-        "clean_name",
-        "card_url",
-        "game",
-        "product_id",
-        "group_id",
-        "category_id",
-        "image_count",
-        "is_presale",
-        "released_on",
-        "presale_note",
-        "modified_on",
-        "price",
-        "low_price",
-        "mid_price",
-        "high_price",
-    ]
-
-    for field_name, field_value in card_data.items():
-        if field_name in skip_fields:
-            continue
-
-        if field_value and str(field_value).strip():
-            # Get TCGCSV mapping or use field name as fallback
-            mapping = tcgcsv_mappings.get(
-                field_name,
-                {
-                    "name": field_name.upper(),
-                    "display_name": field_name.replace("_", " ").title(),
-                },
-            )
-
-            # Insert or update attributes using TCGCSV structure
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO card_attributes (card_id, name, display_name, value)
-                VALUES (?, ?, ?, ?)
-                """,
-                (
-                    card_id,
-                    mapping["name"],
-                    mapping["display_name"],
-                    str(field_value).strip(),
-                ),
-            )
-            attributes_count += 1
-
-    return attributes_count
+def create_test_user():
+    """Legacy function for backward compatibility."""
+    db_manager.create_test_user()
 
 
-def save_card_attributes(cursor, card_id, game, card_data):
-    """Save card attributes to the dynamic attributes table."""
-    from models import METADATA_FIELDS_EXACT
-
-    # Define field mappings for display names
-    field_display_names = {
-        "rarity": "Rarity",
-        "card_number": "Number",
-        "series": "Series Name",
-        "card_type": "Card Type",
-        "activation_energy": "Activation Energy",
-        "required_energy": "Required Energy",
-        "action_point_cost": "Action Point Cost",
-        "trigger": "Trigger",
-        "energy": "Energy",
-        "cost": "Cost",
-        "color": "Color",
-        "card_text": "Card Text",
-        "description": "Description",
-        "language": "Language",
-    }
-
-    attributes_count = 0
-    for field_name, field_value in card_data.items():
-        # Skip basic fields and price fields
-        if field_name in [
-            "name",
-            "card_url",
-            "game",
-            "product_id",
-            "group_id",
-            "category_id",
-            "series",
-            "price",
-            "low_price",
-            "mid_price",
-            "high_price",
-        ]:
-            continue
-
-        if field_value and str(field_value).strip():
-            # Standardize case for certain fields
-            standardized_value = str(field_value).strip()
-            if field_name in METADATA_FIELDS_EXACT:
-                standardized_value = standardized_value.title()
-
-            # Insert or update attributes
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO card_attributes (card_id, field_name, field_value)
-                VALUES (?, ?, ?)
-                """,
-                (card_id, field_name, standardized_value),
-            )
-            attributes_count += 1
-
-            # Register field for this game if not already registered
-            display_name = field_display_names.get(
-                field_name, field_name.replace("_", " ").title()
-            )
-            cursor.execute(
-                """
-                INSERT OR IGNORE INTO attributes_fields (game, field_name, field_display_name)
-                VALUES (?, ?, ?)
-                """,
-                (game, field_name, display_name),
-            )
-
-    return attributes_count
+def get_database_info():
+    """Get database information."""
+    return db_manager.get_database_info()
 
 
-def get_cards_with_attributes(game=None, group_id=None, limit=None):
-    """Get cards with their attributes in a structured format."""
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # Build query
-    query = """
-    SELECT c.*, g.name as group_name, cat.name as category_name
-    FROM cards c
-    LEFT JOIN groups g ON c.group_id = g.group_id
-    LEFT JOIN categories cat ON c.category_id = cat.category_id
-    WHERE 1=1
-    """
-    params = []
-
-    if game:
-        query += " AND c.game = ?"
-        params.append(game)
-
-    if group_id:
-        query += " AND c.group_id = ?"
-        params.append(group_id)
-
-    query += " ORDER BY c.name"
-
-    if limit:
-        query += " LIMIT ?"
-        params.append(limit)
-
-    cursor.execute(query, params)
-    cards = cursor.fetchall()
-
-    # Get attributes for each card
-    for card in cards:
-        cursor.execute(
-            "SELECT field_name, field_value FROM card_attributes WHERE card_id = ?",
-            (card["id"],),
-        )
-        attributes = cursor.fetchall()
-        card["attributes"] = {
-            attr["field_name"]: attr["field_value"] for attr in attributes
-        }
-
-        # Get price data
-        cursor.execute("SELECT * FROM card_prices WHERE card_id = ?", (card["id"],))
-        price_data = cursor.fetchone()
-        if price_data:
-            card["prices"] = dict(price_data)
-
-    conn.close()
-    return cards
+def test_connection():
+    """Test database connection."""
+    return db_manager.test_connection()

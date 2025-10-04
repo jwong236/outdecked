@@ -55,19 +55,23 @@ export function CreateDeckModal({ isOpen, onClose, onDeckCreated }: CreateDeckMo
   const confirmCreateDeck = async () => {
     if (newDeckName.trim()) {
       try {
-        // Create deck with all settings in one API call
-        const filterSettings = {
-          defaultFilters: {
-            basicPrintsOnly: true,
-            noActionPoints: true,
-            baseRarityOnly: true
-          },
-          savedDefaultFilters: {
-            printTypes: ['Base'],
-            cardTypes: ['Action Point'], // Excluded types
-            rarities: [], // Empty array - will fall back to defaultFilters.baseRarityOnly logic
-            colors: [] // Don't set series as color - series is handled separately
-          }
+        // Create deck with unified SearchParams structure
+        const defaultPreferences = {
+          query: '',
+          sort: 'name_asc',
+          page: 1,
+          per_page: 25,
+          filters: [
+            // Default filters for new decks
+            { type: 'or' as const, field: 'print_type', value: 'Base', displayText: 'Basic Prints Only' },
+            { type: 'or' as const, field: 'print_type', value: 'Starter Deck', displayText: 'Basic Prints Only' },
+            { type: 'not' as const, field: 'card_type', value: 'Action Point', displayText: 'No Action Points' },
+            { type: 'or' as const, field: 'rarity', value: 'Common', displayText: 'Base Rarity Only' },
+            { type: 'or' as const, field: 'rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+            { type: 'or' as const, field: 'rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+            { type: 'or' as const, field: 'rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
+            { type: 'or' as const, field: 'rarity', value: 'Action Point', displayText: 'Base Rarity Only' }
+          ]
         };
         
         // Create deck via API
@@ -83,11 +87,12 @@ export function CreateDeckModal({ isOpen, onClose, onDeckCreated }: CreateDeckMo
             description: '',
             visibility: newDeckVisibility,
             preferences: {
-              series: newDeckSeries,
-              color: '',
-              printTypes: ['Base'],
-              cardTypes: ['Character', 'Event', 'Site'], // All EXCEPT "Action Point"
-              rarities: ['Common', 'Uncommon', 'Rare', 'Super Rare'] // Base rarities only
+              ...defaultPreferences,
+              // Add series filter if selected
+              filters: newDeckSeries ? [
+                ...defaultPreferences.filters,
+                { type: 'and' as const, field: 'series', value: newDeckSeries, displayText: `Series: ${newDeckSeries}` }
+              ] : defaultPreferences.filters
             }
           }),
         });

@@ -14,7 +14,7 @@ BASE_URL = "http://localhost:5000"
 
 def test_endpoint(endpoint, description):
     """Test a single API endpoint"""
-    print(f"\n🔍 Testing {description}")
+    print(f"\n[TEST] Testing {description}")
     print(f"   URL: {BASE_URL}{endpoint}")
 
     try:
@@ -23,20 +23,20 @@ def test_endpoint(endpoint, description):
 
         if response.status_code == 200:
             data = response.json()
-            print(f"   ✅ Success! Response: {json.dumps(data, indent=2)[:200]}...")
+            print(f"   [OK] Success! Response: {json.dumps(data, indent=2)[:200]}...")
             return True
         else:
-            print(f"   ❌ Error: {response.text}")
+            print(f"   [FAIL] Error: {response.text}")
             return False
 
     except requests.exceptions.ConnectionError:
-        print(f"   ❌ Connection Error: Is the Flask server running on {BASE_URL}?")
+        print(f"   [FAIL] Connection Error: Is the Flask server running on {BASE_URL}?")
         return False
     except requests.exceptions.Timeout:
-        print(f"   ❌ Timeout: Request took too long")
+        print(f"   [FAIL] Timeout: Request took too long")
         return False
     except Exception as e:
-        print(f"   ❌ Unexpected Error: {e}")
+        print(f"   [FAIL] Unexpected Error: {e}")
         return False
 
 
@@ -56,7 +56,7 @@ def test_price_fallback():
             cards = data.get("cards", [])
 
             if not cards:
-                print(f"   ❌ No cards returned")
+                print(f"   [FAIL] No cards returned")
                 return False
 
             # Count cards with valid prices vs N/A
@@ -70,32 +70,32 @@ def test_price_fallback():
                 else:
                     na_prices += 1
 
-            print(f"   📊 Cards with valid prices: {valid_prices}")
-            print(f"   📊 Cards with N/A prices: {na_prices}")
-            print(f"   📊 Total cards: {len(cards)}")
+            print(f"   [INFO] Cards with valid prices: {valid_prices}")
+            print(f"   [INFO] Cards with N/A prices: {na_prices}")
+            print(f"   [INFO] Total cards: {len(cards)}")
 
             # Should have very few N/A prices (less than 5% ideally)
             na_percentage = (na_prices / len(cards)) * 100 if cards else 0
-            print(f"   📊 N/A percentage: {na_percentage:.1f}%")
+            print(f"   [INFO] N/A percentage: {na_percentage:.1f}%")
 
             if na_percentage < 10:  # Less than 10% N/A is acceptable
-                print(f"   ✅ Price fallback working well!")
+                print(f"   [OK] Price fallback working well!")
                 return True
             else:
-                print(f"   ⚠️  High percentage of N/A prices - may need investigation")
+                print(f"   [WARN]  High percentage of N/A prices - may need investigation")
                 return False
         else:
-            print(f"   ❌ Error: {response.text}")
+            print(f"   [FAIL] Error: {response.text}")
             return False
 
     except requests.exceptions.ConnectionError:
-        print(f"   ❌ Connection Error: Is the Flask server running on {BASE_URL}?")
+        print(f"   [FAIL] Connection Error: Is the Flask server running on {BASE_URL}?")
         return False
     except requests.exceptions.Timeout:
-        print(f"   ❌ Timeout: Request took too long")
+        print(f"   [FAIL] Timeout: Request took too long")
         return False
     except Exception as e:
-        print(f"   ❌ Unexpected Error: {e}")
+        print(f"   [FAIL] Unexpected Error: {e}")
         return False
 
 
@@ -132,23 +132,23 @@ def main():
 
     # Summary
     print("\n" + "=" * 50)
-    print("📊 SUMMARY")
+    print("[INFO] SUMMARY")
     print("=" * 50)
 
     successful = sum(1 for _, _, success in results if success)
     total = len(results)
 
     for endpoint, description, success in results:
-        status = "✅ PASS" if success else "❌ FAIL"
+        status = "[OK] PASS" if success else "[FAIL] FAIL"
         print(f"{status} {description}")
 
-    print(f"\n🎯 Results: {successful}/{total} endpoints working")
+    print(f"\n[RESULT] Results: {successful}/{total} endpoints working")
 
     if successful == total:
         print("🎉 All endpoints are working correctly!")
         return 0
     else:
-        print("⚠️  Some endpoints are failing. Check the Flask server logs.")
+        print("[WARN]  Some endpoints are failing. Check the Flask server logs.")
         return 1
 
 

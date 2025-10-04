@@ -35,10 +35,10 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
     try {
       // Fetch all filter options in parallel
       const [seriesRes, cardTypeRes, printTypeRes, rarityRes] = await Promise.all([
-        fetch('/api/cards/attributes/SeriesName?game=Union Arena', { credentials: 'include' }),
-        fetch('/api/cards/attributes/CardType?game=Union Arena', { credentials: 'include' }),
-        fetch('/api/cards/attributes/PrintType?game=Union Arena', { credentials: 'include' }),
-        fetch('/api/cards/attributes/Rarity?game=Union Arena', { credentials: 'include' })
+        fetch('/api/cards/attributes/series?game=Union Arena', { credentials: 'include' }),
+        fetch('/api/cards/attributes/card_type?game=Union Arena', { credentials: 'include' }),
+        fetch('/api/cards/attributes/print_type?game=Union Arena', { credentials: 'include' }),
+        fetch('/api/cards/attributes/rarity?game=Union Arena', { credentials: 'include' })
       ]);
 
       const [seriesData, cardTypeData, printTypeData, rarityData] = await Promise.all([
@@ -52,9 +52,9 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
       setSeriesOptions(seriesData.map((value: string) => ({ value, label: value })));
       
       // For collapsible options, check if they're in currentDeck preferences
-      const currentPrintTypes = currentDeck?.preferences?.printTypes || [];
-      const currentCardTypes = currentDeck?.preferences?.cardTypes || [];
-      const currentRarities = currentDeck?.preferences?.rarities || [];
+      const currentPrintTypes = currentDeck?.preferences?.filters?.filter(f => f.field === 'print_type').map(f => f.value) || [];
+      const currentCardTypes = currentDeck?.preferences?.filters?.filter(f => f.field === 'card_type').map(f => f.value) || [];
+      const currentRarities = currentDeck?.preferences?.filters?.filter(f => f.field === 'rarity').map(f => f.value) || [];
       
       setCollapsiblePrintTypeOptions(printTypeData.map((value: string) => ({ 
         value, 
@@ -87,12 +87,12 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
     }
   };
 
-  const currentSeries = currentDeck?.preferences?.series || '';
+  const currentSeries = currentDeck?.preferences?.filters?.find(f => f.field === 'series')?.value || '';
   
   // Calculate default filter indicators
   const isBasicPrintsOnly = React.useMemo(() => {
     if (!currentDeck || !('preferences' in currentDeck)) return false;
-    const printTypes = currentDeck.preferences?.printTypes || [];
+    const printTypes = currentDeck.preferences?.filters?.filter(f => f.field === 'print_type').map(f => f.value) || [];
     // Basic Prints Only means both Base and Starter Deck are checked, and nothing else
     return printTypes.length === 2 && 
            printTypes.includes('Base') && 
@@ -101,7 +101,7 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
 
   const isNoActionPoints = React.useMemo(() => {
     if (!currentDeck || !('preferences' in currentDeck)) return false;
-    const cardTypes = currentDeck.preferences?.cardTypes || [];
+    const cardTypes = currentDeck.preferences?.filters?.filter(f => f.field === 'card_type').map(f => f.value) || [];
     const hasActionPoint = cardTypes.includes('Action Point');
     const hasCharacter = cardTypes.includes('Character');
     const hasEvent = cardTypes.includes('Event');
@@ -111,8 +111,8 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
 
   const isBaseRarityOnly = React.useMemo(() => {
     if (!currentDeck || !('preferences' in currentDeck)) return false;
-    const rarities = currentDeck.preferences?.rarities || [];
-    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
+    const rarities = currentDeck.preferences?.filters?.filter(f => f.field === 'rarity').map(f => f.value) || [];
+    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
     return baseRarities.every(rarity => rarities.includes(rarity)) && 
            rarities.length === baseRarities.length;
   }, [currentDeck]);
@@ -121,16 +121,32 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
   const handlePrintTypeChange = (value: string, checked: boolean) => {
     if (!currentDeck || Object.keys(currentDeck).length === 0 || !('preferences' in currentDeck)) return;
     
-    const currentTypes = currentDeck.preferences?.printTypes || [];
-    const newTypes = checked 
-      ? [...currentTypes, value]
-      : currentTypes.filter((type: string) => type !== value);
+    const currentFilters = currentDeck.preferences?.filters || [];
+    let newFilters;
+    
+    if (checked) {
+      // Add filter if not already present
+      const exists = currentFilters.some(f => f.field === 'print_type' && f.value === value);
+      if (!exists) {
+        newFilters = [...currentFilters, {
+          type: 'or' as const,
+          field: 'print_type',
+          value: value,
+          displayText: `Print Type: ${value}`
+        }];
+      } else {
+        newFilters = currentFilters;
+      }
+    } else {
+      // Remove filter
+      newFilters = currentFilters.filter(f => !(f.field === 'print_type' && f.value === value));
+    }
     
     const updatedDeck = {
       ...currentDeck,
       preferences: {
         ...currentDeck.preferences,
-        printTypes: newTypes
+        filters: newFilters
       }
     };
     
@@ -147,16 +163,32 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
   const handleCardTypeChange = (value: string, checked: boolean) => {
     if (!currentDeck || Object.keys(currentDeck).length === 0 || !('preferences' in currentDeck)) return;
     
-    const currentTypes = currentDeck.preferences?.cardTypes || [];
-    const newTypes = checked 
-      ? [...currentTypes, value]
-      : currentTypes.filter((type: string) => type !== value);
+    const currentFilters = currentDeck.preferences?.filters || [];
+    let newFilters;
+    
+    if (checked) {
+      // Add filter if not already present
+      const exists = currentFilters.some(f => f.field === 'card_type' && f.value === value);
+      if (!exists) {
+        newFilters = [...currentFilters, {
+          type: 'and' as const,
+          field: 'card_type',
+          value: value,
+          displayText: `Card Type: ${value}`
+        }];
+      } else {
+        newFilters = currentFilters;
+      }
+    } else {
+      // Remove filter
+      newFilters = currentFilters.filter(f => !(f.field === 'card_type' && f.value === value));
+    }
     
     const updatedDeck = {
       ...currentDeck,
       preferences: {
         ...currentDeck.preferences,
-        cardTypes: newTypes
+        filters: newFilters
       }
     };
     
@@ -173,16 +205,32 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
   const handleRarityChange = (value: string, checked: boolean) => {
     if (!currentDeck || Object.keys(currentDeck).length === 0 || !('preferences' in currentDeck)) return;
     
-    const currentRarities = currentDeck.preferences?.rarities || [];
-    const newRarities = checked 
-      ? [...currentRarities, value]
-      : currentRarities.filter((rarity: string) => rarity !== value);
+    const currentFilters = currentDeck.preferences?.filters || [];
+    let newFilters;
+    
+    if (checked) {
+      // Add filter if not already present
+      const exists = currentFilters.some(f => f.field === 'rarity' && f.value === value);
+      if (!exists) {
+        newFilters = [...currentFilters, {
+          type: 'or' as const,
+          field: 'rarity',
+          value: value,
+          displayText: `Rarity: ${value}`
+        }];
+      } else {
+        newFilters = currentFilters;
+      }
+    } else {
+      // Remove filter
+      newFilters = currentFilters.filter(f => !(f.field === 'rarity' && f.value === value));
+    }
     
     const updatedDeck = {
       ...currentDeck,
       preferences: {
         ...currentDeck.preferences,
-        rarities: newRarities
+        filters: newFilters
       }
     };
     
@@ -205,11 +253,28 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
       return;
     }
     
+    const currentFilters = currentDeck.preferences?.filters || [];
+    let newFilters;
+    
+    if (series) {
+      // Remove existing series filter and add new one
+      newFilters = currentFilters.filter(f => f.field !== 'series');
+      newFilters.push({
+        type: 'and' as const,
+        field: 'series',
+        value: series,
+        displayText: `Series: ${series}`
+      });
+    } else {
+      // Remove series filter
+      newFilters = currentFilters.filter(f => f.field !== 'series');
+    }
+    
     const updatedDeck = {
       ...currentDeck,
       preferences: {
         ...currentDeck.preferences,
-        series: series
+        filters: newFilters
       }
     };
     
@@ -240,8 +305,8 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
         }
       });
     } else if (filter === 'baseRarityOnly' && value) {
-      // Apply Base Rarity Only preset - only check base rarities
-      const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
+      // Apply Base Rarity Only preset - only check base rarities (including Action Point)
+      const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
       rarityOptions?.forEach(option => {
         const shouldBeChecked = baseRarities.includes(option.value);
         if (option.checked !== shouldBeChecked) {

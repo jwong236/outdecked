@@ -12,13 +12,13 @@ export function useSearchLogic() {
   // Pagination state - use search store for consistency
 
   // Dynamic filter options from API
-  const { data: cardTypeOptionsData } = useFilterValues('CardType');
-  const { data: rarityOptionsData } = useFilterValues('Rarity');
-  const { data: colorOptionsData } = useFilterValues('ActivationEnergy');
-  const { data: printTypeOptionsData } = useFilterValues('PrintType');
+  const { data: cardTypeOptionsData } = useFilterValues('card_type');
+  const { data: rarityOptionsData } = useFilterValues('rarity');
+  const { data: colorOptionsData } = useFilterValues('activation_energy');
+  const { data: printTypeOptionsData } = useFilterValues('print_type');
   
   // Series-specific colors (only when a series is selected)
-  const currentSeries = currentDeck?.preferences?.series || '';
+  const currentSeries = currentDeck?.preferences?.filters?.find(f => f.field === 'series')?.value || '';
   const { data: seriesSpecificColors } = useColorsForSeries(currentSeries, !!currentSeries);
 
   // Initialize filter states dynamically based on API data
@@ -28,46 +28,51 @@ export function useSearchLogic() {
   const [printTypeFilters, setPrintTypeFilters] = useState<Record<string, boolean>>({});
   
   // Current color selection for search - initialize with deck's saved color filter
-  const [currentSearchColor, setCurrentSearchColor] = useState<string>(currentDeck?.preferences?.color || '');
+  const [currentSearchColor, setCurrentSearchColor] = useState<string>(
+    currentDeck?.preferences?.filters?.find(f => f.field === 'activation_energy')?.value || ''
+  );
 
   // Initialize filter states when API data is available and apply saved preferences
   React.useEffect(() => {
     if (cardTypeOptionsData && currentDeck) {
       console.log('🔄 Initializing card type filters:', {
         deckId: currentDeck.id,
-        excludedCardTypes: currentDeck.preferences?.cardTypes,
+        cardTypeFilters: currentDeck.preferences?.filters?.filter(f => f.field === 'card_type'),
         cardTypeOptionsData
       });
       
       const initialCardTypeFilters: Record<string, boolean> = {};
-      const excludedCardTypes = currentDeck.preferences?.cardTypes || [];
+      const cardTypeFilters = currentDeck.preferences?.filters?.filter(f => f.field === 'card_type') || [];
       
       cardTypeOptionsData?.forEach(option => {
-        // Card types in preferences are EXCLUDED, so we check if NOT in the excluded list
-        initialCardTypeFilters[option] = !excludedCardTypes.includes(option);
+        // Check if this card type is included (not excluded with NOT filter)
+        const isExcluded = cardTypeFilters.some(f => f.value === option && f.type === 'not');
+        const isIncluded = cardTypeFilters.some(f => f.value === option && (f.type === 'or' || f.type === 'and'));
+        initialCardTypeFilters[option] = isIncluded || (!isExcluded && cardTypeFilters.length === 0);
       });
       setCardTypeFilters(initialCardTypeFilters);
     }
-  }, [cardTypeOptionsData, currentDeck?.preferences?.cardTypes, currentDeck?.id]); // Only depend on deck ID, not entire deck object
+  }, [cardTypeOptionsData, currentDeck?.preferences?.filters, currentDeck?.id]); // Only depend on deck ID, not entire deck object
 
   React.useEffect(() => {
     if (rarityOptionsData && currentDeck) {
       console.log('🔄 Initializing rarity filters:', {
         deckId: currentDeck.id,
-        savedRarities: currentDeck.preferences?.rarities,
+        rarityFilters: currentDeck.preferences?.filters?.filter(f => f.field === 'rarity'),
         rarityOptionsData
       });
       
       const initialRarityFilters: Record<string, boolean> = {};
-      const savedRarities = currentDeck.preferences?.rarities || [];
+      const rarityFilters = currentDeck.preferences?.filters?.filter(f => f.field === 'rarity') || [];
       
       rarityOptionsData?.forEach(option => {
-        // Check if this rarity is in the saved preferences
-        initialRarityFilters[option] = savedRarities.includes(option);
+        // Check if this rarity is included (OR filters)
+        const isIncluded = rarityFilters.some(f => f.value === option && (f.type === 'or' || f.type === 'and'));
+        initialRarityFilters[option] = isIncluded;
       });
       setRarityFilters(initialRarityFilters);
     }
-  }, [rarityOptionsData, currentDeck?.preferences?.rarities, currentDeck?.id]); // Only depend on deck ID, not entire deck object
+  }, [rarityOptionsData, currentDeck?.preferences?.filters, currentDeck?.id]); // Only depend on deck ID, not entire deck object
 
   // Color filters are no longer used - we use defaultColorFilter instead
 
@@ -75,17 +80,18 @@ export function useSearchLogic() {
     if (printTypeOptionsData && currentDeck) {
       console.log('🔄 Initializing print type filters:', {
         deckId: currentDeck.id,
-        savedPrintTypes: currentDeck.preferences?.printTypes,
+        printTypeFilters: currentDeck.preferences?.filters?.filter(f => f.field === 'print_type'),
         printTypeOptionsData
       });
       
       const initialPrintTypeFilters: Record<string, boolean> = {};
-      const savedPrintTypes = currentDeck.preferences?.printTypes || [];
+      const printTypeFilters = currentDeck.preferences?.filters?.filter(f => f.field === 'print_type') || [];
       
       printTypeOptionsData?.forEach(option => {
-        if (savedPrintTypes.length > 0) {
-          // Check if this print type is in the saved preferences
-          initialPrintTypeFilters[option] = savedPrintTypes.includes(option);
+        if (printTypeFilters.length > 0) {
+        // Check if this print type is included (OR filters)
+        const isIncluded = printTypeFilters.some(f => f.value === option && (f.type === 'or' || f.type === 'and'));
+          initialPrintTypeFilters[option] = isIncluded;
         } else {
           // Default: only Base and Starter Deck are checked
           initialPrintTypeFilters[option] = option === 'Base' || option === 'Starter Deck';
@@ -93,7 +99,7 @@ export function useSearchLogic() {
       });
       setPrintTypeFilters(initialPrintTypeFilters);
     }
-  }, [printTypeOptionsData, currentDeck?.preferences?.printTypes, currentDeck?.id]); // Only depend on deck ID, not entire deck object
+  }, [printTypeOptionsData, currentDeck?.preferences?.filters, currentDeck?.id]); // Only depend on deck ID, not entire deck object
 
   // Search store (only for pagination and sort)
   const {
@@ -115,8 +121,9 @@ export function useSearchLogic() {
       });
       
       // Load color preference to local state only
-      if (currentDeck.preferences?.color) {
-        setCurrentSearchColor(currentDeck.preferences.color);
+      const colorFilter = currentDeck.preferences?.filters?.find(f => f.field === 'activation_energy');
+      if (colorFilter) {
+        setCurrentSearchColor(colorFilter.value);
       } else {
         setCurrentSearchColor('');
       }
@@ -159,52 +166,21 @@ export function useSearchLogic() {
 
   // Build card type filters from deck settings
   const deckCardTypeFilters = useMemo(() => {
-    const savedCardTypes = currentDeck?.preferences?.cardTypes || [];
-    // Only apply card type exclusions if there are actually card types to exclude
-    return savedCardTypes.length > 0 ? savedCardTypes.map((cardType: string) => ({
-      type: 'not' as const,
-      field: 'CardType',
-      value: cardType,
-      displayText: `CardType: ${cardType}`
-    })) : [];
-  }, [currentDeck?.preferences?.cardTypes]);
+    const cardTypeFilters = currentDeck?.preferences?.filters?.filter(f => f.field === 'card_type') || [];
+    // Return the actual filters from the deck
+    return cardTypeFilters;
+  }, [currentDeck?.preferences?.filters]);
 
   // Local search params built from deck preferences and component state only
   const searchParams: SearchParams = {
     query: '', // Deck builder doesn't use query
-    sort: searchPreferences.sort || 'name_asc', // Use global sort preference
+    sort: currentDeck?.preferences?.sort || 'name_asc', // Use deck sort preference
     page: currentPage,
     per_page: itemsPerPage,
     filters: [
-      // Note: game filter is handled by backend default, no need to include it
-      // Add series filter from deck preferences
-      ...(currentDeck?.preferences?.series ? [{
-        type: 'and' as const, 
-        field: 'SeriesName', 
-        value: currentDeck.preferences.series, 
-        displayText: `Series: ${currentDeck.preferences.series}`
-      }] : []),
-      // Add color filter from currentSearchColor state
-      ...(currentSearchColor ? [{
-        type: 'and' as const,
-        field: 'ActivationEnergy', 
-        value: currentSearchColor,
-        displayText: `Color: ${currentSearchColor}`
-      }] : []),
-      // Add default filters as positive inclusions
-      ...(isBasicPrintsOnlyPreset ? [
-        { type: 'or' as const, field: 'PrintType', value: 'Base', displayText: 'Basic Prints Only' },
-        { type: 'or' as const, field: 'PrintType', value: 'Starter Deck', displayText: 'Basic Prints Only' }
-      ] : []),
-      ...(isNoActionPointsPreset ? [{ type: 'not' as const, field: 'CardType', value: 'Action Point', displayText: 'No Action Points' }] : []),
-      ...(isBaseRarityOnlyPreset ? [
-        { type: 'or' as const, field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'Rarity', value: 'Rare', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'Rarity', value: 'Super Rare', displayText: 'Base Rarity Only' }
-      ] : []),
-      // Add deck card type exclusions
-      ...deckCardTypeFilters
+      // Use deck preferences directly (unified SearchParams structure)
+      // This includes the saved color filter from the deck
+      ...(currentDeck?.preferences?.filters || [])
     ]
   };
 
@@ -221,15 +197,27 @@ export function useSearchLogic() {
       
       // Update deck's default filter if needed
       if (currentDeck) {
+        // Update the deck's filters array
+        const currentFilters = currentDeck.preferences?.filters || [];
+        const updatedFilters = currentFilters.filter(f => f.field !== 'print_type');
+        
+        // Add new print type filters
+        Object.keys(newFilters).forEach(value => {
+          if (newFilters[value]) {
+            updatedFilters.push({
+              type: 'or' as const,
+              field: 'print_type',
+              value: value,
+              displayText: `Print Type: ${value}`
+            });
+          }
+        });
+        
         const updatedDeck = {
           ...currentDeck,
           preferences: {
             ...currentDeck.preferences,
-            series: currentDeck.preferences?.series || '',
-            color: currentDeck.preferences?.color || '',
-            printTypes: Object.keys(newFilters).filter(key => newFilters[key]),
-            cardTypes: currentDeck.preferences?.cardTypes || [],
-            rarities: currentDeck.preferences?.rarities || []
+            filters: updatedFilters
           }
         };
         
@@ -253,18 +241,27 @@ export function useSearchLogic() {
       
       // Save current filter states to deck preferences
       if (currentDeck) {
-        // Card types in preferences are EXCLUDED, so we save the unchecked ones
-        const excludedCardTypes = Object.keys(newFilters).filter(key => !newFilters[key]);
+        // Update the deck's filters array
+        const currentFilters = currentDeck.preferences?.filters || [];
+        const updatedFilters = currentFilters.filter(f => f.field !== 'card_type');
+        
+        // Add new card type filters (excluded ones as NOT filters)
+        Object.keys(newFilters).forEach(value => {
+          if (!newFilters[value]) {
+            updatedFilters.push({
+              type: 'not' as const,
+              field: 'card_type',
+              value: value,
+              displayText: `Card Type: ${value}`
+            });
+          }
+        });
         
         const updatedDeck = {
           ...currentDeck,
           preferences: {
             ...currentDeck.preferences,
-            series: currentDeck.preferences?.series || '',
-            color: currentDeck.preferences?.color || '',
-            printTypes: currentDeck.preferences?.printTypes || [],
-            cardTypes: excludedCardTypes,
-            rarities: currentDeck.preferences?.rarities || []
+            filters: updatedFilters
           }
         };
         
@@ -289,15 +286,27 @@ export function useSearchLogic() {
       
       // Save current filter states to deck preferences
       if (currentDeck) {
+        // Update the deck's filters array
+        const currentFilters = currentDeck.preferences?.filters || [];
+        const updatedFilters = currentFilters.filter(f => f.field !== 'rarity');
+        
+        // Add new rarity filters
+        Object.keys(newFilters).forEach(value => {
+          if (newFilters[value]) {
+            updatedFilters.push({
+              type: 'or' as const,
+              field: 'rarity',
+              value: value,
+              displayText: `Rarity: ${value}`
+            });
+          }
+        });
+        
         const updatedDeck = {
           ...currentDeck,
           preferences: {
             ...currentDeck.preferences,
-            series: currentDeck.preferences?.series || '',
-            color: currentDeck.preferences?.color || '',
-            printTypes: currentDeck.preferences?.printTypes || [],
-            cardTypes: currentDeck.preferences?.cardTypes || [],
-            rarities: Object.keys(newFilters).filter(key => newFilters[key])
+            filters: updatedFilters
           }
         };
         
@@ -323,16 +332,20 @@ export function useSearchLogic() {
     
     // Update the deck's defaultSeries if we have a current deck
     if (currentDeck) {
-      console.log('🔄 Updating deck series from', currentDeck.preferences?.series, 'to', series);
+      console.log('🔄 Updating deck series from', currentDeck?.preferences?.filters?.find(f => f.field === 'series')?.value, 'to', series);
+      // Update series filter in unified SearchParams structure
+      const currentFilters = currentDeck.preferences?.filters || [];
+      const filteredFilters = currentFilters.filter(f => f.field !== 'series');
+      const newFilters = series ? [
+        ...filteredFilters,
+        { type: 'and' as const, field: 'series', value: series, displayText: `Series: ${series}` }
+      ] : filteredFilters;
+      
       const updatedDeck = {
         ...currentDeck,
         preferences: {
           ...currentDeck.preferences,
-          series: series,
-          color: currentDeck.preferences?.color || '',
-          printTypes: currentDeck.preferences?.printTypes || [],
-          cardTypes: currentDeck.preferences?.cardTypes || [],
-          rarities: currentDeck.preferences?.rarities || []
+          filters: newFilters
         }
       };
       
@@ -370,15 +383,25 @@ export function useSearchLogic() {
         currentPreferences: currentDeck.preferences
       });
       
+      // Update the deck's filters array
+      const currentFilters = currentDeck.preferences?.filters || [];
+      const updatedFilters = currentFilters.filter(f => f.field !== 'activation_energy');
+      
+      // Add new color filter
+      if (color) {
+        updatedFilters.push({
+          type: 'and' as const,
+          field: 'activation_energy',
+          value: color,
+          displayText: `Color: ${color}`
+        });
+      }
+      
       const updatedDeck = {
         ...currentDeck,
         preferences: {
           ...currentDeck.preferences,
-          series: currentDeck.preferences?.series || '',
-          color: color,
-          printTypes: currentDeck.preferences?.printTypes || [],
-          cardTypes: currentDeck.preferences?.cardTypes || [],
-          rarities: currentDeck.preferences?.rarities || []
+          filters: updatedFilters
         }
       };
       
@@ -542,7 +565,7 @@ export function useSearchLogic() {
     sortOptions,
     
     // Current values
-    currentSeries: currentDeck?.preferences?.series || '',
+    currentSeries: currentDeck?.preferences?.filters?.find(f => f.field === 'series')?.value || '',
     currentColor: currentSearchColor,
     currentCardType: '',
     currentSort: 'name',

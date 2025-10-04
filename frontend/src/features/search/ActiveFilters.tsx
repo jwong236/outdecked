@@ -111,18 +111,18 @@ export function ActiveFilters({
           <>
             {/* Basic filters from searchPreferences - only show if not already in advanced filters */}
             {getQuery() && renderFilterChip('query', getQuery())}
-            {getSeries() && !searchPreferences.filters.some(f => f.field === 'SeriesName') && renderFilterChip('series', getSeries())}
-            {getCardType() && !searchPreferences.filters.some(f => f.field === 'CardType') && renderFilterChip('cardType', getCardType())}
+            {getSeries() && !searchPreferences.filters.some(f => f.field === 'series') && renderFilterChip('series', getSeries())}
+            {getCardType() && !searchPreferences.filters.some(f => f.field === 'card_type') && renderFilterChip('cardType', getCardType())}
             
             {/* Advanced filters from searchPreferences - exclude default filters */}
             {searchPreferences.filters
               .map((filter, index) => ({ filter, index }))
               .filter(({ filter }) => {
-                // Hide default filter pills
+                // Hide individual filters that are part of default filter sets
                 const isDefaultFilter = 
-                  (filter.field === 'PrintType' && (filter.value === 'Base' || filter.value === 'Starter Deck')) ||
-                  (filter.field === 'CardType' && filter.value === 'Action Point' && filter.type === 'not') ||
-                  (filter.field === 'Rarity' && ['Common', 'Uncommon', 'Rare', 'Super Rare'].includes(filter.value));
+                  (filter.field === 'print_type' && (filter.value === 'Base' || filter.value === 'Starter Deck')) ||
+                  (filter.field === 'card_type' && filter.value === 'Action Point' && filter.type === 'not') ||
+                  (filter.field === 'rarity' && ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'].includes(filter.value));
                 return !isDefaultFilter;
               })
               .map(({ filter, index }) => {

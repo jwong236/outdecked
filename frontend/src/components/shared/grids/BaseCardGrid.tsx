@@ -102,8 +102,8 @@ export function BaseCardGrid({
   return (
     <div className={`${gridClasses} ${className}`}>
       {cards.map((card, index) => {
-        // Use a more reliable key - card_url is more likely to be unique
-        const cardKey = card.card_url || card.id || `card-${index}`;
+        // Use product_id as primary key, fallback to id, then index
+        const cardKey = card.product_id || card.id || `card-${index}`;
         
         return (
           <div key={cardKey}>

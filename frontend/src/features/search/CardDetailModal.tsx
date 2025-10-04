@@ -114,9 +114,11 @@ export function CardDetailModal({
 
   if (!card) return null;
 
-  const formatPrice = (price: number | undefined | null) => {
-    if (price === undefined || price === null || price === 0) return 'N/A';
-    return `$${price.toFixed(2)}`;
+  const formatPrice = (price: number | string | undefined | null) => {
+    if (price === undefined || price === null || price === 0 || price === '0') return 'N/A';
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    if (isNaN(numPrice)) return 'N/A';
+    return `$${numPrice.toFixed(2)}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -249,10 +251,10 @@ export function CardDetailModal({
                             </div>
                           )}
                           
-                          {card.attributes.find(attr => attr.name === 'ActivationEnergy')?.value && (
+                          {card.attributes.find(attr => attr.name === 'activation_energy')?.value && (
                             <div>
                               <span className="font-medium text-gray-300">Activation Energy:</span>
-                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'ActivationEnergy')?.value}</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'activation_energy')?.value}</span>
                             </div>
                           )}
                           
@@ -291,10 +293,10 @@ export function CardDetailModal({
                             </div>
                           )}
                           
-                          {card.attributes.find(attr => attr.name === 'SeriesName')?.value && (
+                          {card.attributes.find(attr => attr.name === 'series')?.value && (
                             <div>
                               <span className="font-medium text-gray-300">Series Name:</span>
-                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'SeriesName')?.value}</span>
+                              <span className="ml-2 text-white">{card.attributes.find(attr => attr.name === 'series')?.value}</span>
                             </div>
                           )}
                           

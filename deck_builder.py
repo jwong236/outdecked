@@ -71,15 +71,11 @@ def handle_create_deck():
             preferences=data.get(
                 "preferences",
                 {
-                    "series": data.get("series", ""),
-                    "color": data.get("color", ""),
-                    "cardTypes": data.get(
-                        "cardTypes", ["Character", "Event", "Site"]
-                    ),  # All EXCEPT "Action Point"
-                    "printTypes": data.get("printTypes", ["Base"]),  # Base only
-                    "rarities": data.get(
-                        "rarities", ["Common", "Uncommon", "Rare", "Super Rare"]
-                    ),  # Base rarities only
+                    "query": "",
+                    "sort": "name_asc",
+                    "page": 1,
+                    "per_page": 25,
+                    "filters": [],
                 },
             ),
         )
@@ -223,7 +219,7 @@ def handle_get_decks_batch():
         user_id = user["id"] if user else None
 
         data = request.get_json()
-        if not data or not data.get("deck_ids"):
+        if not data or "deck_ids" not in data:
             return (
                 jsonify({"success": False, "error": "deck_ids array is required"}),
                 400,
@@ -236,8 +232,12 @@ def handle_get_decks_batch():
                 400,
             )
 
+        # Handle empty array case
+        if len(deck_ids) == 0:
+            return jsonify({"success": True, "data": {"decks": [], "count": 0}})
+
         print(
-            f"🔵 API POST /api/user/decks/batch - requesting {len(deck_ids)} decks: {deck_ids}"
+            f"[DECK] API POST /api/user/decks/batch - requesting {len(deck_ids)} decks: {deck_ids}"
         )
 
         deck_manager = create_deck_manager(session, user_id)
@@ -252,7 +252,7 @@ def handle_get_decks_batch():
                 missing_ids.append(deck_id)
 
         print(
-            f"🔵 API POST /api/user/decks/batch - found {len(decks)} decks, missing {len(missing_ids)}"
+            f"[DECK] API POST /api/user/decks/batch - found {len(decks)} decks, missing {len(missing_ids)}"
         )
 
         response_data = {"decks": decks, "count": len(decks)}

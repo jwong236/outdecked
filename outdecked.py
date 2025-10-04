@@ -22,12 +22,15 @@ import requests
 import logging
 from datetime import datetime
 from config import Config
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # from models import scraping_status, GAME_URLS, SUPPORTED_GAMES, METADATA_FIELDS_EXACT  # Moved to scraping_archive
 from database import (
     init_db,
-    get_db_connection,
-    save_cards_to_db,
+    get_session,
 )
 
 # from scraper import add_scraping_log  # Moved to scraping_archive
@@ -232,77 +235,70 @@ def api_cards():
     return handle_api_search()
 
 
-@app.route("/api/search", methods=["GET", "POST"])
-def api_search():
-    """Search cards endpoint (alias for /api/cards for backward compatibility)"""
-    return handle_api_search()
-
-
 @app.route("/api/cards/<int:card_id>")
 def get_card_by_id(card_id):
     """Get specific card by product_id with full attribute data"""
-    conn = get_db_connection()
+    db_session = get_session()
 
     try:
-        # Get card with full attribute data (same structure as batch endpoint)
-        query = (
-            "SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, "
-            "GROUP_CONCAT(cm.name || ':' || cm.value || ':' || cm.display_name, '|||') as metadata, "
-            "COALESCE(cp.market_price, cp.mid_price) as price "
-            "FROM cards c "
-            "LEFT JOIN groups g ON c.group_id = g.id "
-            "LEFT JOIN card_attributes cm ON c.id = cm.card_id "
-            "LEFT JOIN card_prices cp ON c.id = cp.card_id "
-            "WHERE c.product_id = ? "
-            "GROUP BY c.id"
+        # Use SQLAlchemy ORM to get card data
+        from models import Card, Group, CardAttribute, CardPrice
+
+        # Get the card with relationships
+        card = db_session.query(Card).filter(Card.product_id == card_id).first()
+
+        if not card:
+            db_session.close()
+            return jsonify({"error": "Card not found"}), 404
+
+        # Get group information
+        group = db_session.query(Group).filter(Group.id == card.group_id).first()
+
+        # Get card attributes
+        attributes = (
+            db_session.query(CardAttribute)
+            .filter(CardAttribute.card_id == card.id)
+            .all()
         )
 
-        cursor = conn.execute(query, (card_id,))
-        row = cursor.fetchone()
-        conn.close()
+        # Get card price
+        price = db_session.query(CardPrice).filter(CardPrice.card_id == card.id).first()
 
-        if row:
-            card = dict(row)
+        db_session.close()
 
-            # Parse metadata string into individual attributes
-            attributes = []
-            if card.get("metadata"):
-                metadata_pairs = card["metadata"].split("|||")
-                for pair in metadata_pairs:
-                    if ":" in pair:
-                        parts = pair.split(":", 2)  # Split into max 3 parts
-                        if len(parts) == 3:
-                            name, value, display_name = parts
-                        else:
-                            # Fallback for old format without display_name
-                            name, value = parts
-                            display_name = name
+        # Build response
+        card_data = card.to_dict()
 
-                        card[name] = value
-                        # Also add to attributes array for frontend compatibility
-                        attributes.append(
-                            {
-                                "id": 0,  # Placeholder - not used by frontend
-                                "card_id": card["id"],
-                                "name": name,
-                                "value": value,
-                                "display_name": display_name,
-                                "created_at": card.get("created_at", ""),
-                            }
-                        )
+        # Add group information
+        if group:
+            card_data["group_name"] = group.name
+            card_data["group_abbreviation"] = group.abbreviation
 
-            # Add attributes array to card
-            card["attributes"] = attributes
+        # Add attributes
+        card_data["attributes"] = []
+        for attr in attributes:
+            card_data["attributes"].append(
+                {
+                    "id": attr.id,
+                    "card_id": attr.card_id,
+                    "name": attr.name,
+                    "value": attr.value,
+                    "display_name": attr.display_name,
+                    "created_at": (
+                        attr.created_at.isoformat() if attr.created_at else ""
+                    ),
+                }
+            )
 
-            # Remove the raw metadata string
-            if "metadata" in card:
-                del card["metadata"]
-
-            return jsonify(card)
+        # Add price
+        if price:
+            card_data["price"] = price.market_price or price.mid_price
         else:
-            return jsonify({"error": "Card not found"}), 404
+            card_data["price"] = None
+
+        return jsonify(card_data)
     except Exception as e:
-        conn.close()
+        db_session.close()
         return jsonify({"error": str(e)}), 500
 
 
@@ -316,32 +312,35 @@ def get_cards_batch():
         if not product_ids:
             return jsonify([])
 
-        conn = get_db_connection()
+        db_session = get_session()
 
-        # Create placeholders for the IN clause
-        placeholders = ",".join(["?" for _ in product_ids])
+        # Create placeholders for the IN clause - use named parameters
+        placeholders = ",".join([f":product_id_{i}" for i in range(len(product_ids))])
+        params = {f"product_id_{i}": pid for i, pid in enumerate(product_ids)}
 
         # Get cards with full attribute data (same structure as search endpoint)
         query = (
             f"SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, "
-            f"GROUP_CONCAT(cm.name || ':' || cm.value, '|||') as metadata, "
-            f"COALESCE(cp.market_price, cp.mid_price) as price "
+            f"STRING_AGG(cm.name || ':' || cm.value || ':' || cm.display_name, '|||') as metadata, "
+            f"COALESCE(MAX(cp.market_price), MAX(cp.mid_price)) as price "
             f"FROM cards c "
             f"LEFT JOIN groups g ON c.group_id = g.id "
             f"LEFT JOIN card_attributes cm ON c.id = cm.card_id "
             f"LEFT JOIN card_prices cp ON c.id = cp.card_id "
             f"WHERE c.product_id IN ({placeholders}) "
-            f"GROUP BY c.id"
+            f"GROUP BY c.id, g.name, g.abbreviation"
         )
 
-        cursor = conn.execute(query, product_ids)
-        rows = cursor.fetchall()
-        conn.close()
+        from sqlalchemy import text
+
+        result = db_session.execute(text(query), params)
+        rows = result.fetchall()
+        db_session.close()
 
         # Convert to list of dictionaries and parse metadata
         cards = []
         for row in rows:
-            card = dict(row)
+            card = dict(row._mapping)
 
             # Parse metadata string into individual attributes
             attributes = []
@@ -397,64 +396,70 @@ def api_cards_attribute_values(field):
     return handle_filter_values(field, game)
 
 
-# Backward compatibility endpoints
-@app.route("/api/filter-fields")
-def api_filter_fields():
-    """Filter fields endpoint (backward compatibility)"""
-    return handle_filter_fields()
-
-
-@app.route("/api/filter-values/<field>")
-def api_filter_values(field):
-    """Filter values endpoint (backward compatibility)"""
-    game = request.args.get("game")
-    return handle_filter_values(field, game)
+# Removed backward compatibility endpoints - use /api/cards/attributes and /api/cards/attributes/<field>
 
 
 @app.route("/api/cards/colors/<series>")
 def api_cards_colors_for_series(series):
     """Get available colors for a specific series"""
     game = request.args.get("game", "Union Arena")
-    conn = get_db_connection()
+    db_session = get_session()
 
     try:
-        # Query to get distinct colors for cards in the specified series
-        query = """
-        SELECT DISTINCT ca.value as color
-        FROM cards c
-        JOIN card_attributes ca ON c.id = ca.card_id
-        WHERE c.game = ? 
-        AND ca.name = 'ActivationEnergy'
-        AND EXISTS (
-            SELECT 1 FROM card_attributes ca2 
-            WHERE ca2.card_id = c.id 
-            AND ca2.name = 'SeriesName' 
-            AND ca2.value = ?
+        # Use SQLAlchemy ORM to get distinct colors for the specified series
+        from models import Card, CardAttribute
+
+        # Get cards in the specified series
+        cards_in_series = (
+            db_session.query(Card)
+            .join(CardAttribute, Card.id == CardAttribute.card_id)
+            .filter(
+                Card.game == game,
+                CardAttribute.name == "series",
+                CardAttribute.value == series,
+            )
+            .all()
         )
-        ORDER BY ca.value
-        """
 
-        cursor = conn.execute(query, (game, series))
-        colors = [row[0] for row in cursor.fetchall()]
-        conn.close()
+        # Get distinct activation energy values for these cards
+        card_ids = [card.id for card in cards_in_series]
 
-        return jsonify(colors)
+        if not card_ids:
+            db_session.close()
+            return jsonify([])
+
+        colors = (
+            db_session.query(CardAttribute.value)
+            .filter(
+                CardAttribute.card_id.in_(card_ids),
+                CardAttribute.name == "activation_energy",
+            )
+            .distinct()
+            .order_by(CardAttribute.value)
+            .all()
+        )
+
+        color_list = [color[0] for color in colors]
+        db_session.close()
+
+        return jsonify(color_list)
 
     except Exception as e:
-        conn.close()
+        db_session.close()
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/games")
 def get_games():
     """Get available games"""
-    conn = get_db_connection()
-    cursor = conn.execute("SELECT name, display_name FROM categories ORDER BY name")
-    games = [
-        {"name": row["name"], "display": row["display_name"]}
-        for row in cursor.fetchall()
-    ]
-    conn.close()
+    db_session = get_session()
+    from sqlalchemy import text
+
+    result = db_session.execute(
+        text("SELECT name, display_name FROM categories ORDER BY name")
+    )
+    games = [{"name": row[0], "display": row[1]} for row in result.fetchall()]
+    db_session.close()
     return jsonify(games)
 
 
@@ -464,24 +469,30 @@ def get_games():
 @app.route("/api/analytics")
 def get_stats():
     """Get basic application statistics"""
-    conn = get_db_connection()
-    cursor = conn.execute("SELECT COUNT(*) as total FROM cards")
-    total_cards = cursor.fetchone()["total"]
+    db_session = get_session()
+    from sqlalchemy import text
 
-    cursor = conn.execute("SELECT COUNT(DISTINCT game) as games FROM cards")
-    total_games = cursor.fetchone()["games"]
+    result = db_session.execute(text("SELECT COUNT(*) as total FROM cards"))
+    total_cards = result.fetchone()[0]
 
-    cursor = conn.execute(
-        "SELECT COUNT(DISTINCT group_name) as series FROM cards WHERE group_name IS NOT NULL AND group_name != ''"
+    result = db_session.execute(text("SELECT COUNT(DISTINCT game) as games FROM cards"))
+    total_games = result.fetchone()[0]
+
+    result = db_session.execute(
+        text(
+            "SELECT COUNT(DISTINCT group_name) as series FROM cards WHERE group_name IS NOT NULL AND group_name != ''"
+        )
     )
-    total_series = cursor.fetchone()["series"]
+    total_series = result.fetchone()[0]
 
-    cursor = conn.execute(
-        "SELECT game, COUNT(*) as count FROM cards GROUP BY game ORDER BY count DESC"
+    result = db_session.execute(
+        text(
+            "SELECT game, COUNT(*) as count FROM cards GROUP BY game ORDER BY count DESC"
+        )
     )
-    game_stats = [dict(row) for row in cursor.fetchall()]
+    game_stats = [{"game": row[0], "count": row[1]} for row in result.fetchall()]
 
-    conn.close()
+    db_session.close()
 
     return jsonify(
         {
@@ -518,22 +529,24 @@ def list_routes():
 @app.route("/api/analytics/games")
 def get_game_stats():
     """Get game-specific statistics (renamed from /api/game-stats)"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    db_session = get_session()
+    from sqlalchemy import text
 
     # Get card counts for each game
-    cursor.execute("SELECT game, COUNT(*) as card_count FROM cards GROUP BY game")
-    card_counts = cursor.fetchall()
+    result = db_session.execute(
+        text("SELECT game, COUNT(*) as card_count FROM cards GROUP BY game")
+    )
+    card_counts = result.fetchall()
 
-    conn.close()
+    db_session.close()
 
     # Format the data
     stats = []
     for row in card_counts:
         stats.append(
             {
-                "game_name": row["game"],
-                "card_count": row["card_count"],
+                "game_name": row[0],
+                "card_count": row[1],
                 "last_updated": None,  # Not tracked in new schema
             }
         )
@@ -814,9 +827,12 @@ def generate_tcgplayer_mass_entry_url():
             return jsonify({"error": "No cards provided"}), 400
 
         # Get card data from database
-        conn = get_db_connection()
+        db_session = get_session()
         product_ids = [str(card["card_id"]) for card in card_ids]
-        placeholders = ",".join(["?" for _ in product_ids])
+
+        # Create placeholders for the IN clause - use named parameters
+        placeholders = ",".join([f":product_id_{i}" for i in range(len(product_ids))])
+        params = {f"product_id_{i}": pid for i, pid in enumerate(product_ids)}
 
         query = f"""
             SELECT c.name, c.product_id, ca_number.value as number
@@ -825,12 +841,17 @@ def generate_tcgplayer_mass_entry_url():
             WHERE c.product_id IN ({placeholders})
         """
 
-        cursor = conn.execute(query, product_ids)
-        rows = cursor.fetchall()
-        conn.close()
+        from sqlalchemy import text
+
+        result = db_session.execute(text(query), params)
+        rows = result.fetchall()
+        db_session.close()
 
         # Create a map of product_id to card data (convert to string for comparison)
-        card_map = {str(row["product_id"]): row for row in rows}
+        card_map = {
+            str(row[1]): {"name": row[0], "product_id": row[1], "number": row[2]}
+            for row in rows
+        }
 
         # Build the Mass Entry format
         entries = []

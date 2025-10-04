@@ -30,9 +30,11 @@ export function SearchCard({
   onAddToDeck,
   onQuantityChange
 }: SearchCardProps) {
-  const formatPrice = (price: number | undefined | null) => {
-    if (price === undefined || price === null || price === 0) return 'N/A';
-    return `$${price.toFixed(2)}`;
+  const formatPrice = (price: number | string | undefined | null) => {
+    if (price === undefined || price === null || price === 0 || price === '0') return 'N/A';
+    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
+    if (isNaN(numPrice)) return 'N/A';
+    return `$${numPrice.toFixed(2)}`;
   };
 
   const getRarityColor = (rarity?: string) => {

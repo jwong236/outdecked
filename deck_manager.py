@@ -7,7 +7,9 @@ import json
 import uuid
 from datetime import datetime
 from models import DECK_TEMPLATE, DECK_CARD_TEMPLATE, DECK_VALIDATION_RULES
-from database import get_db_connection
+from database import get_session
+from models import UserDeck
+from sqlalchemy import text
 
 
 class DeckManager:
@@ -57,20 +59,11 @@ class DeckManager:
                 "visibility": visibility,
                 "preferences": preferences
                 or {
-                    "series": "",
-                    "color": "",
-                    "cardTypes": [
-                        "Character",
-                        "Event",
-                        "Site",
-                    ],  # All EXCEPT "Action Point"
-                    "printTypes": ["Base"],  # Base only
-                    "rarities": [
-                        "Common",
-                        "Uncommon",
-                        "Rare",
-                        "Super Rare",
-                    ],  # Base rarities only
+                    "query": "",
+                    "sort": "name_asc",
+                    "page": 1,
+                    "per_page": 25,
+                    "filters": [],
                 },
             }
         )
@@ -264,26 +257,18 @@ class AuthenticatedDeckManager(DeckManager):
 
     def _get_decks_from_database(self):
         """Get all decks from database for the authenticated user."""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
+        db_session = get_session()
         try:
-            cursor.execute(
-                "SELECT deck_id, deck_data FROM user_decks WHERE user_id = ?",
-                (self.user_id,),
+            user_decks = (
+                db_session.query(UserDeck)
+                .filter(UserDeck.user_id == self.user_id)
+                .all()
             )
-            results = cursor.fetchall()
 
             decks = {}
-            for row in results:
-                # Handle both Row objects and tuples
-                if hasattr(row, "keys"):
-                    deck_id = row["deck_id"]
-                    deck_data = json.loads(row["deck_data"])
-                else:
-                    deck_id = row[0]
-                    deck_data = json.loads(row[1])
-                decks[deck_id] = deck_data
+            for user_deck in user_decks:
+                deck_data = json.loads(user_deck.deck_data)
+                decks[user_deck.deck_id] = deck_data
 
             print(f"Returning {len(decks)} decks from database")
             return decks
@@ -291,72 +276,86 @@ class AuthenticatedDeckManager(DeckManager):
             print(f"Error loading decks from database: {e}")
             return {}
         finally:
-            conn.close()
+            db_session.close()
 
     def _save_deck_to_database(self, deck_data):
         """Save a single deck to the database."""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
+        db_session = get_session()
         try:
             deck_json = json.dumps(deck_data)
 
-            cursor.execute(
-                """
-                INSERT OR REPLACE INTO user_decks (user_id, deck_id, deck_data, updated_at)
-                VALUES (?, ?, ?, datetime('now'))
-                """,
-                (self.user_id, deck_data["id"], deck_json),
+            # Check if deck already exists
+            existing_deck = (
+                db_session.query(UserDeck)
+                .filter(
+                    UserDeck.user_id == self.user_id,
+                    UserDeck.deck_id == deck_data["id"],
+                )
+                .first()
             )
-            conn.commit()
+
+            if existing_deck:
+                # Update existing deck
+                existing_deck.deck_data = deck_json
+                existing_deck.updated_at = datetime.utcnow()
+            else:
+                # Create new deck
+                new_deck = UserDeck(
+                    user_id=self.user_id,
+                    deck_id=deck_data["id"],
+                    deck_data=deck_json,
+                    created_at=datetime.utcnow(),
+                    updated_at=datetime.utcnow(),
+                )
+                db_session.add(new_deck)
+
+            db_session.commit()
         except Exception as e:
             print(f"Error saving deck to database: {e}")
-            conn.rollback()
+            db_session.rollback()
         finally:
-            conn.close()
+            db_session.close()
 
     def _delete_deck_from_database(self, deck_id):
         """Delete a deck from the database."""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
+        db_session = get_session()
         try:
             # First, check if the deck exists
-            cursor.execute(
-                "SELECT COUNT(*) FROM user_decks WHERE user_id = ? AND deck_id = ?",
-                (self.user_id, deck_id),
+            count_before = (
+                db_session.query(UserDeck)
+                .filter(UserDeck.user_id == self.user_id, UserDeck.deck_id == deck_id)
+                .count()
             )
-            count_before = cursor.fetchone()[0]
             print(
                 f"Deck count before deletion: {count_before} for deck_id {deck_id}, user_id {self.user_id}"
             )
 
             # Now delete the deck
-            cursor.execute(
-                "DELETE FROM user_decks WHERE user_id = ? AND deck_id = ?",
-                (self.user_id, deck_id),
+            rows_affected = (
+                db_session.query(UserDeck)
+                .filter(UserDeck.user_id == self.user_id, UserDeck.deck_id == deck_id)
+                .delete()
             )
-            rows_affected = cursor.rowcount
-            conn.commit()
+            db_session.commit()
 
             print(
                 f"Deleted {rows_affected} rows for deck_id {deck_id}, user_id {self.user_id}"
             )
 
             # Check count after deletion
-            cursor.execute(
-                "SELECT COUNT(*) FROM user_decks WHERE user_id = ? AND deck_id = ?",
-                (self.user_id, deck_id),
+            count_after = (
+                db_session.query(UserDeck)
+                .filter(UserDeck.user_id == self.user_id, UserDeck.deck_id == deck_id)
+                .count()
             )
-            count_after = cursor.fetchone()[0]
             print(f"Deck count after deletion: {count_after}")
 
         except Exception as e:
             print(f"Error deleting deck from database: {e}")
-            conn.rollback()
+            db_session.rollback()
             raise e  # Re-raise the exception so the calling code knows it failed
         finally:
-            conn.close()
+            db_session.close()
 
     def _get_decks_from_storage(self):
         """Get all decks from database (primary) and session (fallback)."""
@@ -402,57 +401,48 @@ class AuthenticatedDeckManager(DeckManager):
 
     def get_all_decks(self):
         """Get all saved decks from database."""
+        db_session = get_session()
         try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-
-            cursor.execute(
-                "SELECT deck_data FROM user_decks WHERE user_id = ?", (self.user_id,)
+            user_decks = (
+                db_session.query(UserDeck)
+                .filter(UserDeck.user_id == self.user_id)
+                .all()
             )
-            results = cursor.fetchall()
 
             decks = []
-            for result in results:
-                if hasattr(result, "keys"):
-                    deck_data = json.loads(result["deck_data"])
-                else:
-                    deck_data = json.loads(result[0])
+            for user_deck in user_decks:
+                deck_data = json.loads(user_deck.deck_data)
                 decks.append(deck_data)
 
-            conn.close()
             print(
-                f"🔵 AuthenticatedDeckManager.get_all_decks - returning {len(decks)} decks from database for user {self.user_id}"
+                f"[DECK] AuthenticatedDeckManager.get_all_decks - returning {len(decks)} decks from database for user {self.user_id}"
             )
             return decks
         except Exception as e:
             print(f"Error loading decks from database: {e}")
-            conn.close()
             return []
+        finally:
+            db_session.close()
 
     def load_deck(self, deck_id):
         """Load a specific deck by ID from database."""
+        db_session = get_session()
         try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-
-            cursor.execute(
-                "SELECT deck_data FROM user_decks WHERE user_id = ? AND deck_id = ?",
-                (self.user_id, deck_id),
+            user_deck = (
+                db_session.query(UserDeck)
+                .filter(UserDeck.user_id == self.user_id, UserDeck.deck_id == deck_id)
+                .first()
             )
-            result = cursor.fetchone()
 
-            if result:
-                if hasattr(result, "keys"):
-                    deck_data = json.loads(result["deck_data"])
-                else:
-                    deck_data = json.loads(result[0])
+            if user_deck:
+                deck_data = json.loads(user_deck.deck_data)
                 return deck_data
             return None
         except Exception as e:
             print(f"Error loading deck from database: {e}")
             return None
         finally:
-            conn.close()
+            db_session.close()
 
     def delete_deck(self, deck_id):
         """Delete a deck from database only."""

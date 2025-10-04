@@ -8,23 +8,20 @@ import { Card, SearchResponse } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
 // Removed useAuth import - now using sessionStore
 import { FilterSection } from './FilterSection';
-import { QuickFilters } from './QuickFilters';
-import { AdvancedFiltersButton } from './AdvancedFiltersButton';
+import { DefaultFilters } from './DefaultFilters';
+import { SearchSettingsModal } from './SearchSettingsModal';
 import { ActiveFilters } from './ActiveFilters';
-import { AdvancedFilters } from './AdvancedFilters';
 import { SearchGrid } from './SearchGrid';
 import { Pagination } from '@/components/shared/layout/Pagination';
 import { CardDetailModal } from './CardDetailModal';
 
 export interface SearchLayoutProps {
   className?: string;
-  showAdvancedFilters?: boolean;
   resultsPerPage?: number;
 }
 
 export function SearchLayout({ 
   className = '',
-  showAdvancedFilters = true,
   resultsPerPage = 24
 }: SearchLayoutProps) {
   const { user } = useSessionStore();
@@ -52,7 +49,7 @@ export function SearchLayout({
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
   const [isNavigatingPages, setIsNavigatingPages] = useState<boolean>(false);
-  const [showAdvancedFiltersModal, setShowAdvancedFiltersModal] = useState(false);
+  const [showSearchSettingsModal, setShowSearchSettingsModal] = useState(false);
   const [query, setQuery] = useState<string>(''); // Temporary UI state
   const [debouncedQuery, setDebouncedQuery] = useState<string>('');
   const [isClient, setIsClient] = useState(false);
@@ -90,9 +87,9 @@ export function SearchLayout({
       // Apply filters from unified filter system
       if (urlFilters.filters && Array.isArray(urlFilters.filters)) {
         urlFilters.filters.forEach(filter => {
-          if (filter.field === 'SeriesName') setSeries(filter.value);
-          if (filter.field === 'ActivationEnergy') setColor(filter.value);
-          if (filter.field === 'CardType') setCardType(filter.value);
+          if (filter.field === 'series') setSeries(filter.value);
+          if (filter.field === 'activation_energy') setColor(filter.value);
+          if (filter.field === 'card_type') setCardType(filter.value);
         });
       }
     }
@@ -118,7 +115,6 @@ export function SearchLayout({
     };
   }, [searchPreferences, debouncedQuery]); // Use searchPreferences instead of getFiltersForAPI
   
-  console.log('🔍 SearchLayout: Calling useSearchCards with params:', searchParams);
   
   const { data: searchData, isLoading, error } = useSearchCards(searchParams);
   const { data: seriesData } = useSeriesValues();
@@ -262,7 +258,7 @@ export function SearchLayout({
     { value: 'number_desc', label: 'Card Number High-Low' },
   ];
 
-  const hasActiveAdvancedFilters = searchPreferences.filters.length > 0;
+  const hasActiveFilters = searchPreferences.filters.length > 0;
 
   return (
     <div className={`min-h-screen ${className}`}>
@@ -288,15 +284,19 @@ export function SearchLayout({
             />
 
             {/* Default Filters */}
-            <QuickFilters />
+            <DefaultFilters />
 
-            {/* Advanced Filters Button */}
-            <AdvancedFiltersButton
-              onOpen={() => setShowAdvancedFiltersModal(true)}
-              hasActiveFilters={hasActiveAdvancedFilters}
-              variant="advanced-filters"
-              className="w-full"
-            />
+            {/* Search Settings Button */}
+            <button
+              onClick={() => setShowSearchSettingsModal(true)}
+              className="w-full px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Search Settings
+            </button>
 
             {/* Active Filters */}
             <ActiveFilters
@@ -350,13 +350,8 @@ export function SearchLayout({
             
             <SearchGrid
               cards={(() => {
-                console.log('🔍 SearchLayout: searchResponse:', searchResponse);
-                console.log('🔍 SearchLayout: searchResponse?.cards:', searchResponse?.cards);
-                console.log('🔍 SearchLayout: isLoading:', isLoading);
-                console.log('🔍 SearchLayout: error:', error);
                 
                 const expandedCards = transformedCards.map((card: Card) => ({ ...card, quantity: 0 }));
-                console.log('🔍 SearchLayout: expandedCards:', expandedCards);
                 
                 return expandedCards;
               })()}
@@ -380,52 +375,11 @@ export function SearchLayout({
         </div>
       </div>
 
-      {/* Advanced Filters Modal */}
-      {showAdvancedFiltersModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white/10 backdrop-blur-sm rounded-xl shadow-2xl border border-white/20 p-8 w-[50vw] max-w-none mx-4 max-h-[90vh] overflow-hidden">
-            <div className="flex justify-between items-start mb-4">
-              <h3 className="text-lg font-semibold text-white">Advanced Filters</h3>
-              <button
-                onClick={() => setShowAdvancedFiltersModal(false)}
-                className="text-gray-400 hover:text-white transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="overflow-y-auto max-h-[60vh]">
-              <AdvancedFilters
-                andFilters={searchPreferences.filters.filter(f => f.type === 'and')}
-                orFilters={searchPreferences.filters.filter(f => f.type === 'or')}
-                notFilters={searchPreferences.filters.filter(f => f.type === 'not')}
-                onAddAndFilter={(filter) => addFilter(filter)}
-                onAddOrFilter={(filter) => addFilter(filter)}
-                onAddNotFilter={(filter) => addFilter(filter)}
-                onRemoveAndFilter={(index) => {
-                  const andFilters = searchPreferences.filters.filter(f => f.type === 'and');
-                  const globalIndex = searchPreferences.filters.findIndex(f => f === andFilters[index]);
-                  if (globalIndex !== -1) removeFilter(globalIndex);
-                }}
-                onRemoveOrFilter={(index) => {
-                  const orFilters = searchPreferences.filters.filter(f => f.type === 'or');
-                  const globalIndex = searchPreferences.filters.findIndex(f => f === orFilters[index]);
-                  if (globalIndex !== -1) removeFilter(globalIndex);
-                }}
-                onRemoveNotFilter={(index) => {
-                  const notFilters = searchPreferences.filters.filter(f => f.type === 'not');
-                  const globalIndex = searchPreferences.filters.findIndex(f => f === notFilters[index]);
-                  if (globalIndex !== -1) removeFilter(globalIndex);
-                }}
-                availableFields={filterFields || []}
-                game={searchPreferences.filters.find(f => f.field === 'game')?.value || ''}
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Search Settings Modal */}
+      <SearchSettingsModal
+        isOpen={showSearchSettingsModal}
+        onClose={() => setShowSearchSettingsModal(false)}
+      />
 
       {/* Card Detail Modal */}
       <CardDetailModal

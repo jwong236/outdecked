@@ -82,14 +82,11 @@ export function QuantityControl({
       }
     } else {
       // Hand context - use sessionStore
-      console.log('🛒 QuantityControl: Updating hand quantity for', card.name, 'change:', change, 'effectiveQuantity:', effectiveQuantity);
       if (effectiveQuantity === 0 && change > 0) {
         // Adding new card to hand
-        console.log('🛒 QuantityControl: Adding new card to hand:', card.name);
         addToHand(card.product_id, change);
       } else {
         // Updating existing card quantity
-        console.log('🛒 QuantityControl: Updating existing card quantity:', card.name);
         const newQuantity = effectiveQuantity + change;
         if (newQuantity <= 0) {
           removeFromHand(card.product_id);

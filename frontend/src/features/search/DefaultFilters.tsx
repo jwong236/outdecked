@@ -19,9 +19,18 @@ export function DefaultFilters({ className = '' }: DefaultFiltersProps) {
     return hasFilter('print_type', 'Base') && hasFilter('print_type', 'Starter Deck');
   };
 
+  // Helper function to check if "No Action Points" filter is active
+  const hasNoActionPointsFilter = () => {
+    return searchPreferences.filters.some(f => 
+      f.field === 'card_type' && 
+      f.value === 'Action Point' && 
+      f.type === 'not'
+    );
+  };
+
   // Helper function to check if "Base Rarity Only" filter is active
   const hasBaseRarityOnlyFilter = () => {
-    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
+    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
     return baseRarities.every(rarity => 
       searchPreferences.filters.some(f => 
         f.field === 'rarity' && 
@@ -53,9 +62,30 @@ export function DefaultFilters({ className = '' }: DefaultFiltersProps) {
     }
   };
 
+  // Helper function to toggle No Action Points filter
+  const toggleNoActionPointsFilter = (enabled: boolean) => {
+    if (enabled) {
+      // Add NOT filter for Action Point
+      addFilter({ type: 'not', field: 'card_type', value: 'Action Point', displayText: 'No Action Points' });
+    } else {
+      // Remove NOT filter for Action Point
+      const filtersToRemove = searchPreferences.filters
+        .map((filter, index) => ({ filter, index }))
+        .filter(({ filter }) => 
+          filter.field === 'card_type' && 
+          filter.value === 'Action Point' &&
+          filter.type === 'not'
+        )
+        .map(({ index }) => index)
+        .reverse(); // Remove in reverse order to avoid index shifting
+      
+      filtersToRemove.forEach(index => removeFilter(index));
+    }
+  };
+
   // Helper function to toggle Base Rarity filter (multiple OR filters only)
   const toggleBaseRarityFilter = (enabled: boolean) => {
-    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
+    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
     
     if (enabled) {
       // Add all base rarity filters
@@ -98,6 +128,22 @@ export function DefaultFilters({ className = '' }: DefaultFiltersProps) {
           </p>
         </div>
         
+        {/* No Action Points */}
+        <div className="space-y-2">
+          <label className="flex items-center space-x-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hasNoActionPointsFilter()}
+              onChange={(e) => toggleNoActionPointsFilter(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2"
+            />
+            <span className="text-white font-medium">No Action Points</span>
+          </label>
+          <p className="text-xs text-gray-300 ml-7">
+            Excludes: Action Point cards
+          </p>
+        </div>
+        
         {/* Base Rarity Only */}
         <div className="space-y-2">
           <label className="flex items-center space-x-3 cursor-pointer">
@@ -110,7 +156,7 @@ export function DefaultFilters({ className = '' }: DefaultFiltersProps) {
             <span className="text-white font-medium">Base Rarity Only</span>
           </label>
           <p className="text-xs text-gray-300 ml-7">
-            Includes: Common, Uncommon, Rare, Super Rare
+            Includes: Common, Uncommon, Rare, Super Rare, Action Point
           </p>
         </div>
       </div>

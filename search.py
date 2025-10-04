@@ -3,7 +3,8 @@ Search API handlers for the Flask backend
 """
 
 from flask import request, jsonify
-from database import get_db_connection
+from database import get_session
+from sqlalchemy import text
 
 
 def detect_print_type(abbreviation, card_name=None):
@@ -26,7 +27,7 @@ def detect_print_type(abbreviation, card_name=None):
 
 def handle_api_search():
     """Handle the /api/search route with unified filter structure."""
-    conn = get_db_connection()
+    db_session = get_session()
 
     # Get basic query parameters from JSON body (unified format)
     page = 1
@@ -37,24 +38,28 @@ def handle_api_search():
 
     if request.is_json and request.json:
         data = request.json
+        print(f"[SEARCH] Backend: Received request data: {data}")
+        print(f"[SEARCH] Backend: per_page from request: {data.get('per_page')}")
         page = int(data.get("page", 1))
         per_page = int(data.get("per_page", 20))
+        print(f"[SEARCH] Backend: Final per_page value: {per_page}")
         search_query = data.get("query", "").strip()
         sort_by = data.get("sort", "")
         filters = data.get("filters", [])
 
     # Build base query with group name
-    base_query = "FROM cards c LEFT JOIN groups g ON c.group_id = g.group_id"
+    base_query = "FROM cards c LEFT JOIN groups g ON c.group_id = g.id"
 
     # Build WHERE clause
     where_conditions = []
-    params = []
+    params = {}
 
     # Handle search query
     if search_query:
-        where_conditions.append("(c.name LIKE ? OR c.clean_name LIKE ?)")
+        where_conditions.append("(c.name LIKE :search1 OR c.clean_name LIKE :search2)")
         search_param = f"%{search_query}%"
-        params.extend([search_param, search_param])
+        params["search1"] = search_param
+        params["search2"] = search_param
 
     # Process unified filters - group OR filters by field
     and_conditions = []
@@ -71,91 +76,69 @@ def handle_api_search():
 
         # Build condition based on field type
         if field == "game":
-            condition = "c.game = ?"
-        elif field == "PrintType":
-            # Use card_attributes table like other attributes
-            condition = "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = ?) = ?"
+            condition = "c.game = :game"
+            params["game"] = value
         elif field in [
-            "SeriesName",
-            "Rarity",
-            "CardType",
-            "ActivationEnergy",
-            "RequiredEnergy",
-            "ActionPointCost",
-            "Trigger",
-            "Affinities",
+            "series",
+            "rarity",
+            "card_type",
+            "print_type",
+            "activation_energy",
+            "required_energy",
+            "action_point_cost",
+            "trigger_type",
+            "affinities",
         ]:
-            condition = "(SELECT value FROM card_attributes WHERE card_id = c.id AND name = ?) = ?"
+            # Generate unique parameter names for each field value
+            existing_params = [
+                p for p in params.keys() if p.startswith(f"{field.lower()}_")
+            ]
+            param_name = f"{field.lower()}_{len(existing_params)}"
+            condition = f"EXISTS (SELECT 1 FROM card_attributes WHERE card_id = c.id AND name = :{param_name}_field AND value = :{param_name}_value)"
+            params[f"{param_name}_field"] = field
+            params[f"{param_name}_value"] = value
         else:
             # Handle other fields
-            condition = f"c.{field} = ?"
+            param_name = f"{field.lower()}_direct"
+            condition = f"c.{field} = :{param_name}"
+            params[param_name] = value
 
-        # Group conditions by type and add parameters
+        # Group conditions by type
         if filter_type == "and":
             and_conditions.append(condition)
-            # Add field parameter for card_attributes fields
-            if field in [
-                "SeriesName",
-                "Rarity",
-                "CardType",
-                "ActivationEnergy",
-                "RequiredEnergy",
-                "ActionPointCost",
-                "Trigger",
-                "Affinities",
-                "PrintType",
-            ]:
-                params.append(field)
-            params.append(value)
         elif filter_type == "or":
             # Group OR conditions by field
             if field not in or_conditions_by_field:
                 or_conditions_by_field[field] = []
             or_conditions_by_field[field].append(condition)
-            # Add field parameter for card_attributes fields
-            if field in [
-                "SeriesName",
-                "Rarity",
-                "CardType",
-                "ActivationEnergy",
-                "RequiredEnergy",
-                "ActionPointCost",
-                "Trigger",
-                "Affinities",
-                "PrintType",
-            ]:
-                params.append(field)
-            params.append(value)
         elif filter_type == "not":
             # Handle NULL values properly for NOT filters
             if field in [
-                "SeriesName",
-                "ActivationEnergy",
-                "CardType",
-                "Rarity",
-                "PrintType",
-                "Trigger",
-                "Description",
-                "Affinities",
+                "series",
+                "activation_energy",
+                "card_type",
+                "rarity",
+                "print_type",
+                "trigger_type",
+                "description",
+                "affinities",
             ]:
                 # For card_attributes fields, exclude only if attribute exists AND equals value
-                not_condition = f"NOT EXISTS (SELECT 1 FROM card_attributes WHERE card_id = c.id AND name = ? AND value = ?)"
+                not_param_field = f"not_{field.lower()}_field"
+                not_param_value = f"not_{field.lower()}_value"
+                not_condition = f"NOT EXISTS (SELECT 1 FROM card_attributes WHERE card_id = c.id AND name = :{not_param_field} AND value = :{not_param_value})"
                 not_conditions.append(not_condition)
-                params.append(field)  # Field name
-                params.append(value)  # Value to compare against
+                params[not_param_field] = field
+                params[not_param_value] = value
             else:
                 # For direct card fields, use standard NOT logic
                 not_conditions.append(f"NOT ({condition})")
-                if field == "game":
-                    params.append(value)
-                else:
-                    params.append(value)
 
     # Combine all conditions
     if and_conditions:
         where_conditions.extend(and_conditions)
 
-    # Add grouped OR conditions
+    # Add grouped OR conditions (each field group becomes its own OR condition)
     for field, conditions in or_conditions_by_field.items():
         if len(conditions) > 1:
             or_condition = f"({' OR '.join(conditions)})"
@@ -173,6 +156,7 @@ def handle_api_search():
     # Legacy advanced filter handling removed - now handled by unified filter system
 
     where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+    # Debug output removed for performance
 
     # Build ORDER BY clause
     order_clause = "ORDER BY c.name"  # Default
@@ -183,22 +167,22 @@ def handle_api_search():
             order_clause = "ORDER BY COALESCE(cp.market_price, cp.mid_price) ASC"
         elif sort_by == "rarity_desc":
             order_clause = """ORDER BY CASE 
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common' THEN 1
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon' THEN 2
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare' THEN 3
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 4
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Ultra Rare' THEN 5
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Secret Rare' THEN 6
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Common' THEN 1
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Uncommon' THEN 2
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Rare' THEN 3
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Super Rare' THEN 4
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Ultra Rare' THEN 5
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Secret Rare' THEN 6
                 ELSE 7
             END DESC"""
         elif sort_by == "rarity_asc":
             order_clause = """ORDER BY CASE 
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Common' THEN 1
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Uncommon' THEN 2
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Rare' THEN 3
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Super Rare' THEN 4
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Ultra Rare' THEN 5
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Rarity') = 'Secret Rare' THEN 6
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Common' THEN 1
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Uncommon' THEN 2
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Rare' THEN 3
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Super Rare' THEN 4
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Ultra Rare' THEN 5
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Secret Rare' THEN 6
                 ELSE 7
             END ASC"""
         elif sort_by == "name_asc":
@@ -210,9 +194,9 @@ def handle_api_search():
         elif sort_by == "number_asc":
             order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'Number'), -3) AS INTEGER) ASC"
         elif sort_by == "required_energy_desc":
-            order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'RequiredEnergy') AS INTEGER) DESC"
+            order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'required_energy') AS INTEGER) DESC"
         elif sort_by == "required_energy_asc":
-            order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'RequiredEnergy') AS INTEGER) ASC"
+            order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'required_energy') AS INTEGER) ASC"
         elif sort_by == "recent_series_rarity_desc":
             # Sort by most recent series first (published_on DESC), then by rarity DESC
             order_clause = """ORDER BY g.published_on DESC, 
@@ -228,25 +212,28 @@ def handle_api_search():
 
     # Get total count - need to match the main query structure with JOINs
     count_query = f"SELECT COUNT(DISTINCT c.id) as total {base_query} LEFT JOIN card_attributes cm ON c.id = cm.card_id LEFT JOIN card_prices cp ON c.id = cp.card_id {where_clause}"
-    total_cards = conn.execute(count_query, params).fetchone()["total"]
+    total_cards = db_session.execute(text(count_query), params).fetchone()[0]
 
     # Calculate offset for pagination
     offset = (page - 1) * per_page
 
     # Get paginated results with metadata and prices (TCGCSV-aligned)
     # Use market_price if available, otherwise fall back to mid_price
+    # Aggregate prices to avoid duplicates from multiple price records
     search_query = (
-        f"SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, GROUP_CONCAT(cm.name || ':' || cm.value || ':' || cm.display_name, '|||') as metadata, "
-        f"COALESCE(cp.market_price, cp.mid_price) as price {base_query} "
+        f"SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, STRING_AGG(cm.name || ':' || cm.value || ':' || cm.display_name, '|||') as metadata, "
+        f"COALESCE(MAX(cp.market_price), MAX(cp.mid_price)) as price {base_query} "
         f"LEFT JOIN card_attributes cm ON c.id = cm.card_id "
         f"LEFT JOIN card_prices cp ON c.id = cp.card_id "
         f"{where_clause} "
-        f"GROUP BY c.id {order_clause} LIMIT ? OFFSET ?"
+        f"GROUP BY c.id, g.name, g.abbreviation, g.published_on {order_clause} LIMIT :per_page OFFSET :offset"
     )
-    search_params = params + [per_page, offset]
+    search_params = params.copy()
+    search_params["per_page"] = per_page
+    search_params["offset"] = offset
 
-    cursor = conn.execute(search_query, search_params)
-    raw_cards = [dict(row) for row in cursor.fetchall()]
+    cursor = db_session.execute(text(search_query), search_params)
+    raw_cards = [row._mapping for row in cursor.fetchall()]
 
     # Process cards to include metadata as individual fields
     cards = []
@@ -310,7 +297,7 @@ def handle_api_search():
 
         cards.append(processed_card)
 
-    conn.close()
+    db_session.close()
 
     # Calculate pagination info
     total_pages = (total_cards + per_page - 1) // per_page  # Ceiling division
@@ -336,7 +323,7 @@ def handle_api_search():
 
 def handle_filter_fields():
     """Get all available filter fields (excluding Description)"""
-    conn = get_db_connection()
+    db_session = get_session()
 
     # Get unique field names from card_attributes table, excluding Description
     query = """
@@ -345,13 +332,12 @@ def handle_filter_fields():
         WHERE name != 'Description' 
         ORDER BY display_name
     """
-    fields = conn.execute(query).fetchall()
-    conn.close()
+    fields = db_session.execute(text(query)).fetchall()
+    db_session.close()
 
     # Convert to list - PrintType is now in card_attributes like other fields
     field_list = [
-        {"name": field["name"], "display": field["display_name"] or field["name"]}
-        for field in fields
+        {"name": field[0], "display": field[1] or field[0]} for field in fields
     ]
 
     # Sort by display name
@@ -363,8 +349,8 @@ def handle_filter_fields():
 def handle_filter_values(field, game=None):
     """Get all unique values for a specific filter field, optionally filtered by game"""
 
-    # Special handling for PrintType field
-    if field == "PrintType":
+    # Special handling for print_type field
+    if field == "print_type":
         # Return all possible print types with proper casing
         return jsonify(
             [
@@ -377,30 +363,49 @@ def handle_filter_values(field, game=None):
             ]
         )
 
-    conn = get_db_connection()
+    db_session = get_session()
 
-    if game:
-        # Get distinct values for the field from card_attributes table, filtered by game
-        query = """
-            SELECT DISTINCT ca.value 
-            FROM card_attributes ca
-            INNER JOIN cards c ON ca.card_id = c.id
-            WHERE ca.name = ? AND c.game = ? AND ca.value IS NOT NULL AND ca.value != ''
-            ORDER BY ca.value
-        """
-        values = conn.execute(query, (field, game)).fetchall()
-    else:
-        # Get distinct values for the field from card_attributes table, excluding NULL and empty values
-        query = "SELECT DISTINCT value FROM card_attributes WHERE name = ? AND value IS NOT NULL AND value != '' ORDER BY value"
-        values = conn.execute(query, (field,)).fetchall()
+    try:
+        from models import CardAttribute, Card
 
-    conn.close()
+        if game:
+            # Get distinct values for the field from card_attributes table, filtered by game
+            values = (
+                db_session.query(CardAttribute.value)
+                .join(Card, CardAttribute.card_id == Card.id)
+                .filter(
+                    CardAttribute.name == field,
+                    Card.game == game,
+                    CardAttribute.value.isnot(None),
+                    CardAttribute.value != "",
+                )
+                .distinct()
+                .order_by(CardAttribute.value)
+                .all()
+            )
+        else:
+            # Get distinct values for the field from card_attributes table, excluding NULL and empty values
+            values = (
+                db_session.query(CardAttribute.value)
+                .filter(
+                    CardAttribute.name == field,
+                    CardAttribute.value.isnot(None),
+                    CardAttribute.value != "",
+                )
+                .distinct()
+                .order_by(CardAttribute.value)
+                .all()
+            )
+    finally:
+        pass
+
+    db_session.close()
 
     # Extract the values from the result tuples
     raw_values = [row[0] for row in values]
 
-    # Special handling for Affinities - split on " / " to get individual affinities
-    if field == "Affinities":
+    # Special handling for affinities - split on " / " to get individual affinities
+    if field == "affinities":
         individual_affinities = set()
         for value in raw_values:
             # Split on " / " and add each individual affinity
@@ -408,8 +413,8 @@ def handle_filter_values(field, game=None):
             individual_affinities.update(affinities)
         return jsonify(sorted(list(individual_affinities)))
 
-    # Special handling for Trigger - extract just the trigger type (first word in brackets)
-    if field == "Trigger":
+    # Special handling for trigger_type - extract just the trigger type (first word in brackets)
+    if field == "trigger_type":
         trigger_types = set()
         for value in raw_values:
             # Extract text between first set of brackets
@@ -465,8 +470,8 @@ def handle_filter_values(field, game=None):
 
 def get_print_type_values():
     """Get unique print type values from the database"""
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    db_session = get_session()
+    cursor = db_session.cursor()
 
     try:
         query = "SELECT DISTINCT print_type FROM cards WHERE print_type IS NOT NULL AND print_type != '' ORDER BY print_type"
@@ -476,4 +481,4 @@ def get_print_type_values():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
-        conn.close()
+        db_session.close()

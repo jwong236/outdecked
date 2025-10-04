@@ -37,22 +37,19 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   const [currentPage, setCurrentPage] = React.useState(1);
   const [itemsPerPage, setItemsPerPage] = React.useState(25);
   const [currentSort, setCurrentSort] = React.useState('required_energy_asc');
-  const [currentColor, setCurrentColor] = React.useState(currentDeck?.preferences?.color || '');
+  const [currentColor, setCurrentColor] = React.useState(
+    currentDeck?.preferences?.filters?.find(f => f.field === 'activation_energy')?.value || ''
+  );
   const [colorOptions, setColorOptions] = React.useState<Array<{value: string, label: string}>>([]);
   
-  // Search filters based on currentDeck preferences
-  const filters = { 
-    query: searchQuery, 
-    series: currentDeck?.preferences?.series || '', 
-    color: currentDeck?.preferences?.color || currentColor, // Use deck preference first, fallback to local state
-    cardType: '', 
-    sort: currentSort 
-  };
+  // Search filters based on currentDeck preferences (unified SearchParams structure)
+  const currentSeries = currentDeck?.preferences?.filters?.find(f => f.field === 'series')?.value || '';
+  const currentDeckColor = currentDeck?.preferences?.filters?.find(f => f.field === 'activation_energy')?.value || '';
   
   // Fetch colors for the current series
   React.useEffect(() => {
     fetchColorsForSeries();
-  }, [currentDeck?.preferences?.series]);
+  }, [currentSeries]);
 
   // Debounce the search query
   React.useEffect(() => {
@@ -65,7 +62,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
 
 
   const fetchColorsForSeries = async () => {
-    const currentSeries = currentDeck?.preferences?.series;
+    const currentSeries = currentDeck?.preferences?.filters?.find(f => f.field === 'series')?.value;
     
     if (currentSeries) {
       try {
@@ -79,7 +76,6 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
           ...colors.map((color: string) => ({ value: color, label: color }))
         ]);
         
-        console.log('🃏 Fetched colors for series:', currentSeries, colors);
       } catch (error) {
         console.error('🃏 Error fetching colors for series:', error);
         // Fallback to all colors
@@ -164,65 +160,11 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   const fetchCards = React.useCallback(async () => {
     setSearchLoading(true);
     try {
-      // Build unified filters array
-      const filters = [];
+      // Use deck preferences directly (unified SearchParams structure)
+      // This includes the saved color filter from the deck
+      const filters = currentDeck?.preferences?.filters || [];
       
-      // Add series filter if it exists
-      if (currentDeck?.preferences?.series) {
-        filters.push({
-          type: 'and',
-          field: 'SeriesName',
-          value: currentDeck.preferences.series,
-          displayText: `Series: ${currentDeck.preferences.series}`
-        });
-      }
-      
-      // Add color filter if it exists (use deck preference first, fallback to local state)
-      const activeColor = currentDeck?.preferences?.color || currentColor;
-      if (activeColor) {
-        filters.push({
-          type: 'and',
-          field: 'ActivationEnergy',
-          value: activeColor,
-          displayText: `Color: ${activeColor}`
-        });
-      }
-      
-      // Add card types filter if it exists (multiple values as OR filters)
-      if (currentDeck?.preferences?.cardTypes && currentDeck.preferences.cardTypes.length > 0) {
-        currentDeck.preferences.cardTypes.forEach(cardType => {
-          filters.push({
-            type: 'or',
-            field: 'CardType',
-            value: cardType,
-            displayText: `Card Type: ${cardType}`
-          });
-        });
-      }
-      
-      // Add print types filter if it exists (multiple values as OR filters)
-      if (currentDeck?.preferences?.printTypes && currentDeck.preferences.printTypes.length > 0) {
-        currentDeck.preferences.printTypes.forEach(printType => {
-          filters.push({
-            type: 'or',
-            field: 'PrintType',
-            value: printType,
-            displayText: `Print Type: ${printType}`
-          });
-        });
-      }
-      
-      // Add rarities filter if it exists (multiple values as OR filters)
-      if (currentDeck?.preferences?.rarities && currentDeck.preferences.rarities.length > 0) {
-        currentDeck.preferences.rarities.forEach(rarity => {
-          filters.push({
-            type: 'or',
-            field: 'Rarity',
-            value: rarity,
-            displayText: `Rarity: ${rarity}`
-          });
-        });
-      }
+      // Note: All filters (including color) are now handled by deck.preferences.filters
       
       // Build request body with unified filter system
       const requestBody = {
@@ -234,7 +176,6 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
         filters: filters
       };
       
-      console.log('🃏 Fetching cards with unified filters:', requestBody);
       const response = await fetch('/api/cards', {
         method: 'POST',
         headers: {
@@ -245,7 +186,6 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
       });
       const data = await response.json();
       
-      console.log('🃏 Cards API response:', data);
       if (data.cards) {
         // Transform raw API data to clean Card objects once
         const cleanCards = transformRawCardsToCards(data.cards);
@@ -258,11 +198,6 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
         
         // Notify parent component of search results change with clean cards
         if (onSearchResultsChange) {
-          console.log('🔍 SearchSection: Calling onSearchResultsChange with:', {
-            cardsCount: cleanCards.length,
-            firstThree: cleanCards.slice(0, 3).map(c => c.name),
-            currentSort
-          });
           onSearchResultsChange(cleanCards);
         }
         
@@ -276,7 +211,6 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
         });
         
       } else {
-        console.log('🃏 No cards in response or API error');
       }
     } catch (error) {
       console.error('🃏 Error fetching cards:', error);
@@ -289,11 +223,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
     currentSort, 
     debouncedSearchQuery,
     // Unified filter dependencies - any change to these will trigger re-search
-    currentDeck?.preferences?.series,
-    currentDeck?.preferences?.color,
-    currentDeck?.preferences?.cardTypes,
-    currentDeck?.preferences?.printTypes,
-    currentDeck?.preferences?.rarities,
+    currentDeck?.preferences?.filters,
     currentColor, // Keep local color state for now
   ]);
   
@@ -305,11 +235,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   }, [
     currentDeck?.id,
     // Unified filter dependencies - any change to these will trigger re-search
-    currentDeck?.preferences?.series,
-    currentDeck?.preferences?.color,
-    currentDeck?.preferences?.cardTypes,
-    currentDeck?.preferences?.printTypes,
-    currentDeck?.preferences?.rarities,
+    currentDeck?.preferences?.filters,
     currentSort, 
     currentPage, 
     itemsPerPage, 
@@ -345,7 +271,6 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
     { value: 'price_desc', label: 'Price High-Low' }
   ];
   const hasActiveAdvancedFilters = false;
-  const currentSeries = currentDeck?.preferences?.series || '';
   const currentCardType = '';
   
   // Handler functions
@@ -362,13 +287,26 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
     setCurrentColor(color);
     setCurrentPage(1); // Reset to first page when changing filters
     
-    // Update deck preferences to trigger re-search
+    // Update deck preferences to trigger re-search using unified filter system
     if (currentDeck) {
+      const currentFilters = currentDeck.preferences?.filters || [];
+      const updatedFilters = currentFilters.filter(f => f.field !== 'activation_energy');
+      
+      // Add new color filter
+      if (color) {
+        updatedFilters.push({
+          type: 'and' as const,
+          field: 'activation_energy',
+          value: color,
+          displayText: `Color: ${color}`
+        });
+      }
+      
       const updatedDeck = {
         ...currentDeck,
         preferences: {
           ...currentDeck.preferences,
-          color: color
+          filters: updatedFilters
         }
       };
       setCurrentDeck(updatedDeck);
@@ -427,7 +365,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
             <div className="flex items-center gap-2">
               <label className="text-sm font-medium text-white">Color:</label>
               <select
-                value={currentDeck?.preferences?.color || currentColor || ''}
+                value={currentDeck?.preferences?.filters?.find(f => f.field === 'activation_energy')?.value || currentColor || ''}
                 onChange={(e) => handleSearchColorChange(e.target.value)}
                 className="px-3 py-1 bg-white/20 border border-white/30 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >

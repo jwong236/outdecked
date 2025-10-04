@@ -41,10 +41,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       return [];
     }
 
-    console.log('🃏 useDeckOperations: Creating expanded cards array');
-    console.log('🃏 useDeckOperations: deck cards:', currentDeck.cards);
-    console.log('🃏 useDeckOperations: searchCache keys:', Object.keys(searchCache));
-
     // Filter out invalid cards
     const validCards = currentDeck.cards.filter(card => 
       card && typeof card === 'object' && card.card_id && card.quantity
@@ -95,7 +91,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     const groups: Record<string, ExpandedCard[]> = {};
     
     cards.forEach(card => {
-      const cardType = card.attributes?.find(attr => attr.name === 'CardType')?.value || 'Unknown';
+      const cardType = card.attributes?.find(attr => attr.name === 'card_type')?.value || 'Unknown';
       if (!groups[cardType]) {
         groups[cardType] = [];
       }
@@ -108,25 +104,25 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
         switch (sortBy) {
           case 'required_energy_asc':
             // Sort by RequiredEnergy (ascending)
-            const energyA = parseInt(a.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
-            const energyB = parseInt(b.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
+            const energyA = parseInt(a.attributes?.find(attr => attr.name === 'required_energy')?.value || '0') || 0;
+            const energyB = parseInt(b.attributes?.find(attr => attr.name === 'required_energy')?.value || '0') || 0;
             return energyA - energyB;
           case 'required_energy_desc':
             // Sort by RequiredEnergy (descending)
-            const energyA_desc = parseInt(a.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
-            const energyB_desc = parseInt(b.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0') || 0;
+            const energyA_desc = parseInt(a.attributes?.find(attr => attr.name === 'required_energy')?.value || '0') || 0;
+            const energyB_desc = parseInt(b.attributes?.find(attr => attr.name === 'required_energy')?.value || '0') || 0;
             return energyB_desc - energyA_desc;
           case 'rarity_asc':
             // Sort by rarity (ascending - lower rarity first)
             const rarityOrder = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Ultra Rare', 'Secret Rare'];
-            const rarityA_asc = rarityOrder.indexOf(a.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
-            const rarityB_asc = rarityOrder.indexOf(b.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
+            const rarityA_asc = rarityOrder.indexOf(a.attributes?.find(attr => attr.name === 'rarity')?.value || 'Common');
+            const rarityB_asc = rarityOrder.indexOf(b.attributes?.find(attr => attr.name === 'rarity')?.value || 'Common');
             return rarityA_asc - rarityB_asc;
           case 'rarity_desc':
             // Sort by rarity (descending - higher rarity first)
             const rarityOrder_desc = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Ultra Rare', 'Secret Rare'];
-            const rarityA_desc = rarityOrder_desc.indexOf(a.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
-            const rarityB_desc = rarityOrder_desc.indexOf(b.attributes?.find(attr => attr.name === 'Rarity')?.value || 'Common');
+            const rarityA_desc = rarityOrder_desc.indexOf(a.attributes?.find(attr => attr.name === 'rarity')?.value || 'Common');
+            const rarityB_desc = rarityOrder_desc.indexOf(b.attributes?.find(attr => attr.name === 'rarity')?.value || 'Common');
             return rarityB_desc - rarityA_desc;
           case 'name_desc':
             // Sort by name (descending)
@@ -148,7 +144,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       }
     });
 
-    console.log('🃏 useDeckOperations: Created and sorted expanded cards:', sortedCards.length);
     return sortedCards;
   }, [currentDeck?.cards, searchCache, sortBy]);
 
@@ -207,11 +202,23 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       const filterSettings = {
         preferences: {
           visibility: 'private',
-          defaultSeries: series || '',
-          defaultColorFilter: '',
-          printTypes: ['Base'], // Only Base checked = "Basic Prints Only" toggle ON
-          cardTypes: ['Action Point'], // Action Point excluded = "No Action Points" toggle ON
-          rarities: ['Common', 'Uncommon', 'Rare', 'Super Rare'] // Only base rarities = "Base Rarity Only" toggle ON
+          query: '',
+          sort: 'recent_series_rarity_desc',
+          page: 1,
+          per_page: 25,
+          filters: [
+            // Basic Prints Only - Base OR Starter Deck
+            { type: 'or', field: 'print_type', value: 'Base', displayText: 'Print Type: Base' },
+            { type: 'or', field: 'print_type', value: 'Starter Deck', displayText: 'Print Type: Starter Deck' },
+            // No Action Points - exclude Action Point cards
+            { type: 'not', field: 'card_type', value: 'Action Point', displayText: 'Card Type: Action Point' },
+            // Base Rarity Only - Common OR Uncommon OR Rare OR Super Rare OR Action Point
+            { type: 'or', field: 'rarity', value: 'Common', displayText: 'Rarity: Common' },
+            { type: 'or', field: 'rarity', value: 'Uncommon', displayText: 'Rarity: Uncommon' },
+            { type: 'or', field: 'rarity', value: 'Rare', displayText: 'Rarity: Rare' },
+            { type: 'or', field: 'rarity', value: 'Super Rare', displayText: 'Rarity: Super Rare' },
+            { type: 'or', field: 'rarity', value: 'Action Point', displayText: 'Rarity: Action Point' },
+          ]
         }
       };
       
@@ -311,22 +318,16 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
 
   // Handle quantity change
   const handleQuantityChange = useCallback((card: ExpandedCard, change: number) => {
-    if (!isValidDeck(currentDeck)) return;
-    
-    console.log('🃏 handleQuantityChange called with:', card.name, 'current quantity:', card.quantity, 'change:', change);
-    console.log('🃏 currentDeck.cards:', currentDeck.cards);
-    console.log('🃏 card.product_id:', card.product_id);
+    if (!isValidDeck(currentDeck)) {
+      return;
+    }
     
     const updatedCards = [...(currentDeck.cards || [])];
     const existingCardIndex = updatedCards.findIndex(deckCard => deckCard.card_id === card.product_id);
     
-    console.log('🃏 existingCardIndex:', existingCardIndex);
-    console.log('🃏 existing card if found:', existingCardIndex >= 0 ? updatedCards[existingCardIndex] : 'not found');
-    
     // Get the actual current quantity from the deck, not from the card prop
     const currentQuantity = existingCardIndex >= 0 ? updatedCards[existingCardIndex].quantity : 0;
     const newQuantity = currentQuantity + change;
-    console.log('🃏 actual current quantity from deck:', currentQuantity, 'newQuantity will be:', newQuantity);
     
     if (newQuantity <= 0) {
       // Remove card from deck
@@ -345,8 +346,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
         });
         
         // Ensure the card is in the search cache for deck display/validation
-        console.log('🃏 useDeckOperations: Adding card to cache with product_id:', card.product_id, 'type:', typeof card.product_id);
-        
         // Card should already be clean and transformed - cache directly
         setSearchCache(prev => ({
           ...prev,
@@ -601,7 +600,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
         });
         
         if (response.ok) {
-          console.log('Deck saved before navigating away');
         } else {
           console.error('Failed to save deck before navigating');
         }
@@ -722,8 +720,8 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
             name: fullCardData.name,
             product_id: fullCardData.product_id,
             quantity: deckCard.quantity,
-            CardType: fullCardData.attributes?.find(attr => attr.name === 'CardType')?.value || 'Unknown',
-            RequiredEnergy: fullCardData.attributes?.find(attr => attr.name === 'RequiredEnergy')?.value || '0'
+            CardType: fullCardData.attributes?.find(attr => attr.name === 'card_type')?.value || 'Unknown',
+            RequiredEnergy: fullCardData.attributes?.find(attr => attr.name === 'required_energy')?.value || '0'
           };
         } else {
           console.log(`🖼️ Card data not found in cache for ${deckCard.card_id}`);

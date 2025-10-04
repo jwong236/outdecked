@@ -7,7 +7,138 @@ No TCGPlayer scraping needed - all data comes from TCGCSV!
 import requests
 import time
 import logging
-from database import save_cards_to_db
+from database import get_session
+from models import Card, CardAttribute, CardPrice, Group, Category
+from sqlalchemy import text
+from datetime import datetime
+
+
+def save_card_to_db_sqlalchemy(card_data):
+    """Save a single card to database using SQLAlchemy ORM"""
+    db_session = get_session()
+    try:
+        # Check if card already exists
+        existing_card = (
+            db_session.query(Card)
+            .filter(Card.product_id == card_data["product_id"])
+            .first()
+        )
+
+        if existing_card:
+            # Update existing card
+            card = existing_card
+            card.name = card_data["name"]
+            card.clean_name = card_data.get("clean_name", "")
+            card.card_url = card_data.get("card_url", "")
+            card.game = card_data.get("game", "Union Arena")
+            card.group_id = card_data.get("group_id")
+            card.category_id = card_data.get("category_id", 81)
+            card.image_count = card_data.get("image_count", 0)
+            card.is_presale = card_data.get("is_presale", False)
+            card.released_on = card_data.get("released_on", "")
+            card.presale_note = card_data.get("presale_note", "")
+            card.modified_on = card_data.get("modified_on", "")
+        else:
+            # Create new card
+            card = Card(
+                name=card_data["name"],
+                clean_name=card_data.get("clean_name", ""),
+                card_url=card_data.get("card_url", ""),
+                game=card_data.get("game", "Union Arena"),
+                product_id=card_data["product_id"],
+                group_id=card_data.get("group_id"),
+                category_id=card_data.get("category_id", 81),
+                image_count=card_data.get("image_count", 0),
+                is_presale=card_data.get("is_presale", False),
+                released_on=card_data.get("released_on", ""),
+                presale_note=card_data.get("presale_note", ""),
+                modified_on=card_data.get("modified_on", ""),
+                created_at=datetime.utcnow(),
+            )
+            db_session.add(card)
+
+        db_session.flush()  # Get the card ID
+
+        # Handle price data
+        if (
+            card_data.get("price")
+            or card_data.get("low_price")
+            or card_data.get("mid_price")
+            or card_data.get("high_price")
+        ):
+            existing_price = (
+                db_session.query(CardPrice).filter(CardPrice.card_id == card.id).first()
+            )
+
+            if existing_price:
+                # Update existing price
+                if card_data.get("price"):
+                    existing_price.market_price = card_data["price"]
+                if card_data.get("low_price"):
+                    existing_price.low_price = card_data["low_price"]
+                if card_data.get("mid_price"):
+                    existing_price.mid_price = card_data["mid_price"]
+                if card_data.get("high_price"):
+                    existing_price.high_price = card_data["high_price"]
+            else:
+                # Create new price
+                price = CardPrice(
+                    card_id=card.id,
+                    market_price=card_data.get("price"),
+                    low_price=card_data.get("low_price"),
+                    mid_price=card_data.get("mid_price"),
+                    high_price=card_data.get("high_price"),
+                    created_at=datetime.utcnow(),
+                )
+                db_session.add(price)
+
+        # Handle card attributes
+        # First, delete existing attributes for this card
+        db_session.query(CardAttribute).filter(
+            CardAttribute.card_id == card.id
+        ).delete()
+
+        # Add new attributes
+        for attr_name, attr_value in card_data.items():
+            # Skip non-attribute fields
+            if attr_name in [
+                "name",
+                "clean_name",
+                "card_url",
+                "game",
+                "product_id",
+                "group_id",
+                "category_id",
+                "image_count",
+                "is_presale",
+                "released_on",
+                "presale_note",
+                "modified_on",
+                "price",
+                "low_price",
+                "mid_price",
+                "high_price",
+            ]:
+                continue
+
+            if attr_value:  # Only save non-empty attributes
+                attribute = CardAttribute(
+                    card_id=card.id,
+                    name=attr_name,
+                    value=str(attr_value),
+                    display_name=attr_name.replace("_", " ").title(),
+                    created_at=datetime.utcnow(),
+                )
+                db_session.add(attribute)
+
+        db_session.commit()
+        return 1  # Success
+
+    except Exception as e:
+        db_session.rollback()
+        raise e
+    finally:
+        db_session.close()
 
 
 def to_title_case(text):
@@ -183,6 +314,32 @@ class TCGCSVScraper:
             # Get presale info
             presale_info = product.get("presaleInfo", {})
 
+            # Get group abbreviation for print type detection and internal group ID
+            group_abbreviation = None
+            internal_group_id = None
+            if group_id:
+                from database import get_session
+                from models import Group
+
+                db_session = get_session()
+                try:
+                    # Query by group_id (TCGCSV ID) not internal id
+                    group = (
+                        db_session.query(Group)
+                        .filter(Group.group_id == group_id)
+                        .first()
+                    )
+                    if group:
+                        group_abbreviation = group.abbreviation
+                        internal_group_id = group.id  # Use internal ID for card storage
+                finally:
+                    db_session.close()
+
+            # Detect print type using group abbreviation
+            from search import detect_print_type
+
+            print_type = detect_print_type(group_abbreviation, product_name)
+
             # Build card data with TCGCSV structure
             card_data = {
                 "name": product_name,
@@ -192,7 +349,7 @@ class TCGCSVScraper:
                 ),
                 "game": "Union Arena",
                 "product_id": product_id,
-                "group_id": group_id,
+                "group_id": internal_group_id,  # Use internal group ID
                 "category_id": 81,
                 "image_count": product.get("imageCount", 0),
                 "is_presale": presale_info.get("isPresale", False),
@@ -204,11 +361,14 @@ class TCGCSVScraper:
                 "mid_price": price_data.get("midPrice", ""),
                 "high_price": price_data.get("highPrice", ""),
                 **attributes,  # Add all TCGCSV attributes
+                # Add standardized snake_case attribute names
+                "rarity": attributes.get("rarity", ""),  # Keep as snake_case
+                "print_type": print_type,  # Add print type detection as snake_case
             }
 
-            # Save card to database immediately
+            # Save card to database immediately using SQLAlchemy
             try:
-                saved_count, failed_cards = save_cards_to_db([card_data])
+                saved_count = save_card_to_db_sqlalchemy(card_data)
                 if saved_count > 0:
                     logger.info(f"SAVED: {product_name}")
                 else:

@@ -29,7 +29,7 @@ def run_tests():
     failed_tests = 0
     
     for test_file in test_files:
-        print(f"🔍 Running {test_file}...")
+        print(f"[TEST] Running {test_file}...")
         print("-" * 40)
         
         start_time = time.time()
@@ -75,19 +75,19 @@ def run_tests():
             passed_tests += passed_count
             failed_tests += failed_count
             
-            status = "✅ PASSED" if failed_count == 0 else "❌ FAILED"
+            status = "[OK] PASSED" if failed_count == 0 else "[FAIL] FAILED"
             print(f"{status} {test_file} ({duration:.2f}s)")
             print(f"   Tests: {passed_count}/{test_count} passed")
             
             if failed_count > 0:
-                print(f"   ❌ {failed_count} tests failed")
+                print(f"   [FAIL] {failed_count} tests failed")
                 # Show first few error lines
                 error_lines = [line for line in output_lines if "FAILED" in line or "ERROR" in line][:3]
                 for error_line in error_lines:
                     print(f"   {error_line}")
             
         except Exception as e:
-            print(f"❌ Error running {test_file}: {e}")
+            print(f"[FAIL] Error running {test_file}: {e}")
             results[test_file] = {
                 'duration': 0,
                 'total': 0,
@@ -102,16 +102,16 @@ def run_tests():
     
     # Summary
     print("=" * 60)
-    print("📊 COMPREHENSIVE TEST SUMMARY")
+    print("[INFO] COMPREHENSIVE TEST SUMMARY")
     print("=" * 60)
     
     print(f"📅 Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"⏱️  Total duration: {sum(r['duration'] for r in results.values()):.2f}s")
+    print(f"[TIME]  Total duration: {sum(r['duration'] for r in results.values()):.2f}s")
     print()
     
     print("📋 Test Results by File:")
     for test_file, result in results.items():
-        status = "✅" if result['failed'] == 0 else "❌"
+        status = "[OK]" if result['failed'] == 0 else "[FAIL]"
         print(f"   {status} {test_file}")
         print(f"      Duration: {result['duration']:.2f}s")
         print(f"      Tests: {result['passed']}/{result['total']} passed")
@@ -119,7 +119,7 @@ def run_tests():
             print(f"      Failed: {result['failed']}")
         print()
     
-    print("🎯 Overall Results:")
+    print("[RESULT] Overall Results:")
     print(f"   Total Tests: {total_tests}")
     print(f"   Passed: {passed_tests}")
     print(f"   Failed: {failed_tests}")
@@ -128,40 +128,40 @@ def run_tests():
     
     if failed_tests == 0:
         print("🎉 ALL TESTS PASSED! 🎉")
-        print("✅ Database schema is valid and complete")
-        print("✅ All API endpoints are working correctly")
-        print("✅ Data relationships are properly maintained")
+        print("[OK] Database schema is valid and complete")
+        print("[OK] All API endpoints are working correctly")
+        print("[OK] Data relationships are properly maintained")
         return 0
     else:
-        print("⚠️  SOME TESTS FAILED")
-        print("❌ Please review the failed tests above")
-        print("❌ Check the Flask server is running on localhost:5000")
-        print("❌ Verify the database has been properly populated")
+        print("[WARN]  SOME TESTS FAILED")
+        print("[FAIL] Please review the failed tests above")
+        print("[FAIL] Check the Flask server is running on localhost:5000")
+        print("[FAIL] Verify the database has been properly populated")
         return 1
 
 def check_prerequisites():
     """Check if prerequisites are met"""
-    print("🔍 Checking prerequisites...")
+    print("[TEST] Checking prerequisites...")
     
     # Check if Flask server is running
     try:
         import requests
         response = requests.get("http://localhost:5000/health", timeout=5)
         if response.status_code == 200:
-            print("✅ Flask server is running on localhost:5000")
+            print("[OK] Flask server is running on localhost:5000")
         else:
-            print("❌ Flask server is not responding properly")
+            print("[FAIL] Flask server is not responding properly")
             return False
     except Exception as e:
-        print(f"❌ Flask server is not running: {e}")
+        print(f"[FAIL] Flask server is not running: {e}")
         print("   Please start the Flask server with: python outdecked.py")
         return False
     
     # Check if database exists
     if os.path.exists("cards.db"):
-        print("✅ Database file exists")
+        print("[OK] Database file exists")
     else:
-        print("❌ Database file not found")
+        print("[FAIL] Database file not found")
         print("   Please run the scraper to populate the database")
         return False
     
@@ -173,12 +173,12 @@ def check_prerequisites():
     
     for test_file in test_files:
         if os.path.exists(test_file):
-            print(f"✅ {test_file} exists")
+            print(f"[OK] {test_file} exists")
         else:
-            print(f"❌ {test_file} not found")
+            print(f"[FAIL] {test_file} not found")
             return False
     
-    print("✅ All prerequisites met")
+    print("[OK] All prerequisites met")
     print()
     return True
 
@@ -188,7 +188,7 @@ if __name__ == "__main__":
     print()
     
     if not check_prerequisites():
-        print("❌ Prerequisites not met. Please fix the issues above.")
+        print("[FAIL] Prerequisites not met. Please fix the issues above.")
         sys.exit(1)
     
     exit_code = run_tests()

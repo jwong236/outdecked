@@ -27,7 +27,6 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
   // Function to fetch missing card data
   const fetchMissingCardData = React.useCallback(async (cardIds: string[]) => {
     try {
-      console.log('🃏 DeckSection: Fetching missing card data for:', cardIds);
       const response = await fetch('/api/cards/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -36,23 +35,17 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
       
       if (response.ok) {
         const rawCards = await response.json();
-        console.log('🃏 DeckSection: API returned raw cards:', rawCards);
         
         // Transform raw API data to clean Card objects
         const cleanCards = transformRawCardsToCards(rawCards);
-        console.log('🃏 DeckSection: Transformed to clean cards:', cleanCards);
         
         setSearchCache(prev => {
           const newCache = { ...prev };
           cleanCards.forEach((card: any) => {
-            console.log('🃏 DeckSection: Caching clean card with product_id:', card.product_id, 'for request:', cardIds);
             newCache[card.product_id] = card;
           });
           return newCache;
         });
-        console.log('✅ DeckSection: Fetched and cached clean card data');
-      } else {
-        console.error('❌ DeckSection: Failed to fetch card data:', response.status);
       }
     } catch (error) {
       console.error('❌ DeckSection: Error fetching card data:', error);
@@ -76,25 +69,16 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
       .map((deckCard: any) => deckCard.card_id.toString());
     
     if (missingCardIds.length > 0) {
-      console.log('🃏 DeckSection: Found missing card data, fetching:', missingCardIds);
       // Mark these cards as requested to prevent duplicate requests
       missingCardIds.forEach((id: string) => requestedCardsRef.current.add(id));
       fetchMissingCardData(missingCardIds);
     }
   }, [(currentDeck as any)?.cards, searchCache, fetchMissingCardData]);
   
-  // Debug: Log the expanded cards
-  React.useEffect(() => {
-    console.log('🃏 DeckSection: Expanded cards updated:', {
-      count: expandedCardsArray.length,
-      firstThree: expandedCardsArray.slice(0, 3).map(c => c.name)
-    });
-  }, [expandedCardsArray]);
   
 
   // Use the passed onQuantityChange handler instead of our own
   const handleQuantityChange = onQuantityChange || ((card: any, change: number) => {
-    console.log('DeckSection fallback handleQuantityChange called with:', card.name, change);
     // Fallback implementation if no handler is provided
   });
 

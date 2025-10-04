@@ -157,12 +157,17 @@ const defaultSearchPreferences: SearchParams = {
   per_page: 24,
   page: 1,
   filters: [
-    { type: 'or', field: 'PrintType', value: 'Base', displayText: 'Basic Prints Only' },
-    { type: 'or', field: 'PrintType', value: 'Starter Deck', displayText: 'Basic Prints Only' },
-    { type: 'or', field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
-    { type: 'or', field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
-    { type: 'or', field: 'Rarity', value: 'Rare', displayText: 'Base Rarity Only' },
-    { type: 'or', field: 'Rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
+    // Basic Prints Only - Base OR Starter Deck
+    { type: 'or', field: 'print_type', value: 'Base', displayText: 'Print Type: Base' },
+    { type: 'or', field: 'print_type', value: 'Starter Deck', displayText: 'Print Type: Starter Deck' },
+    // No Action Points - exclude Action Point cards
+    { type: 'not', field: 'card_type', value: 'Action Point', displayText: 'Card Type: Action Point' },
+    // Base Rarity Only - Common OR Uncommon OR Rare OR Super Rare OR Action Point
+    { type: 'or', field: 'rarity', value: 'Common', displayText: 'Rarity: Common' },
+    { type: 'or', field: 'rarity', value: 'Uncommon', displayText: 'Rarity: Uncommon' },
+    { type: 'or', field: 'rarity', value: 'Rare', displayText: 'Rarity: Rare' },
+    { type: 'or', field: 'rarity', value: 'Super Rare', displayText: 'Rarity: Super Rare' },
+    { type: 'or', field: 'rarity', value: 'Action Point', displayText: 'Rarity: Action Point' },
   ],
 };
 
@@ -468,7 +473,8 @@ export const useSessionStore = create<SessionState>()(
       console.log('✅ All user data loaded from database');
       
       // Convert hand data to CardRef format if it contains full Card objects
-      const handItems = (handData.hand || []).map((item: any) => {
+      const handArray = Array.isArray(handData.hand) ? handData.hand : [];
+      const handItems = handArray.map((item: any) => {
         // If the item has a product_id, it's already a CardRef
         if (item.card_id && typeof item.quantity === 'number') {
           return item;
@@ -549,12 +555,14 @@ export const useSessionStore = create<SessionState>()(
     set((state) => {
       // Only clear non-default filters, preserve default filters
       const defaultFilters = [
-        { type: 'or' as const, field: 'PrintType', value: 'Base', displayText: 'Basic Prints Only' },
-        { type: 'or' as const, field: 'PrintType', value: 'Starter Deck', displayText: 'Basic Prints Only' },
-        { type: 'or' as const, field: 'Rarity', value: 'Common', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'Rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'Rarity', value: 'Rare', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'Rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'print_type', value: 'Base', displayText: 'Basic Prints Only' },
+        { type: 'or' as const, field: 'print_type', value: 'Starter Deck', displayText: 'Basic Prints Only' },
+        { type: 'not' as const, field: 'card_type', value: 'Action Point', displayText: 'No Action Points' },
+        { type: 'or' as const, field: 'rarity', value: 'Common', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'rarity', value: 'Action Point', displayText: 'Base Rarity Only' },
       ];
       
       return {
@@ -588,9 +596,9 @@ export const useSessionStore = create<SessionState>()(
   setSeries: (series) => {
     set((state) => {
       // Remove existing series filter
-      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'SeriesName');
+      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'series');
       // Add new series filter if not empty
-      const newFilters = series ? [...filteredFilters, { type: 'and' as const, field: 'SeriesName', value: series, displayText: `Series: ${series}` }] : filteredFilters;
+      const newFilters = series ? [...filteredFilters, { type: 'and' as const, field: 'series', value: series, displayText: `Series: ${series}` }] : filteredFilters;
       
       return {
         searchPreferences: { ...state.searchPreferences, filters: newFilters }
@@ -601,15 +609,15 @@ export const useSessionStore = create<SessionState>()(
   setCardType: (cardType) => {
     set((state) => {
       // Remove existing cardType filter
-      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'CardType');
+      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'card_type');
       // Add new cardType filter if not empty
       let newFilters = filteredFilters;
       if (cardType) {
         // Special case: "Action Point" should create a "No Action Points" filter (negative)
         if (cardType === 'Action Point') {
-          newFilters = [...filteredFilters, { type: 'not' as const, field: 'CardType', value: 'Action Point', displayText: 'No Action Points' }];
+          newFilters = [...filteredFilters, { type: 'not' as const, field: 'card_type', value: 'Action Point', displayText: 'No Action Points' }];
         } else {
-          newFilters = [...filteredFilters, { type: 'and' as const, field: 'CardType', value: cardType, displayText: `Card Type: ${cardType}` }];
+          newFilters = [...filteredFilters, { type: 'and' as const, field: 'card_type', value: cardType, displayText: `Card Type: ${cardType}` }];
         }
       }
       
@@ -622,9 +630,9 @@ export const useSessionStore = create<SessionState>()(
   setColor: (color) => {
     set((state) => {
       // Remove existing color filter
-      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'ActivationEnergy');
+      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'activation_energy');
       // Add new color filter if not empty
-      const newFilters = color ? [...filteredFilters, { type: 'and' as const, field: 'ActivationEnergy', value: color, displayText: `Color: ${color}` }] : filteredFilters;
+      const newFilters = color ? [...filteredFilters, { type: 'and' as const, field: 'activation_energy', value: color, displayText: `Color: ${color}` }] : filteredFilters;
       
       return {
         searchPreferences: { ...state.searchPreferences, filters: newFilters }
@@ -640,19 +648,19 @@ export const useSessionStore = create<SessionState>()(
 
   getSeries: () => {
     const state = get();
-    const seriesFilter = state.searchPreferences.filters.find(f => f.field === 'SeriesName' && f.type === 'and');
+    const seriesFilter = state.searchPreferences.filters.find(f => f.field === 'series' && f.type === 'and');
     return seriesFilter ? seriesFilter.value : '';
   },
 
   getCardType: () => {
     const state = get();
-    const cardTypeFilter = state.searchPreferences.filters.find(f => f.field === 'CardType' && f.type === 'and');
+    const cardTypeFilter = state.searchPreferences.filters.find(f => f.field === 'card_type' && f.type === 'and');
     return cardTypeFilter ? cardTypeFilter.value : '';
   },
 
   getColor: () => {
     const state = get();
-    const colorFilter = state.searchPreferences.filters.find(f => f.field === 'ActivationEnergy' && f.type === 'and');
+    const colorFilter = state.searchPreferences.filters.find(f => f.field === 'activation_energy' && f.type === 'and');
     return colorFilter ? colorFilter.value : '';
   },
 
@@ -731,7 +739,7 @@ export const useSessionStore = create<SessionState>()(
       return {
         handCart: { ...state.handCart, handItems: newHandItems }
       };
-    });
+    }, false, 'addToHand');
   },
 
   removeFromHand: (product_id) => {
@@ -740,7 +748,7 @@ export const useSessionStore = create<SessionState>()(
         ...state.handCart,
         handItems: state.handCart.handItems.filter(item => item.card_id !== product_id)
       }
-    }));
+    }), false, 'removeFromHand');
   },
 
   updateHandQuantity: (product_id, quantity) => {
@@ -762,20 +770,19 @@ export const useSessionStore = create<SessionState>()(
       return {
         handCart: { ...state.handCart, handItems: newHandItems }
       };
-    });
+    }, false, 'updateHandQuantity');
   },
 
   clearHand: async () => {
     // Update local state immediately
     set((state) => ({
       handCart: { ...state.handCart, handItems: [] }
-    }));
+    }), false, 'clearHand');
 
     // Sync to database if user is logged in
     const state = get();
     if (state.user.id) {
       try {
-        console.log('🛒 clearHand: Syncing empty hand to database...');
         const response = await fetch(apiConfig.getApiUrl('/api/users/me/hand'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -784,7 +791,6 @@ export const useSessionStore = create<SessionState>()(
         });
 
         if (response.ok) {
-          console.log('✅ clearHand: Successfully synced empty hand to database');
         } else {
           console.error('❌ clearHand: Failed to sync empty hand to database:', response.status);
         }
@@ -869,8 +875,8 @@ export const useSessionStore = create<SessionState>()(
       migrate: (persistedState: any, version: number) => {
         // Migration function to update old data structures
         if (persistedState?.searchPreferences?.sort === 'name') {
-          console.log('🔄 Migrating sort value from "name" to "name_asc"');
-          persistedState.searchPreferences.sort = 'name_asc';
+          console.log('🔄 Migrating sort value from "name" to "recent_series_rarity_desc"');
+          persistedState.searchPreferences.sort = 'recent_series_rarity_desc';
         }
         return persistedState;
       },

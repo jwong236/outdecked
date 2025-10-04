@@ -36,9 +36,7 @@ export function CartPage() {
   useEffect(() => {
     const loadHand = async () => {
       try {
-        console.log('🛒 CartPage: Loading hand data from sessionStore:', handCart.handItems);
         const expandedHand = await expandHandItems(handCart.handItems);
-        console.log('🛒 CartPage: Expanded hand data:', expandedHand);
         setHand(expandedHand);
         setIsLoading(false);
       } catch (error) {
@@ -56,9 +54,7 @@ export function CartPage() {
 
       try {
         setDecksLoading(true);
-        console.log('🛒 CartPage: Loading full deck data for IDs:', deckBuilder.deckList);
         const fullDecks = await fetchDecksBatch(deckBuilder.deckList);
-        console.log('🛒 CartPage: Loaded full deck data:', fullDecks);
         setDecks(fullDecks);
       } catch (error) {
         console.error('Error loading decks:', error);
@@ -73,7 +69,6 @@ export function CartPage() {
     
     // Listen for cart updates
     const handleCartUpdate = () => {
-      console.log('🛒 CartPage: Received cartUpdated event, reloading hand...');
       loadHand();
     };
     
@@ -194,7 +189,6 @@ export function CartPage() {
         
         // Update the session store with the fresh deck data
         setCurrentDeck(newDeck);
-        console.log('🛒 Updated session store with new deck data:', newDeck);
       }
       
       // Reload decks to reflect the new deck
@@ -234,16 +228,12 @@ export function CartPage() {
         }
 
         // Add cards to existing deck using the batch endpoint
-        console.log('🛒 Copy to existing deck - hand array:', hand);
-        console.log('🛒 Copy to existing deck - hand length:', hand.length);
         const cardsToAdd = hand.map(card => {
-          console.log('🛒 Processing card for existing deck:', { name: card.name, product_id: card.product_id, quantity: card.quantity });
           return {
             card_id: card.product_id,
             quantity: card.quantity || 1
           };
         });
-        console.log('🛒 Cards to add to existing deck:', cardsToAdd);
 
         const addCardsResponse = await fetch(`/api/user/decks/${selectedDeckId}/cards/batch`, {
           method: 'POST',
@@ -270,7 +260,6 @@ export function CartPage() {
           
           // Update the session store with the fresh deck data
           setCurrentDeck(updatedDeck);
-          console.log('🛒 Updated session store with fresh deck data:', updatedDeck);
         }
         
         setShowCopyToDeckModal(false);

@@ -1,16 +1,16 @@
 """
-Authentication and User Management System
+SQLAlchemy-based Authentication and User Management System
 Handles user registration, login, sessions, and role-based access
 """
 
-import sqlite3
 import hashlib
 import secrets
 import json
 from datetime import datetime, timedelta
 from functools import wraps
 from flask import request, jsonify, session, g
-from database import get_db_connection
+from database import get_session
+from models import User, UserPreference, UserSession, UserHand, UserDeck
 
 # Role permissions system
 ROLE_PERMISSIONS = {
@@ -54,7 +54,6 @@ DEFAULT_USER_PREFERENCES = {
     "theme": "dark",
     "language": "en",
     "cards_per_page": "20",
-    "default_sort": "name",
     "show_prices": "true",
     "notifications": "true",
 }
@@ -97,24 +96,20 @@ def generate_session_token():
 
 
 def get_current_user():
-    """Get current user from session"""
+    """Get current user from session using SQLAlchemy"""
     if "user_id" in session:
-        conn = get_db_connection()
-        cursor = conn.execute(
-            "SELECT * FROM users WHERE id = ? AND is_active = TRUE",
-            (session["user_id"],),
-        )
-        user = cursor.fetchone()
-        conn.close()
-        if user:
-            # Handle both Row objects and tuples
-            if hasattr(user, "keys"):
-                return dict(user)
-            else:
-                # Convert tuple to dict using column names
-                columns = [description[0] for description in cursor.description]
-                return dict(zip(columns, user))
-        return None
+        db_session = get_session()
+        try:
+            user = (
+                db_session.query(User)
+                .filter(User.id == session["user_id"], User.is_active == True)
+                .first()
+            )
+            if user:
+                return user.to_dict()
+            return None
+        finally:
+            db_session.close()
     return None
 
 
@@ -181,7 +176,7 @@ def require_permission(permission):
 
 
 def handle_register():
-    """Handle user registration"""
+    """Handle user registration with SQLAlchemy"""
     data = request.get_json()
 
     # Validate input
@@ -204,61 +199,62 @@ def handle_register():
     if "@" not in email:
         return jsonify({"error": "Invalid email format"}), 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
+    db_session = get_session()
     try:
         # Check if username or email already exists
-        cursor.execute(
-            "SELECT id FROM users WHERE username = ? OR email = ?", (username, email)
+        existing_user = (
+            db_session.query(User)
+            .filter((User.username == username) | (User.email == email))
+            .first()
         )
-        if cursor.fetchone():
+        if existing_user:
             return jsonify({"error": "Username or email already exists"}), 400
 
         # Create user
         password_hash = hash_password(password)
-        cursor.execute(
-            """
-            INSERT INTO users (username, email, password_hash, display_name)
-            VALUES (?, ?, ?, ?)
-        """,
-            (username, email, password_hash, username),
+        user = User(
+            username=username,
+            email=email,
+            password_hash=password_hash,
+            display_name=username,
+            role="user",
+            is_active=True,
+            is_verified=False,
         )
+        db_session.add(user)
+        db_session.flush()  # Get the user ID without committing
 
-        user_id = cursor.lastrowid
-
-        # Set default preferences using the existing column-based structure
-        cursor.execute(
-            """
-            INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme)
-            VALUES (?, ?, ?, ?, ?)
-        """,
-            (user_id, "/backgrounds/background-1.jpg", 24, "name", "light"),
+        # Set default preferences
+        preferences = UserPreference(
+            user_id=user.id,
+            background="/backgrounds/background-1.jpg",
+            cards_per_page=24,
+            theme="light",
         )
+        db_session.add(preferences)
 
-        conn.commit()
+        db_session.commit()
 
         return (
             jsonify(
                 {
                     "success": True,
                     "message": "User registered successfully",
-                    "user_id": user_id,
+                    "user_id": user.id,
                 }
             ),
             201,
         )
 
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "Username or email already exists"}), 400
     except Exception as e:
+        db_session.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
-        conn.close()
+        db_session.close()
 
 
 def handle_login():
-    """Handle user login"""
+    """Handle user login with SQLAlchemy"""
     data = request.get_json()
 
     username_or_email = data.get("username", "").strip()
@@ -267,83 +263,81 @@ def handle_login():
     if not username_or_email or not password:
         return jsonify({"error": "Username/email and password are required"}), 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    db_session = get_session()
+    try:
+        # Find user by username or email
+        user = (
+            db_session.query(User)
+            .filter(
+                (User.username == username_or_email) | (User.email == username_or_email)
+            )
+            .filter(User.is_active == True)
+            .first()
+        )
 
-    # Find user by username or email
-    cursor.execute(
-        """
-        SELECT * FROM users 
-        WHERE (username = ? OR email = ?) AND is_active = TRUE
-    """,
-        (username_or_email, username_or_email),
-    )
+        if not user or not verify_password(password, user.password_hash):
+            return jsonify({"error": "Invalid credentials"}), 401
 
-    user = cursor.fetchone()
+        # Create session
+        session_token = generate_session_token()
+        expires_at = datetime.now() + timedelta(days=30)  # 30 day session
 
-    if not user or not verify_password(password, user["password_hash"]):
-        return jsonify({"error": "Invalid credentials"}), 401
+        user_session = UserSession(
+            user_id=user.id,
+            session_token=session_token,
+            expires_at=expires_at,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get("User-Agent", ""),
+        )
+        db_session.add(user_session)
 
-    # Create session
-    session_token = generate_session_token()
-    expires_at = datetime.now() + timedelta(days=30)  # 30 day session
+        # Update last login
+        user.last_login = datetime.now()
 
-    cursor.execute(
-        """
-        INSERT INTO user_sessions (user_id, session_token, expires_at, ip_address, user_agent)
-        VALUES (?, ?, ?, ?, ?)
-    """,
-        (
-            user["id"],
-            session_token,
-            expires_at,
-            request.remote_addr,
-            request.headers.get("User-Agent", ""),
-        ),
-    )
+        db_session.commit()
 
-    # Update last login
-    cursor.execute(
-        "UPDATE users SET last_login = ? WHERE id = ?", (datetime.now(), user["id"])
-    )
+        # Set session
+        session["user_id"] = user.id
+        session["session_token"] = session_token
 
-    conn.commit()
-    conn.close()
+        return jsonify(
+            {
+                "success": True,
+                "message": "Login successful",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email,
+                    "role": user.role,
+                    "display_name": user.display_name,
+                    "avatar_url": user.avatar_url,
+                },
+            }
+        )
 
-    # Set session
-    session["user_id"] = user["id"]
-    session["session_token"] = session_token
-
-    return jsonify(
-        {
-            "success": True,
-            "message": "Login successful",
-            "user": {
-                "id": user["id"],
-                "username": user["username"],
-                "email": user["email"],
-                "role": user["role"],
-                "display_name": user["display_name"],
-                "avatar_url": user["avatar_url"],
-            },
-        }
-    )
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
 
 
 def handle_logout():
-    """Handle user logout"""
+    """Handle user logout with SQLAlchemy"""
     if "session_token" in session:
-        conn = get_db_connection()
-        cursor = conn.cursor()
+        db_session = get_session()
+        try:
+            # Remove session from database
+            db_session.query(UserSession).filter(
+                UserSession.session_token == session["session_token"]
+            ).delete()
 
-        # Remove session from database
-        cursor.execute(
-            "DELETE FROM user_sessions WHERE session_token = ?",
-            (session["session_token"],),
-        )
-
-        conn.commit()
-        conn.close()
+            db_session.commit()
+        except Exception as e:
+            db_session.rollback()
+            print(f"Error during logout: {e}")
+        finally:
+            db_session.close()
 
     # Clear session
     session.clear()
@@ -352,7 +346,7 @@ def handle_logout():
 
 
 def handle_get_current_user():
-    """Get current user information"""
+    """Get current user information with SQLAlchemy"""
     user = get_current_user()
     if not user:
         return jsonify({"error": "Not authenticated"}), 401
@@ -373,126 +367,123 @@ def handle_get_current_user():
 
 
 def handle_get_user_preferences():
-    """Get user preferences"""
+    """Get user preferences with SQLAlchemy"""
     user = get_current_user()
     if not user:
         return jsonify({"error": "Not authenticated"}), 401
 
-    conn = get_db_connection()
-    cursor = conn.execute(
-        "SELECT background, cards_per_page, default_sort, theme FROM user_preferences WHERE user_id = ?",
-        (user["id"],),
-    )
+    db_session = get_session()
+    try:
+        preferences = (
+            db_session.query(UserPreference)
+            .filter(UserPreference.user_id == user["id"])
+            .first()
+        )
 
-    result = cursor.fetchone()
-    conn.close()
+        if preferences:
+            return jsonify(
+                {
+                    "preferences": {
+                        "background": preferences.background,
+                        "cards_per_page": preferences.cards_per_page,
+                        "theme": preferences.theme,
+                    }
+                }
+            )
+        else:
+            return jsonify(
+                {
+                    "preferences": {
+                        "background": "/backgrounds/background-1.jpg",
+                        "cards_per_page": 24,
+                        "theme": "light",
+                    }
+                }
+            )
 
-    if result:
-        preferences = {
-            "background": result["background"],
-            "cards_per_page": result["cards_per_page"],
-            "default_sort": result["default_sort"],
-            "theme": result["theme"],
-        }
-    else:
-        preferences = {
-            "background": "/backgrounds/background-1.jpg",
-            "cards_per_page": 24,
-            "default_sort": "name",
-            "theme": "light",
-        }
-
-    return jsonify({"preferences": preferences})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
 
 
 def handle_update_user_preferences():
-    """Update user preferences"""
+    """Update user preferences with SQLAlchemy"""
     user = get_current_user()
     if not user:
         return jsonify({"error": "Not authenticated"}), 401
 
     data = request.get_json()
-    preferences = data.get("preferences", {})
+    preferences_data = data.get("preferences", {})
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # Update specific columns
-    background = preferences.get("background", "/backgrounds/background-1.jpg")
-    cards_per_page = preferences.get("cards_per_page", 24)
-    default_sort = preferences.get("default_sort", "name")
-    theme = preferences.get("theme", "light")
-
-    # Check if preferences exist
-    existing = cursor.execute(
-        "SELECT id FROM user_preferences WHERE user_id = ? LIMIT 1",
-        (user["id"],),
-    ).fetchone()
-
-    if existing:
-        # Update existing preferences
-        cursor.execute(
-            """
-            UPDATE user_preferences 
-            SET background = ?, cards_per_page = ?, default_sort = ?, theme = ?, updated_at = ?
-            WHERE user_id = ?
-            """,
-            (
-                background,
-                cards_per_page,
-                default_sort,
-                theme,
-                datetime.now(),
-                user["id"],
-            ),
-        )
-    else:
-        # Insert new preferences
-        cursor.execute(
-            """
-            INSERT INTO user_preferences (user_id, background, cards_per_page, default_sort, theme, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            (
-                user["id"],
-                background,
-                cards_per_page,
-                default_sort,
-                theme,
-                datetime.now(),
-            ),
+    db_session = get_session()
+    try:
+        # Get or create preferences
+        preferences = (
+            db_session.query(UserPreference)
+            .filter(UserPreference.user_id == user["id"])
+            .first()
         )
 
-    conn.commit()
-    conn.close()
+        if not preferences:
+            preferences = UserPreference(user_id=user["id"])
+            db_session.add(preferences)
 
-    return jsonify({"success": True, "message": "Preferences updated"})
+        # Update specific fields
+        preferences.background = preferences_data.get(
+            "background", "/backgrounds/background-1.jpg"
+        )
+        preferences.cards_per_page = preferences_data.get("cards_per_page", 24)
+        preferences.theme = preferences_data.get("theme", "light")
+        preferences.updated_at = datetime.now()
+
+        db_session.commit()
+
+        return jsonify({"success": True, "message": "Preferences updated"})
+
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
 
 
 def handle_get_users():
-    """Get all users (admin only)"""
+    """Get all users (admin only) with SQLAlchemy"""
     user = get_current_user()
     if not user or user["role"] not in ["admin", "owner"]:
         return jsonify({"error": "Insufficient permissions"}), 403
 
-    conn = get_db_connection()
-    cursor = conn.execute(
-        """
-        SELECT id, username, email, role, display_name, is_active, 
-               is_verified, last_login, created_at
-        FROM users 
-        ORDER BY created_at DESC
-    """
-    )
+    db_session = get_session()
+    try:
+        users = db_session.query(User).order_by(User.created_at.desc()).all()
 
-    users = [dict(row) for row in cursor.fetchall()]
-    conn.close()
+        users_data = []
+        for u in users:
+            users_data.append(
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "email": u.email,
+                    "role": u.role,
+                    "display_name": u.display_name,
+                    "is_active": u.is_active,
+                    "is_verified": u.is_verified,
+                    "last_login": u.last_login.isoformat() if u.last_login else None,
+                    "created_at": u.created_at.isoformat() if u.created_at else None,
+                }
+            )
 
-    return jsonify({"users": users})
+        return jsonify({"users": users_data})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
 
 
 def handle_update_user_role():
-    """Update user role (admin/owner only)"""
+    """Update user role (admin/owner only) with SQLAlchemy"""
     user = get_current_user()
     if not user or user["role"] not in ["admin", "owner"]:
         return jsonify({"error": "Insufficient permissions"}), 403
@@ -511,89 +502,90 @@ def handle_update_user_role():
     if new_role == "owner" and user["role"] != "owner":
         return jsonify({"error": "Only owners can create other owners"}), 403
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    db_session = get_session()
+    try:
+        target_user = db_session.query(User).filter(User.id == target_user_id).first()
+        if not target_user:
+            return jsonify({"error": "User not found"}), 404
 
-    cursor.execute(
-        "UPDATE users SET role = ?, updated_at = ? WHERE id = ?",
-        (new_role, datetime.now(), target_user_id),
-    )
+        target_user.role = new_role
+        target_user.updated_at = datetime.now()
 
-    if cursor.rowcount == 0:
-        return jsonify({"error": "User not found"}), 404
+        db_session.commit()
 
-    conn.commit()
-    conn.close()
+        return jsonify({"success": True, "message": "User role updated"})
 
-    return jsonify({"success": True, "message": "User role updated"})
+    except Exception as e:
+        db_session.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
 
 
 def handle_get_user_stats():
-    """Get user statistics (admin only)"""
+    """Get user statistics (admin only) with SQLAlchemy"""
     user = get_current_user()
     if not user or user["role"] not in ["admin", "owner"]:
         return jsonify({"error": "Insufficient permissions"}), 403
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
+    db_session = get_session()
+    try:
+        from sqlalchemy import func
 
-    # Get user counts by role
-    cursor.execute(
-        """
-        SELECT role, COUNT(*) as count 
-        FROM users 
-        WHERE is_active = TRUE 
-        GROUP BY role
-    """
-    )
-    role_counts = {row["role"]: row["count"] for row in cursor.fetchall()}
+        # Get user counts by role
+        role_counts_query = (
+            db_session.query(User.role, func.count(User.id))
+            .filter(User.is_active == True)
+            .group_by(User.role)
+        )
+        role_counts = {role: count for role, count in role_counts_query.all()}
 
-    # Get total users
-    cursor.execute("SELECT COUNT(*) as total FROM users WHERE is_active = TRUE")
-    total_users = cursor.fetchone()["total"]
+        # Get total users
+        total_users = (
+            db_session.query(func.count(User.id))
+            .filter(User.is_active == True)
+            .scalar()
+        )
 
-    # Get recent registrations (last 30 days)
-    cursor.execute(
-        """
-        SELECT COUNT(*) as recent 
-        FROM users 
-        WHERE created_at > datetime('now', '-30 days') AND is_active = TRUE
-    """
-    )
-    recent_users = cursor.fetchone()["recent"]
+        # Get recent registrations (last 30 days)
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        recent_users = (
+            db_session.query(func.count(User.id))
+            .filter(User.created_at > thirty_days_ago, User.is_active == True)
+            .scalar()
+        )
 
-    conn.close()
+        return jsonify(
+            {
+                "total_users": total_users,
+                "recent_users": recent_users,
+                "role_counts": role_counts,
+            }
+        )
 
-    return jsonify(
-        {
-            "total_users": total_users,
-            "recent_users": recent_users,
-            "role_counts": role_counts,
-        }
-    )
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    finally:
+        db_session.close()
 
 
 def handle_get_user_hand():
-    """Get user's saved hand"""
+    """Get user's saved hand with SQLAlchemy"""
     user = get_current_user()
     if not user:
         return jsonify({"error": "Not authenticated"}), 401
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
+    db_session = get_session()
     try:
-        cursor.execute(
-            """
-            SELECT hand_data FROM user_hands 
-            WHERE user_id = ?
-        """,
-            (user["id"],),
+        user_hand = (
+            db_session.query(UserHand).filter(UserHand.user_id == user["id"]).first()
         )
 
-        result = cursor.fetchone()
-        if result:
-            hand_data = json.loads(result["hand_data"])
+        if user_hand:
+            hand_data = json.loads(user_hand.hand_data)
+            # Ensure hand_data is an array
+            if not isinstance(hand_data, list):
+                hand_data = []
             return jsonify({"hand": hand_data})
         else:
             return jsonify({"hand": []})
@@ -601,11 +593,11 @@ def handle_get_user_hand():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
-        conn.close()
+        db_session.close()
 
 
 def handle_save_user_hand():
-    """Save user's hand to database"""
+    """Save user's hand to database with SQLAlchemy"""
     user = get_current_user()
     if not user:
         return jsonify({"error": "Not authenticated"}), 401
@@ -614,58 +606,55 @@ def handle_save_user_hand():
     if not data or "hand" not in data:
         return jsonify({"error": "Hand data is required"}), 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
+    db_session = get_session()
     try:
         hand_json = json.dumps(data["hand"])
 
-        # Insert or update user hand
-        cursor.execute(
-            """
-            INSERT OR REPLACE INTO user_hands (user_id, hand_data, updated_at)
-            VALUES (?, ?, datetime('now'))
-        """,
-            (user["id"], hand_json),
+        # Get or create user hand
+        user_hand = (
+            db_session.query(UserHand).filter(UserHand.user_id == user["id"]).first()
         )
 
-        conn.commit()
+        if user_hand:
+            # Update existing hand
+            user_hand.hand_data = hand_json
+            user_hand.updated_at = datetime.now()
+        else:
+            # Create new hand
+            user_hand = UserHand(
+                user_id=user["id"],
+                hand_data=hand_json,
+            )
+            db_session.add(user_hand)
+
+        db_session.commit()
         return jsonify({"success": True, "message": "Hand saved successfully"})
 
     except Exception as e:
+        db_session.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
-        conn.close()
+        db_session.close()
 
 
 def handle_get_user_decks():
-    """Get user's saved decks"""
+    """Get user's saved decks with SQLAlchemy"""
     user = get_current_user()
     if not user:
         return jsonify({"error": "Not authenticated"}), 401
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
+    db_session = get_session()
     try:
-        cursor.execute(
-            """
-            SELECT deck_data FROM user_decks 
-            WHERE user_id = ?
-            ORDER BY updated_at DESC
-        """,
-            (user["id"],),
+        user_decks = (
+            db_session.query(UserDeck)
+            .filter(UserDeck.user_id == user["id"])
+            .order_by(UserDeck.updated_at.desc())
+            .all()
         )
 
-        results = cursor.fetchall()
         decks = []
-
-        for row in results:
-            # Handle both Row objects and tuples
-            if hasattr(row, "keys"):
-                deck_data = json.loads(row["deck_data"])
-            else:
-                deck_data = json.loads(row[0])  # deck_data is at index 0
+        for deck in user_decks:
+            deck_data = json.loads(deck.deck_data)
             decks.append(deck_data)
 
         return jsonify({"success": True, "decks": decks})
@@ -673,11 +662,11 @@ def handle_get_user_decks():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
     finally:
-        conn.close()
+        db_session.close()
 
 
 def handle_save_user_decks():
-    """Save user's decks to database"""
+    """Save user's decks to database with SQLAlchemy"""
     user = get_current_user()
     if not user:
         return jsonify({"error": "Not authenticated"}), 401
@@ -686,28 +675,26 @@ def handle_save_user_decks():
     if not data or "decks" not in data:
         return jsonify({"error": "Decks data is required"}), 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
+    db_session = get_session()
     try:
         # Delete existing decks for this user
-        cursor.execute("DELETE FROM user_decks WHERE user_id = ?", (user["id"],))
+        db_session.query(UserDeck).filter(UserDeck.user_id == user["id"]).delete()
 
         # Insert new decks
         for deck in data["decks"]:
             deck_json = json.dumps(deck)
-            cursor.execute(
-                """
-                INSERT INTO user_decks (user_id, deck_id, deck_data, updated_at)
-                VALUES (?, ?, ?, datetime('now'))
-            """,
-                (user["id"], deck["id"], deck_json),
+            new_deck = UserDeck(
+                user_id=user["id"],
+                deck_id=deck["id"],
+                deck_data=deck_json,
             )
+            db_session.add(new_deck)
 
-        conn.commit()
+        db_session.commit()
         return jsonify({"success": True, "message": "Decks saved successfully"})
 
     except Exception as e:
+        db_session.rollback()
         return jsonify({"error": str(e)}), 500
     finally:
-        conn.close()
+        db_session.close()
