@@ -48,7 +48,7 @@ export function useDeckValidation(deck: Deck | null, expandedCards: ExpandedCard
           card_id: card.product_id,
           quantity: card.quantity,
           name: card.name,
-          card_number: card.attributes?.find(attr => attr.name === 'Number')?.value || card.name,
+          card_number: card.attributes?.find(attr => attr.name === 'card_number')?.value || card.name,
           attributes: card.attributes || []
         }))
       };
