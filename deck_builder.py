@@ -25,9 +25,9 @@ def handle_get_decks():
             if deck.get("id"):
                 deck_ids.append(deck["id"])
 
-        # Sort by last modified (newest first) - we need to get this from the full deck data
+        # Sort by updated_at (newest first) - we need to get this from the full deck data
         decks_with_timestamps = [
-            (deck["id"], deck.get("last_modified", ""))
+            (deck["id"], deck.get("updated_at", deck.get("last_modified", "")))
             for deck in decks
             if deck.get("id")
         ]
