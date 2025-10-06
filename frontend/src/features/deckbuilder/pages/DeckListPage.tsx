@@ -279,12 +279,20 @@ export function DeckListPage() {
           // This would need to be enhanced based on your color data structure
           return 0; // Placeholder - would need actual color data
         case 'most_recent':
-          // Sort by most recently updated/created
-          const dateA = new Date(a.updated_at || a.created_at || 0);
-          const dateB = new Date(b.updated_at || b.created_at || 0);
+          // Sort by most recently updated/created - only use actual timestamps
+          const getTimestamp = (deck: Deck) => {
+            // Only use updated_at or created_at, no fallbacks
+            const timestamp = deck.updated_at || deck.created_at;
+            if (!timestamp) return 0;
+            
+            const date = new Date(timestamp);
+            return isNaN(date.getTime()) ? 0 : date.getTime();
+          };
           
+          const timestampA = getTimestamp(a);
+          const timestampB = getTimestamp(b);
           
-          return dateB.getTime() - dateA.getTime(); // Descending order (most recent first)
+          return timestampB - timestampA; // Descending order (most recent first)
         default:
           return 0;
       }

@@ -26,8 +26,32 @@ def handle_get_decks():
                 deck_ids.append(deck["id"])
 
         # Sort by updated_at (newest first) - we need to get this from the full deck data
+        def get_timestamp_for_sorting(deck):
+            """Get the best timestamp for sorting - only use actual timestamps."""
+            # Only use updated_at or created_at, no fallbacks
+            timestamp = deck.get("updated_at") or deck.get("created_at")
+            if not timestamp:
+                return ""
+
+            # Try to parse as ISO format first, then fallback to string comparison
+            try:
+                from datetime import datetime
+
+                # If it's already a datetime object, convert to ISO string
+                if isinstance(timestamp, datetime):
+                    return timestamp.isoformat()
+                # If it's a string, try to parse and re-format to ensure consistent format
+                elif isinstance(timestamp, str):
+                    parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                    return parsed.isoformat()
+            except (ValueError, TypeError):
+                # If parsing fails, return the original string for string comparison
+                pass
+
+            return timestamp
+
         decks_with_timestamps = [
-            (deck["id"], deck.get("updated_at", deck.get("last_modified", "")))
+            (deck["id"], get_timestamp_for_sorting(deck))
             for deck in decks
             if deck.get("id")
         ]
