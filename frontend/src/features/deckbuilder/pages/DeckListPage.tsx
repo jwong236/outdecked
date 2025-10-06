@@ -271,8 +271,16 @@ export function DeckListPage() {
           return 0; // Placeholder - would need actual color data
         case 'cost':
           // Sort by total deck cost (sum of all card prices)
-          const costA = a.cards.reduce((sum, card) => sum + (card.quantity * 0), 0); // Placeholder - would need actual price data
-          const costB = b.cards.reduce((sum, card) => sum + (card.quantity * 0), 0); // Placeholder - would need actual price data
+          const costA = a.cards.reduce((sum, card) => {
+            // Get price from card data if available, otherwise use 0
+            const cardPrice = (card as any).price || 0;
+            return sum + (card.quantity * cardPrice);
+          }, 0);
+          const costB = b.cards.reduce((sum, card) => {
+            // Get price from card data if available, otherwise use 0
+            const cardPrice = (card as any).price || 0;
+            return sum + (card.quantity * cardPrice);
+          }, 0);
           return costB - costA; // Descending order (most expensive first)
         case 'most_recent':
           // Sort by most recently updated/created
@@ -344,7 +352,7 @@ export function DeckListPage() {
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
             </div>
           ) : decks.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {sortedDecks.map((deck) => (
               <div
                 key={deck.id}
@@ -536,6 +544,21 @@ export function DeckListPage() {
                         <span>Cards:</span>
                         <span className="text-white">
                           {deck.cards.reduce((sum, c) => sum + c.quantity, 0)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Cost:</span>
+                        <span className="text-green-400">
+                          ${deck.cards.reduce((sum, card) => {
+                            const cardPrice = (card as any).price || 0;
+                            return sum + (card.quantity * cardPrice);
+                          }, 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Created:</span>
+                        <span className="text-white">
+                          {formatDate(deck.created_at || deck.created_date || '')}
                         </span>
                       </div>
                       <div className="flex justify-between">
