@@ -27,7 +27,7 @@ export function DeckListPage() {
   const [showSignInModal, setShowSignInModal] = useState(false);
   const [showCoverSelectionModal, setShowCoverSelectionModal] = useState(false);
   const [deckForCoverChange, setDeckForCoverChange] = useState<Deck | null>(null);
-  const [sortBy, setSortBy] = useState<'name' | 'series' | 'color' | 'cost' | 'most_recent'>('most_recent');
+  const [sortBy, setSortBy] = useState<'name' | 'series' | 'color' | 'most_recent'>('most_recent');
 
   // Load series data
   const { data: seriesData } = useSeriesValues();
@@ -269,9 +269,6 @@ export function DeckListPage() {
           // For now, we'll sort by the first card's color if available
           // This would need to be enhanced based on your color data structure
           return 0; // Placeholder - would need actual color data
-        case 'cost':
-          // Cost sorting not available - card prices not included in deck data
-          return 0;
         case 'most_recent':
           // Sort by most recently updated/created
           const dateA = new Date(a.updated_at || a.created_at || 0);
@@ -320,7 +317,7 @@ export function DeckListPage() {
             <div className="relative">
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as 'name' | 'series' | 'color' | 'cost' | 'most_recent')}
+                onChange={(e) => setSortBy(e.target.value as 'name' | 'series' | 'color' | 'most_recent')}
                 className="px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none pr-8"
               >
                 <option value="most_recent" className="bg-gray-800 text-white">Most Recent</option>
