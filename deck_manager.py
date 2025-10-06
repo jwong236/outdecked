@@ -410,6 +410,18 @@ class AuthenticatedDeckManager(DeckManager):
 
             if user_deck:
                 deck_data = json.loads(user_deck.deck_data)
+                # Add database timestamps to deck data for proper sorting
+                deck_data["updated_at"] = (
+                    user_deck.updated_at.isoformat() if user_deck.updated_at else None
+                )
+                deck_data["created_at"] = (
+                    user_deck.created_at.isoformat() if user_deck.created_at else None
+                )
+                # Ensure last_modified exists for compatibility
+                if not deck_data.get("last_modified"):
+                    deck_data["last_modified"] = (
+                        deck_data["updated_at"] or deck_data["created_at"]
+                    )
                 return deck_data
             return None
         except Exception as e:

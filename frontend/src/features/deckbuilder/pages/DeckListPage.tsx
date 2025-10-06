@@ -77,13 +77,6 @@ export function DeckListPage() {
     try {
       const fullDecks = await fetchDecksBatch(deckBuilder.deckList);
       
-      // Debug logging for deck data
-      console.log('Loaded decks:', fullDecks.map(deck => ({
-        name: deck.name,
-        updated_at: deck.updated_at,
-        created_at: deck.created_at,
-        last_modified: deck.last_modified
-      })));
       
       setDecks(fullDecks);
     } catch (error) {
@@ -283,9 +276,6 @@ export function DeckListPage() {
           const dateA = new Date(a.updated_at || a.created_at || 0);
           const dateB = new Date(b.updated_at || b.created_at || 0);
           
-          // Debug logging
-          console.log('Sorting deck:', a.name, 'dateA:', a.updated_at || a.created_at, 'parsed:', dateA);
-          console.log('Sorting deck:', b.name, 'dateB:', b.updated_at || b.created_at, 'parsed:', dateB);
           
           return dateB.getTime() - dateA.getTime(); // Descending order (most recent first)
         default:
