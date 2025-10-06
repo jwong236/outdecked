@@ -77,6 +77,13 @@ export function DeckListPage() {
     try {
       const fullDecks = await fetchDecksBatch(deckBuilder.deckList);
       
+      // Debug: Check if timestamps are now available
+      console.log('Deck timestamps after fix:', fullDecks.map(deck => ({
+        name: deck.name,
+        updated_at: deck.updated_at,
+        created_at: deck.created_at,
+        last_modified: deck.last_modified
+      })));
       
       setDecks(fullDecks);
     } catch (error) {
