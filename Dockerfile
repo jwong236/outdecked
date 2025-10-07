@@ -36,12 +36,11 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements and install Python dependencies
-COPY requirements.txt .
+COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy Python application files
-COPY *.py ./
-COPY models.py ./
+COPY backend/app/ ./app/
 
 # Note: Database will be created fresh during startup to ensure schema compatibility
 

@@ -116,11 +116,11 @@ export function DeckBuilderDeckCard({
 
       {/* Quantity Control - Always show for deck cards */}
       <div className="pt-1">
-        <QuantityControl 
+          <QuantityControl 
           card={card} 
           variant="control"
           context="deck"
-          buttonLayout="5-button"
+          buttonLayout="4-button"
           size="sm" 
           className="w-full justify-center"
           quantity={card.quantity}

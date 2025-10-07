@@ -30,7 +30,7 @@ steps:
       - '--timeout'
       - '300'
       - '--set-env-vars'
-      - 'FLASK_ENV=production,DB_HOST=/cloudsql/outdecked:us-central1:outdecked-db,DB_NAME=postgres,DB_USER=postgres,DB_PASSWORD=outdecked-prod-2024'
+      - 'FLASK_ENV=production,DB_HOST=/cloudsql/outdecked:us-central1:outdecked-db,DB_NAME=postgres,DB_USER=postgres,DB_PASSWORD=${_DB_PASSWORD}'
       - '--add-cloudsql-instances'
       - 'outdecked:us-central1:outdecked-db'
 

@@ -72,6 +72,9 @@ export function SearchLayout({
 
   // Initialize filters from URL on mount (only once)
   useEffect(() => {
+    // Only apply URL filters after session is initialized to avoid race conditions
+    if (!isClient) return;
+    
     const urlFilters = getFiltersFromUrl();
     if (Object.keys(urlFilters).length > 0) {
       // Apply URL filters to searchPreferences
@@ -93,7 +96,7 @@ export function SearchLayout({
         });
       }
     }
-  }, []); // Empty dependency array - only run once on mount
+  }, [isClient]); // Only run after client-side hydration
 
   // Set results per page
   useEffect(() => {

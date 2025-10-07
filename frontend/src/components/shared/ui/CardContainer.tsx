@@ -217,7 +217,7 @@ export function CardContainer({
             card={card} 
             variant="control"
             context="deck"
-            buttonLayout="5-button"
+            buttonLayout="4-button"
             size={size}
             className="w-full justify-center"
             onQuantityChange={onQuantityChange}

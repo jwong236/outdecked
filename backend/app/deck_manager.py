@@ -422,10 +422,12 @@ class AuthenticatedDeckManager(DeckManager):
                     deck_data["last_modified"] = (
                         deck_data["updated_at"] or deck_data["created_at"]
                     )
-                
+
                 # Debug logging
-                print(f"[DECK] load_deck - {deck_data.get('name', 'Unknown')} timestamps: updated_at={deck_data.get('updated_at')}, created_at={deck_data.get('created_at')}")
-                
+                print(
+                    f"[DECK] load_deck - {deck_data.get('name', 'Unknown')} timestamps: updated_at={deck_data.get('updated_at')}, created_at={deck_data.get('created_at')}"
+                )
+
                 return deck_data
             return None
         except Exception as e:

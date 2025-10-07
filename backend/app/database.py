@@ -49,12 +49,19 @@ class DatabaseManager:
             self.engine = create_engine(database_url)
             return
 
-        # Fall back to individual environment variables
-        db_host = os.environ.get("DB_HOST", "localhost")
-        db_port = os.environ.get("DB_PORT", "5432")
-        db_name = os.environ.get("DB_NAME", "outdecked")
-        db_user = os.environ.get("DB_USER", "postgres")
-        db_password = os.environ.get("DB_PASSWORD", "Applemon236!")
+        # Get required environment variables - NO FALLBACKS
+        db_host = os.environ.get("DB_HOST")
+        db_port = os.environ.get("DB_PORT")
+        db_name = os.environ.get("DB_NAME")
+        db_user = os.environ.get("DB_USER")
+        db_password = os.environ.get("DB_PASSWORD")
+
+        # Validate that all required environment variables are set
+        if not all([db_host, db_port, db_name, db_user, db_password]):
+            raise ValueError(
+                "Missing required database environment variables. "
+                "Set DB_HOST, DB_PORT, DB_NAME, DB_USER, and DB_PASSWORD"
+            )
 
         # Cloud SQL connection string
         if db_host.startswith("/cloudsql/"):
@@ -77,9 +84,22 @@ class DatabaseManager:
     def init_db(self):
         """Initialize the database with all tables."""
         try:
-            # Create all tables
+            # Check if tables already exist
+            from sqlalchemy import inspect
+
+            inspector = inspect(self.engine)
+            existing_tables = inspector.get_table_names()
+
+            # Create all tables (only creates if they don't exist)
             Base.metadata.create_all(self.engine)
-            print("Database tables created successfully")
+
+            # Only print message if tables were actually created
+            if not existing_tables:
+                print("Database tables created successfully")
+            else:
+                print(
+                    f"Connected to existing database with {len(existing_tables)} tables"
+                )
 
             # Populate categories and groups
             self.populate_categories_and_groups()
@@ -103,6 +123,7 @@ class DatabaseManager:
                 data = response.json()
                 categories = data.get("results", [])
 
+                new_categories = 0
                 for category_data in categories:
                     # Check if category already exists
                     existing = (
@@ -118,9 +139,13 @@ class DatabaseManager:
                             description=category_data.get("categoryDescription", ""),
                         )
                         session.add(category)
+                        new_categories += 1
 
                 session.commit()
-                print(f"Populated {len(categories)} categories")
+                if new_categories > 0:
+                    print(f"Populated {new_categories} new categories")
+                else:
+                    print("Categories already up to date")
 
             # Fetch Union Arena groups
             response = requests.get("https://tcgcsv.com/tcgplayer/81/groups")
@@ -128,6 +153,7 @@ class DatabaseManager:
                 data = response.json()
                 groups = data.get("results", [])
 
+                new_groups = 0
                 for group_data in groups:
                     # Check if group already exists
                     existing = (
@@ -146,9 +172,13 @@ class DatabaseManager:
                             modified_on=group_data.get("modifiedOn"),
                         )
                         session.add(group)
+                        new_groups += 1
 
                 session.commit()
-                print(f"Populated {len(groups)} Union Arena groups")
+                if new_groups > 0:
+                    print(f"Populated {new_groups} new Union Arena groups")
+                else:
+                    print("Union Arena groups already up to date")
 
         except Exception as e:
             print(f"Error populating categories and groups: {e}")
@@ -166,10 +196,12 @@ class DatabaseManager:
             if not owner:
                 from werkzeug.security import generate_password_hash
 
+                # Get admin password from environment or use default
+                admin_password = os.environ.get("ADMIN_PASSWORD", "admin123")
                 owner = User(
                     username="admin",
                     email="admin@outdecked.com",
-                    password_hash=generate_password_hash("admin123"),
+                    password_hash=generate_password_hash(admin_password),
                     role="owner",
                     display_name="Administrator",
                     is_active=True,
@@ -194,10 +226,12 @@ class DatabaseManager:
             if not test_user:
                 from werkzeug.security import generate_password_hash
 
+                # Get test user password from environment or use default
+                test_password = os.environ.get("TEST_PASSWORD", "test123")
                 test_user = User(
                     username="testuser",
                     email="test@outdecked.com",
-                    password_hash=generate_password_hash("test123"),
+                    password_hash=generate_password_hash(test_password),
                     role="user",
                     display_name="Test User",
                     is_active=True,

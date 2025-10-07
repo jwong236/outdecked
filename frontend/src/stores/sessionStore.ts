@@ -132,6 +132,7 @@ interface SessionState {
   
   // Database sync
   syncWithDatabase: () => Promise<void>;
+  syncHandToDatabase: () => Promise<void>;
   markAsSynced: () => void;
   
   // Helper functions
@@ -370,35 +371,48 @@ export const useSessionStore = create<SessionState>()(
       
       if (response.ok) {
         const data = await response.json();
-        get().setUser(data.user);
         
-        // Load ALL user data in one coordinated call
+        // Batch update user and load data in one action to reduce race conditions
+        set((state) => ({
+          user: data.user,
+          sessionState: {
+            ...state.sessionState,
+            isInitialized: true,
+          },
+        }), false, 'setUserAndInitialize');
+        
+        // Load user data after setting user
         await get().loadAllUserData();
       } else if (response.status === 401) {
         // 401 is expected when not logged in - this is not an error
         console.log('User not authenticated (401) - this is normal');
-        get().setUser(defaultUser);
+        set((state) => ({
+          user: defaultUser,
+          sessionState: {
+            ...state.sessionState,
+            isInitialized: true,
+          },
+        }), false, 'setUserAndInitialize');
       } else {
         // Other error statuses
         console.error('Unexpected response status:', response.status);
-        get().setUser(defaultUser);
+        set((state) => ({
+          user: defaultUser,
+          sessionState: {
+            ...state.sessionState,
+            isInitialized: true,
+          },
+        }), false, 'setUserAndInitialize');
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      console.error('Error details:', {
-        name: error instanceof Error ? error.name : 'Unknown',
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      get().setUser(defaultUser);
-    } finally {
-      // Mark session as initialized after auth check completes
       set((state) => ({
+        user: defaultUser,
         sessionState: {
           ...state.sessionState,
           isInitialized: true,
         },
-      }), false, 'markSessionInitialized');
+      }), false, 'setUserAndInitialize');
     }
   },
 
@@ -454,50 +468,48 @@ export const useSessionStore = create<SessionState>()(
 
   loadAllUserData: async (): Promise<void> => {
     try {
+      console.log('🔄 Loading user data from database...');
       
-      // Load user preferences
-      await get().loadUserPreferences();
+      // Load user preferences, hand, and deck data in parallel
+      const [preferencesResult, handResponse, decksResponse] = await Promise.allSettled([
+        get().loadUserPreferences(),
+        fetch(apiConfig.getApiUrl('/api/users/me/hand'), { credentials: 'include' }),
+        fetch(apiConfig.getApiUrl('/api/user/decks'), { credentials: 'include' })
+      ]);
       
-      // Load user's hand from database
-      const handResponse = await fetch(apiConfig.getApiUrl('/api/users/me/hand'), {
-        credentials: 'include',
-      });
-      const handData = handResponse.ok ? await handResponse.json() : { hand: [] };
+      const handData = handResponse.status === 'fulfilled' && handResponse.value.ok 
+        ? await handResponse.value.json() 
+        : { hand: [] };
+        
+      const decksData = decksResponse.status === 'fulfilled' && decksResponse.value.ok 
+        ? await decksResponse.value.json() 
+        : { data: { deck_ids: [] } };
       
-      // Load user's deck IDs from database
-      const decksResponse = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
-        credentials: 'include',
-      });
-      const decksData = decksResponse.ok ? await decksResponse.json() : { data: { deck_ids: [] } };
-
-      console.log('✅ All user data loaded from database');
+      console.log('✅ User data loaded from database');
       
-      // Convert hand data to CardRef format if it contains full Card objects
+      // Convert hand data to CardRef format
       const handArray = Array.isArray(handData.hand) ? handData.hand : [];
       const handItems = handArray.map((item: any) => {
-        // If the item has a product_id, it's already a CardRef
         if (item.card_id && typeof item.quantity === 'number') {
           return item;
         }
-        // If the item has full card data, convert it to CardRef
         if (item.product_id) {
           return {
             card_id: item.product_id,
             quantity: item.quantity || 1
           };
         }
-        // Fallback for any other format
         return {
           card_id: item.id || item.card_id,
           quantity: item.quantity || 1
         };
       });
       
-      // Update session store with loaded data
+      // Only update if we have data from database, otherwise preserve local state
       set((state) => ({
         handCart: {
           ...state.handCart,
-          handItems: handItems,
+          handItems: handItems.length > 0 ? handItems : state.handCart.handItems,
         },
         deckBuilder: {
           ...state.deckBuilder,
@@ -740,6 +752,15 @@ export const useSessionStore = create<SessionState>()(
         handCart: { ...state.handCart, handItems: newHandItems }
       };
     }, false, 'addToHand');
+    
+    // Sync to database if user is logged in
+    const state = get();
+    if (state.user.id) {
+      // Debounce database sync to avoid too many requests
+      setTimeout(() => {
+        get().syncHandToDatabase();
+      }, 500);
+    }
   },
 
   removeFromHand: (product_id) => {
@@ -749,6 +770,14 @@ export const useSessionStore = create<SessionState>()(
         handItems: state.handCart.handItems.filter(item => item.card_id !== product_id)
       }
     }), false, 'removeFromHand');
+    
+    // Sync to database if user is logged in
+    const state = get();
+    if (state.user.id) {
+      setTimeout(() => {
+        get().syncHandToDatabase();
+      }, 500);
+    }
   },
 
   updateHandQuantity: (product_id, quantity) => {
@@ -771,6 +800,14 @@ export const useSessionStore = create<SessionState>()(
         handCart: { ...state.handCart, handItems: newHandItems }
       };
     }, false, 'updateHandQuantity');
+    
+    // Sync to database if user is logged in
+    const state = get();
+    if (state.user.id) {
+      setTimeout(() => {
+        get().syncHandToDatabase();
+      }, 500);
+    }
   },
 
   clearHand: async () => {
@@ -841,6 +878,30 @@ export const useSessionStore = create<SessionState>()(
     // TODO: Implement database sync logic
     // This will upload local changes and download user data
     get().markAsSynced();
+  },
+
+  syncHandToDatabase: async () => {
+    const state = get();
+    if (!state.user.id) {
+      return;
+    }
+
+    try {
+      const response = await fetch(apiConfig.getApiUrl('/api/users/me/hand'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ hand: state.handCart.handItems }),
+      });
+
+      if (response.ok) {
+        console.log('✅ Hand synced to database');
+      } else {
+        console.error('❌ Failed to sync hand to database:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error syncing hand to database:', error);
+    }
   },
 
   markAsSynced: () => {
