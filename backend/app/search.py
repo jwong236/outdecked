@@ -7,6 +7,83 @@ from database import get_session
 from sqlalchemy import text
 
 
+def parse_query_syntax(query_string):
+    """
+    Parse query syntax: erwin c:blue,green s:attack_on_titan r:super_rare
+
+    Rules:
+    - Comma within field = OR
+    - Space between fields = AND
+    - Minus prefix = NOT
+    - No colon = name search
+    - Underscores replace spaces in values
+
+    Returns: {
+        'search_query': 'name search terms',
+        'filters': [{'type': 'and/or/not', 'field': 'field_name', 'value': 'value'}, ...]
+    }
+    """
+    filters = []
+    search_terms = []
+
+    # Field shortcuts mapping (NO 'desc' for description)
+    field_map = {
+        "c": "activation_energy",
+        "r": "rarity",
+        "s": "series",
+        "pt": "print_type",
+        "ct": "card_type",
+        "en": "required_energy",
+        "ap": "action_point_cost",
+        "bp": "battle_point",
+        "af": "affinities",
+        "tr": "trigger_type",
+        "ge": "generated_energy",
+    }
+
+    # Split by spaces
+    tokens = query_string.split()
+
+    for token in tokens:
+        # Check for NOT prefix
+        is_not = token.startswith("-")
+        if is_not:
+            token = token[1:]
+
+        if ":" in token:
+            # field:value pattern
+            field_short, values_str = token.split(":", 1)
+            field = field_map.get(field_short, field_short)
+
+            # Split by comma for OR values
+            values = [v.strip().replace("_", " ") for v in values_str.split(",")]
+
+            for value in values:
+                filter_type = "not" if is_not else ("or" if len(values) > 1 else "and")
+                filters.append({"type": filter_type, "field": field, "value": value})
+        else:
+            # No colon = name search term
+            search_terms.append(token.replace("_", " "))
+
+    return {"search_query": " ".join(search_terms), "filters": filters}
+
+
+def normalize_field_name(field):
+    """Convert frontend field names to database attribute names"""
+    field_mapping = {
+        "print_type": "print_type",
+        "rarity": "rarity",
+        "card_type": "card_type",
+        "activation_energy": "activation_energy",
+        "required_energy": "required_energy",
+        "action_point_cost": "action_point_cost",
+        "trigger_type": "trigger_type",
+        "affinities": "affinities",
+        "series": "series",
+    }
+    return field_mapping.get(field, field)
+
+
 def detect_print_type(abbreviation, card_name=None):
     """Automatically detect print type from group abbreviation and card name"""
     if not abbreviation:
@@ -26,26 +103,54 @@ def detect_print_type(abbreviation, card_name=None):
 
 
 def handle_api_search():
-    """Handle the /api/search route with unified filter structure."""
+    """Handle the /api/cards route with GET and query syntax."""
     db_session = get_session()
 
-    # Get basic query parameters from JSON body (unified format)
-    page = 1
-    per_page = 20
-    search_query = ""
-    sort_by = ""
+    # Parse GET parameters
+    page = int(request.args.get("page", 1))
+    per_page = int(request.args.get("per_page", 24))
+    sort_by = request.args.get("sort", "recent_series_rarity_desc")
+
+    # Parse query syntax from 'q' parameter
+    query_string = request.args.get("q", "")
+    if query_string:
+        parsed = parse_query_syntax(query_string)
+        search_query = parsed["search_query"]
+        query_filters = parsed["filters"]
+    else:
+        search_query = ""
+        query_filters = []
+
+    # Detect which fields are specified in query (for smart preset handling)
+    query_fields = {f["field"] for f in query_filters}
+
+    # Initialize filters list
     filters = []
 
-    if request.is_json and request.json:
-        data = request.json
-        print(f"[SEARCH] Backend: Received request data: {data}")
-        print(f"[SEARCH] Backend: per_page from request: {data.get('per_page')}")
-        page = int(data.get("page", 1))
-        per_page = int(data.get("per_page", 20))
-        print(f"[SEARCH] Backend: Final per_page value: {per_page}")
-        search_query = data.get("query", "").strip()
-        sort_by = data.get("sort", "")
-        filters = data.get("filters", [])
+    # Apply presets ONLY if query doesn't override them
+    if "basic_prints" in request.args and "print_type" not in query_fields:
+        filters.extend(
+            [
+                {"type": "or", "field": "print_type", "value": "Base"},
+                {"type": "or", "field": "print_type", "value": "Starter Deck"},
+            ]
+        )
+
+    if "base_rarity" in request.args and "rarity" not in query_fields:
+        rarities = ["Common", "Uncommon", "Rare", "Super Rare"]
+
+        # Include Action Point rarity if no_ap not present AND card_type not overridden
+        if "no_ap" not in request.args and "card_type" not in query_fields:
+            rarities.append("Action Point")
+
+        for rarity in rarities:
+            filters.append({"type": "or", "field": "rarity", "value": rarity})
+
+    if "no_ap" in request.args and "card_type" not in query_fields:
+        filters.append({"type": "not", "field": "card_type", "value": "Action Point"})
+
+    # Add query filters (these take precedence)
+    filters.extend(query_filters)
 
     # Build base query with group name
     base_query = "FROM cards c LEFT JOIN groups g ON c.group_id = g.id"
@@ -54,9 +159,11 @@ def handle_api_search():
     where_conditions = []
     params = {}
 
-    # Handle search query
+    # Handle search query (case-insensitive)
     if search_query:
-        where_conditions.append("(c.name LIKE :search1 OR c.clean_name LIKE :search2)")
+        where_conditions.append(
+            "(c.name ILIKE :search1 OR c.clean_name ILIKE :search2)"
+        )
         search_param = f"%{search_query}%"
         params["search1"] = search_param
         params["search2"] = search_param
@@ -88,16 +195,15 @@ def handle_api_search():
             "action_point_cost",
             "trigger_type",
             "affinities",
-            "PrintType",  # Add PrintType to attributes list
-            "Rarity",  # Add Rarity to attributes list
         ]:
             # Generate unique parameter names for each field value
             existing_params = [
                 p for p in params.keys() if p.startswith(f"{field.lower()}_")
             ]
             param_name = f"{field.lower()}_{len(existing_params)}"
-            condition = f"EXISTS (SELECT 1 FROM card_attributes WHERE card_id = c.id AND name = :{param_name}_field AND value = :{param_name}_value)"
-            params[f"{param_name}_field"] = field
+            # Use ILIKE for case-insensitive matching
+            condition = f"EXISTS (SELECT 1 FROM card_attributes WHERE card_id = c.id AND name = :{param_name}_field AND value ILIKE :{param_name}_value)"
+            params[f"{param_name}_field"] = normalize_field_name(field)
             params[f"{param_name}_value"] = value
         else:
             # Handle other fields
@@ -122,15 +228,15 @@ def handle_api_search():
                 "rarity",
                 "print_type",
                 "trigger_type",
-                "description",
                 "affinities",
             ]:
                 # For card_attributes fields, exclude only if attribute exists AND equals value
                 not_param_field = f"not_{field.lower()}_field"
                 not_param_value = f"not_{field.lower()}_value"
-                not_condition = f"NOT EXISTS (SELECT 1 FROM card_attributes WHERE card_id = c.id AND name = :{not_param_field} AND value = :{not_param_value})"
+                # Use ILIKE for case-insensitive matching
+                not_condition = f"NOT EXISTS (SELECT 1 FROM card_attributes WHERE card_id = c.id AND name = :{not_param_field} AND value ILIKE :{not_param_value})"
                 not_conditions.append(not_condition)
-                params[not_param_field] = field
+                params[not_param_field] = normalize_field_name(field)
                 params[not_param_value] = value
             else:
                 # For direct card fields, use standard NOT logic

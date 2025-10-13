@@ -236,9 +236,9 @@ def search():
 
 
 # Public API - Card Search and Information
-@app.route("/api/cards", methods=["GET", "POST"])
+@app.route("/api/cards", methods=["GET"])
 def api_cards():
-    """Search cards with unified filter structure"""
+    """Search cards with query syntax"""
     return handle_api_search()
 
 

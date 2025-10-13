@@ -76,23 +76,43 @@ export function SearchLayout({
     if (!isClient) return;
     
     const urlFilters = getFiltersFromUrl();
-    if (Object.keys(urlFilters).length > 0) {
+    
+    // If no URL params, apply default presets
+    if (typeof window !== 'undefined' && window.location.search === '') {
+      // Auto-apply default presets
+      const defaultFilters = [
+        { type: 'or' as const, field: 'print_type', value: 'Base', displayText: 'Basic Prints Only' },
+        { type: 'or' as const, field: 'print_type', value: 'Starter Deck', displayText: 'Basic Prints Only' },
+        { type: 'not' as const, field: 'card_type', value: 'Action Point', displayText: 'No Action Points' },
+        { type: 'or' as const, field: 'rarity', value: 'Common', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
+      ];
+      
+      setSearchPreferences({
+        ...searchPreferences,
+        filters: defaultFilters
+      });
+      
+      // Sync to URL
+      syncFiltersToUrl({
+        ...searchPreferences,
+        filters: defaultFilters
+      });
+    } else if (Object.keys(urlFilters).length > 0) {
       // Apply URL filters to searchPreferences
       if (urlFilters.query) {
-        // Query handling could be implemented here if needed
+        setQuery(urlFilters.query);
       }
       if (urlFilters.sort) setSort(urlFilters.sort);
       if (urlFilters.page) setPage(urlFilters.page);
-      if (urlFilters.per_page) {
-        // Note: per_page is handled by the resultsPerPage useEffect below
-      }
       
-      // Apply filters from unified filter system
+      // Apply filters from URL
       if (urlFilters.filters && Array.isArray(urlFilters.filters)) {
-        urlFilters.filters.forEach(filter => {
-          if (filter.field === 'series') setSeries(filter.value);
-          if (filter.field === 'activation_energy') setColor(filter.value);
-          if (filter.field === 'card_type') setCardType(filter.value);
+        setSearchPreferences({
+          ...searchPreferences,
+          filters: urlFilters.filters
         });
       }
     }
