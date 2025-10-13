@@ -920,7 +920,7 @@ export const useSessionStore = create<SessionState>()(
         // Only persist the data we want to save across browser sessions
         user: state.user,
         preferences: state.preferences,
-        searchPreferences: state.searchPreferences,
+        // searchPreferences NOT persisted - handled manually in SearchLayout with sessionStorage
         handCart: state.handCart,
         deckBuilder: {
           // Only persist deckList, NOT currentDeck - load from database instead

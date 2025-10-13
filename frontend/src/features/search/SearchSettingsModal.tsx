@@ -50,7 +50,9 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
   // Update collapsible options when searchPreferences change
   React.useEffect(() => {
     if (collapsiblePrintTypeOptions.length > 0) {
-      const currentPrintTypes = searchPreferences.filters.filter(f => f.field === 'print_type').map(f => f.value);
+      const currentPrintTypes = searchPreferences.filters
+        .filter(f => f.field === 'print_type' && f.type === 'or')
+        .map(f => f.value);
       setCollapsiblePrintTypeOptions(prev => 
         prev.map(option => ({ 
           ...option, 
@@ -62,7 +64,9 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
 
   React.useEffect(() => {
     if (collapsibleCardTypeOptions.length > 0) {
-      const currentCardTypes = searchPreferences.filters.filter(f => f.field === 'card_type').map(f => f.value);
+      const currentCardTypes = searchPreferences.filters
+        .filter(f => f.field === 'card_type' && f.type === 'or')
+        .map(f => f.value);
       setCollapsibleCardTypeOptions(prev => 
         prev.map(option => ({ 
           ...option, 
@@ -74,7 +78,9 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
 
   React.useEffect(() => {
     if (rarityOptions.length > 0) {
-      const currentRarities = searchPreferences.filters.filter(f => f.field === 'rarity').map(f => f.value);
+      const currentRarities = searchPreferences.filters
+        .filter(f => f.field === 'rarity' && f.type === 'or')
+        .map(f => f.value);
       setRarityOptions(prev => 
         prev.map(option => ({ 
           ...option, 
@@ -105,10 +111,16 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
       // Convert arrays to option objects
       setSeriesOptions(seriesData.map((value: string) => ({ value, label: value })));
       
-      // For collapsible options, check if they're in current search preferences
-      const currentPrintTypes = searchPreferences.filters.filter(f => f.field === 'print_type').map(f => f.value);
-      const currentCardTypes = searchPreferences.filters.filter(f => f.field === 'card_type').map(f => f.value);
-      const currentRarities = searchPreferences.filters.filter(f => f.field === 'rarity').map(f => f.value);
+      // For collapsible options, check if they're in current search preferences (OR type only)
+      const currentPrintTypes = searchPreferences.filters
+        .filter(f => f.field === 'print_type' && f.type === 'or')
+        .map(f => f.value);
+      const currentCardTypes = searchPreferences.filters
+        .filter(f => f.field === 'card_type' && f.type === 'or')
+        .map(f => f.value);
+      const currentRarities = searchPreferences.filters
+        .filter(f => f.field === 'rarity' && f.type === 'or')
+        .map(f => f.value);
       
       setCollapsiblePrintTypeOptions(printTypeData.map((value: string) => ({ 
         value, 
@@ -145,7 +157,8 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
   
   // Calculate default filter indicators
   const isBasicPrintsOnly = React.useMemo(() => {
-    const printTypes = searchPreferences.filters.filter(f => f.field === 'print_type').map(f => f.value);
+    const printTypeFilters = searchPreferences.filters.filter(f => f.field === 'print_type' && f.type === 'or');
+    const printTypes = printTypeFilters.map(f => f.value);
     // Basic Prints Only means both Base and Starter Deck are checked, and nothing else
     return printTypes.length === 2 && 
            printTypes.includes('Base') && 
@@ -153,27 +166,27 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
   }, [searchPreferences.filters]);
 
   const isNoActionPoints = React.useMemo(() => {
-    const cardTypes = searchPreferences.filters.filter(f => f.field === 'card_type').map(f => f.value);
-    const hasActionPoint = cardTypes.includes('Action Point');
-    const hasCharacter = cardTypes.includes('Character');
-    const hasEvent = cardTypes.includes('Event');
-    const hasSite = cardTypes.includes('Site');
-    return !hasActionPoint && hasCharacter && hasEvent && hasSite;
+    // Check if there's a NOT filter for Action Point card type
+    return searchPreferences.filters.some(f => 
+      f.field === 'card_type' && f.type === 'not' && f.value === 'Action Point'
+    );
   }, [searchPreferences.filters]);
 
   const isBaseRarityOnly = React.useMemo(() => {
-    const rarities = searchPreferences.filters.filter(f => f.field === 'rarity').map(f => f.value);
-    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
-    return baseRarities.every(rarity => rarities.includes(rarity)) && 
-           rarities.length === baseRarities.length;
+    const rarityFilters = searchPreferences.filters.filter(f => f.field === 'rarity' && f.type === 'or');
+    const rarities = rarityFilters.map(f => f.value);
+    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
+    // Base rarity is active if it has the 4 core base rarities
+    // (Action Point may or may not be included depending on no_ap preset)
+    return baseRarities.every(rarity => rarities.includes(rarity));
   }, [searchPreferences.filters]);
   
   // Handler functions that update sessionStore
   const handlePrintTypeChange = (value: string, checked: boolean) => {
     if (checked) {
-      // Add filter
+      // Add filter with OR type (for presets)
       const filter: FilterOption = {
-        type: 'and',
+        type: 'or',
         field: 'print_type',
         value: value,
         displayText: `Print Type: ${value}`,
@@ -197,9 +210,9 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
 
   const handleCardTypeChange = (value: string, checked: boolean) => {
     if (checked) {
-      // Add filter
+      // Add filter with OR type
       const filter: FilterOption = {
-        type: 'and',
+        type: 'or',
         field: 'card_type',
         value: value,
         displayText: `Card Type: ${value}`,
@@ -223,9 +236,9 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
 
   const handleRarityChange = (value: string, checked: boolean) => {
     if (checked) {
-      // Add filter
+      // Add filter with OR type (for presets)
       const filter: FilterOption = {
-        type: 'and',
+        type: 'or',
         field: 'rarity',
         value: value,
         displayText: `Rarity: ${value}`,
@@ -279,32 +292,32 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
       }
     } else if (filter === 'noActionPoints') {
       if (value) {
-        // Apply No Action Points preset - uncheck "Action Point", check all others
-        collapsibleCardTypeOptions?.forEach(option => {
-          const shouldBeChecked = option.value !== 'Action Point';
-          if (option.checked !== shouldBeChecked) {
-            handleCardTypeChange(option.value, shouldBeChecked);
-          }
-        });
+        // Apply No Action Points preset - add NOT filter for Action Point card type
+        const filter: FilterOption = {
+          type: 'not',
+          field: 'card_type',
+          value: 'Action Point',
+          displayText: 'No Action Points',
+        };
+        addFilter(filter);
       } else {
-        // Remove No Action Points preset - remove all card type filters
-        const cardTypeIndices = searchPreferences.filters
-          .map((f, index) => f.field === 'card_type' ? index : -1)
-          .filter(index => index !== -1)
-          .reverse(); // Remove from end to beginning to avoid index shifting
-        
-        cardTypeIndices.forEach(index => {
-          removeFilter(index);
-        });
-        // Update local state
-        setCollapsibleCardTypeOptions(prev => 
-          prev.map(option => ({ ...option, checked: false }))
+        // Remove No Action Points preset - remove the NOT filter
+        const filterIndex = searchPreferences.filters.findIndex(f => 
+          f.field === 'card_type' && f.type === 'not' && f.value === 'Action Point'
         );
+        if (filterIndex !== -1) {
+          removeFilter(filterIndex);
+        }
       }
     } else if (filter === 'baseRarityOnly') {
       if (value) {
-        // Apply Base Rarity Only preset - only check base rarities (including Action Point)
-        const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
+        // Apply Base Rarity Only preset - check base rarities
+        // Action Point is included if no_ap is not active
+        const hasNoAp = isNoActionPoints;
+        const baseRarities = hasNoAp 
+          ? ['Common', 'Uncommon', 'Rare', 'Super Rare']
+          : ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
+        
         rarityOptions?.forEach(option => {
           const shouldBeChecked = baseRarities.includes(option.value);
           if (option.checked !== shouldBeChecked) {

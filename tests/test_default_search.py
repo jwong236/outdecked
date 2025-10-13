@@ -33,7 +33,9 @@ print("=" * 80)
 # Show what each preset does
 print("\nPreset filters applied:")
 print("  1. basic_prints -> Print Type: Base OR Starter Deck")
-print("  2. base_rarity  -> Rarity: Common, Uncommon, Rare, Super Rare")
+print(
+    "  2. base_rarity  -> Rarity: Common, Uncommon, Rare, Super Rare (NOT Action Point when no_ap active)"
+)
 print("  3. no_ap        -> NOT Card Type: Action Point")
 
 print(

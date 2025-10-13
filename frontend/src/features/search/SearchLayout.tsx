@@ -61,6 +61,27 @@ export function SearchLayout({
     setIsClient(true);
   }, []);
 
+  // Load search preferences from sessionStorage on mount
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const saved = sessionStorage.getItem('outdecked-search-prefs');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setSearchPreferences(parsed);
+      } catch (e) {
+        console.error('Failed to parse saved search preferences');
+      }
+    }
+  }, [isClient]);
+
+  // Save search preferences to sessionStorage whenever they change
+  useEffect(() => {
+    if (!isClient) return;
+    sessionStorage.setItem('outdecked-search-prefs', JSON.stringify(searchPreferences));
+  }, [searchPreferences, isClient]);
+
   // Debounce the search query
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -76,10 +97,24 @@ export function SearchLayout({
     if (!isClient) return;
     
     const urlFilters = getFiltersFromUrl();
+    const hasUrlParams = typeof window !== 'undefined' && window.location.search !== '';
+    const saved = sessionStorage.getItem('outdecked-search-prefs');
+    const hasSessionPrefs = saved !== null;
     
-    // If no URL params, apply default presets
-    if (typeof window !== 'undefined' && window.location.search === '') {
-      // Auto-apply default presets
+    if (hasUrlParams) {
+      // Priority 1: URL parameters (for sharing)
+      if (urlFilters.query) setQuery(urlFilters.query);
+      if (urlFilters.sort) setSort(urlFilters.sort);
+      if (urlFilters.page) setPage(urlFilters.page);
+      
+      if (urlFilters.filters && Array.isArray(urlFilters.filters)) {
+        setSearchPreferences({
+          ...searchPreferences,
+          filters: urlFilters.filters
+        });
+      }
+    } else if (!hasSessionPrefs) {
+      // Priority 2: Apply default presets (first visit in session)
       const defaultFilters = [
         { type: 'or' as const, field: 'print_type', value: 'Base', displayText: 'Basic Prints Only' },
         { type: 'or' as const, field: 'print_type', value: 'Starter Deck', displayText: 'Basic Prints Only' },
@@ -94,28 +129,9 @@ export function SearchLayout({
         ...searchPreferences,
         filters: defaultFilters
       });
-      
-      // Sync to URL
-      syncFiltersToUrl({
-        ...searchPreferences,
-        filters: defaultFilters
-      });
-    } else if (Object.keys(urlFilters).length > 0) {
-      // Apply URL filters to searchPreferences
-      if (urlFilters.query) {
-        setQuery(urlFilters.query);
-      }
-      if (urlFilters.sort) setSort(urlFilters.sort);
-      if (urlFilters.page) setPage(urlFilters.page);
-      
-      // Apply filters from URL
-      if (urlFilters.filters && Array.isArray(urlFilters.filters)) {
-        setSearchPreferences({
-          ...searchPreferences,
-          filters: urlFilters.filters
-        });
-      }
     }
+    // Priority 3: Use sessionStorage (already loaded by earlier useEffect)
+    
   }, [isClient]); // Only run after client-side hydration
 
   // Set results per page
