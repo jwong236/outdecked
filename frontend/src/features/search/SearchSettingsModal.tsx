@@ -193,11 +193,16 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
       };
       addFilter(filter);
     } else {
-      // Remove filter
-      const filterIndex = searchPreferences.filters.findIndex(f => 
-        f.field === 'print_type' && f.value === value
-      );
-      if (filterIndex !== -1) removeFilter(filterIndex);
+      // Remove filter - find all filters with this field and value
+      const filtersToRemove = searchPreferences.filters
+        .map((filter, index) => ({ filter, index }))
+        .filter(({ filter }) => 
+          filter.field === 'print_type' && filter.value === value
+        )
+        .map(({ index }) => index)
+        .reverse(); // Remove in reverse order to avoid index shifting
+      
+      filtersToRemove.forEach(index => removeFilter(index));
     }
     
     // Update local state to reflect the change
@@ -219,11 +224,16 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
       };
       addFilter(filter);
     } else {
-      // Remove filter
-      const filterIndex = searchPreferences.filters.findIndex(f => 
-        f.field === 'card_type' && f.value === value
-      );
-      if (filterIndex !== -1) removeFilter(filterIndex);
+      // Remove filter - find all filters with this field and value
+      const filtersToRemove = searchPreferences.filters
+        .map((filter, index) => ({ filter, index }))
+        .filter(({ filter }) => 
+          filter.field === 'card_type' && filter.value === value
+        )
+        .map(({ index }) => index)
+        .reverse(); // Remove in reverse order to avoid index shifting
+      
+      filtersToRemove.forEach(index => removeFilter(index));
     }
     
     // Update local state to reflect the change
@@ -245,11 +255,16 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
       };
       addFilter(filter);
     } else {
-      // Remove filter
-      const filterIndex = searchPreferences.filters.findIndex(f => 
-        f.field === 'rarity' && f.value === value
-      );
-      if (filterIndex !== -1) removeFilter(filterIndex);
+      // Remove filter - find all filters with this field and value
+      const filtersToRemove = searchPreferences.filters
+        .map((filter, index) => ({ filter, index }))
+        .filter(({ filter }) => 
+          filter.field === 'rarity' && filter.value === value
+        )
+        .map(({ index }) => index)
+        .reverse(); // Remove in reverse order to avoid index shifting
+      
+      filtersToRemove.forEach(index => removeFilter(index));
     }
     
     // Update local state to reflect the change

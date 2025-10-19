@@ -615,28 +615,31 @@ export const useSessionStore = create<SessionState>()(
       return {
         searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
-    });
+    }, false, 'setSeries');
   },
 
   setCardType: (cardType) => {
     set((state) => {
-      // Remove existing cardType filter
-      const filteredFilters = state.searchPreferences.filters.filter(f => f.field !== 'card_type');
-      // Add new cardType filter if not empty
+      // Remove existing dropdown card type filters (type: 'and') - but leave NOT filters alone
+      const filteredFilters = state.searchPreferences.filters.filter(f => 
+        !(f.field === 'card_type' && f.type === 'and')
+      );
+      
+      // Add new card type filter if not empty
       let newFilters = filteredFilters;
       if (cardType) {
-        // Special case: "Action Point" should create a "No Action Points" filter (negative)
-        if (cardType === 'Action Point') {
-          newFilters = [...filteredFilters, { type: 'not' as const, field: 'card_type', value: 'Action Point', displayText: 'No Action Points' }];
-        } else {
-          newFilters = [...filteredFilters, { type: 'and' as const, field: 'card_type', value: cardType, displayText: `Card Type: ${cardType}` }];
-        }
+        newFilters = [...filteredFilters, {
+          type: 'and' as const,
+          field: 'card_type',
+          value: cardType,
+          displayText: `Card Type: ${cardType}`
+        }];
       }
       
       return {
         searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
-    });
+    }, false, 'setCardType');
   },
 
   setColor: (color) => {
@@ -649,7 +652,7 @@ export const useSessionStore = create<SessionState>()(
       return {
         searchPreferences: { ...state.searchPreferences, filters: newFilters }
       };
-    });
+    }, false, 'setColor');
   },
 
   getQuery: () => {

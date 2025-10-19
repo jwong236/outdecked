@@ -3,10 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSearchCards, useSeriesValues, useColorValues, useFilterFields } from '@/lib/hooks';
-import { useUrlState } from '@/lib/useUrlState';
 import { Card, SearchResponse } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
-// Removed useAuth import - now using sessionStore
 import { FilterSection } from './FilterSection';
 import { DefaultFilters } from './DefaultFilters';
 import { SearchSettingsModal } from './SearchSettingsModal';
@@ -24,7 +22,6 @@ export function SearchLayout({
   className = '',
   resultsPerPage = 24
 }: SearchLayoutProps) {
-  const { user } = useSessionStore();
   const { 
     searchPreferences,
     setSearchPreferences,
@@ -42,97 +39,27 @@ export function SearchLayout({
     getFiltersForAPI,
   } = useSessionStore();
 
-  // Query is managed by local state
-
-  const { getFiltersFromUrl, syncFiltersToUrl } = useUrlState();
-
+  // Local state
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [selectedCardIndex, setSelectedCardIndex] = useState<number>(0);
   const [isNavigatingPages, setIsNavigatingPages] = useState<boolean>(false);
   const [showSearchSettingsModal, setShowSearchSettingsModal] = useState(false);
-  const [query, setQuery] = useState<string>(''); // Temporary UI state
+  const [query, setQuery] = useState<string>('');
   const [debouncedQuery, setDebouncedQuery] = useState<string>('');
   const [isClient, setIsClient] = useState(false);
-
-  // Search preferences are automatically loaded by sessionStore
 
   // Set client flag after hydration
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Load search preferences from sessionStorage on mount
-  useEffect(() => {
-    if (!isClient) return;
-    
-    const saved = sessionStorage.getItem('outdecked-search-prefs');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        setSearchPreferences(parsed);
-      } catch (e) {
-        console.error('Failed to parse saved search preferences');
-      }
-    }
-  }, [isClient]);
-
-  // Save search preferences to sessionStorage whenever they change
-  useEffect(() => {
-    if (!isClient) return;
-    sessionStorage.setItem('outdecked-search-prefs', JSON.stringify(searchPreferences));
-  }, [searchPreferences, isClient]);
-
   // Debounce the search query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(query);
-    }, 300); // 300ms delay
-
+    }, 300);
     return () => clearTimeout(timer);
   }, [query]);
-
-  // Initialize filters from URL on mount (only once)
-  useEffect(() => {
-    // Only apply URL filters after session is initialized to avoid race conditions
-    if (!isClient) return;
-    
-    const urlFilters = getFiltersFromUrl();
-    const hasUrlParams = typeof window !== 'undefined' && window.location.search !== '';
-    const saved = sessionStorage.getItem('outdecked-search-prefs');
-    const hasSessionPrefs = saved !== null;
-    
-    if (hasUrlParams) {
-      // Priority 1: URL parameters (for sharing)
-      if (urlFilters.query) setQuery(urlFilters.query);
-      if (urlFilters.sort) setSort(urlFilters.sort);
-      if (urlFilters.page) setPage(urlFilters.page);
-      
-      if (urlFilters.filters && Array.isArray(urlFilters.filters)) {
-        setSearchPreferences({
-          ...searchPreferences,
-          filters: urlFilters.filters
-        });
-      }
-    } else if (!hasSessionPrefs) {
-      // Priority 2: Apply default presets (first visit in session)
-      const defaultFilters = [
-        { type: 'or' as const, field: 'print_type', value: 'Base', displayText: 'Basic Prints Only' },
-        { type: 'or' as const, field: 'print_type', value: 'Starter Deck', displayText: 'Basic Prints Only' },
-        { type: 'not' as const, field: 'card_type', value: 'Action Point', displayText: 'No Action Points' },
-        { type: 'or' as const, field: 'rarity', value: 'Common', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'rarity', value: 'Rare', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
-      ];
-      
-      setSearchPreferences({
-        ...searchPreferences,
-        filters: defaultFilters
-      });
-    }
-    // Priority 3: Use sessionStorage (already loaded by earlier useEffect)
-    
-  }, [isClient]); // Only run after client-side hydration
 
   // Set results per page
   useEffect(() => {
@@ -141,19 +68,14 @@ export function SearchLayout({
     }
   }, [resultsPerPage, setSearchPreferences, searchPreferences]);
 
-  // Sync filters to URL whenever they change
-  useEffect(() => {
-    syncFiltersToUrl(getFiltersForAPI());
-  }, [searchPreferences, syncFiltersToUrl, getFiltersForAPI]);
-
+  // Search parameters for API
   const searchParams = React.useMemo(() => {
     const apiFilters = getFiltersForAPI();
     return {
       ...apiFilters,
-      query: debouncedQuery // Use debounced query
+      query: debouncedQuery
     };
-  }, [searchPreferences, debouncedQuery]); // Use searchPreferences instead of getFiltersForAPI
-  
+  }, [searchPreferences, debouncedQuery, getFiltersForAPI]);
   
   const { data: searchData, isLoading, error } = useSearchCards(searchParams);
   const { data: seriesData } = useSeriesValues();
@@ -168,24 +90,19 @@ export function SearchLayout({
     return transformRawCardsToCards(searchResponse.cards);
   }, [searchResponse?.cards]);
 
-  // Handle cross-page navigation - select appropriate card when page changes
+  // Handle cross-page navigation
   useEffect(() => {
     if (transformedCards && transformedCards.length > 0 && isNavigatingPages) {
-      // If we're navigating to next page, select first card
       if (selectedCardIndex >= transformedCards.length) {
         setSelectedCard(transformedCards[0]);
         setSelectedCardIndex(0);
         setIsNavigatingPages(false);
-      }
-      // If we're navigating to previous page, select last card
-      else if (selectedCardIndex < 0) {
+      } else if (selectedCardIndex < 0) {
         const lastIndex = transformedCards.length - 1;
         setSelectedCard(transformedCards[lastIndex]);
         setSelectedCardIndex(lastIndex);
         setIsNavigatingPages(false);
-      }
-      // If we're navigating to next page and selectedCardIndex is 0, select first card
-      else if (selectedCardIndex === 0) {
+      } else if (selectedCardIndex === 0) {
         setSelectedCard(transformedCards[0]);
         setIsNavigatingPages(false);
       }
@@ -197,7 +114,6 @@ export function SearchLayout({
     setSelectedCard(card);
     setSelectedCardIndex(index);
   };
-
 
   const handleCloseModal = () => {
     setSelectedCard(null);
@@ -211,15 +127,13 @@ export function SearchLayout({
       setSelectedCardIndex(index);
       setIsNavigatingPages(false);
     } else if (index >= transformedCards.length && searchResponse?.pagination.has_next) {
-      // Navigate to next page - will show first card of next page
       setIsNavigatingPages(true);
       setPage(searchPreferences.page + 1);
-      setSelectedCardIndex(0); // Will be first card of next page
+      setSelectedCardIndex(0);
     } else if (index < 0 && searchResponse?.pagination.has_prev) {
-      // Navigate to previous page - will show last card of previous page
       setIsNavigatingPages(true);
       setPage(searchPreferences.page - 1);
-      setSelectedCardIndex(-1); // Will be set to last card when data loads
+      setSelectedCardIndex(-1);
     }
   };
 
@@ -238,12 +152,11 @@ export function SearchLayout({
         setCardType('');
         break;
       case 'sort':
-        setSort('name_asc'); // Reset to default sort
+        setSort('name_asc');
         break;
       case 'and':
       case 'or':
       case 'not':
-        // Find and remove the specific filter
         const filterIndex = searchPreferences.filters.findIndex(filter => {
           return value ? filter.displayText === value : false;
         });
@@ -253,7 +166,6 @@ export function SearchLayout({
   };
 
   const handleRemoveMultipleFilters = (filterType: string, values: string[]) => {
-    // Remove filters in reverse order to avoid index shifting issues
     const sortedValues = [...values].reverse();
     sortedValues.forEach(value => {
       handleRemoveFilter(filterType, value);
@@ -296,8 +208,6 @@ export function SearchLayout({
     { value: 'number_asc', label: 'Card Number Low-High' },
     { value: 'number_desc', label: 'Card Number High-Low' },
   ];
-
-  const hasActiveFilters = searchPreferences.filters.length > 0;
 
   return (
     <div className={`min-h-screen ${className}`}>
@@ -388,12 +298,7 @@ export function SearchLayout({
             )}
             
             <SearchGrid
-              cards={(() => {
-                
-                const expandedCards = transformedCards.map((card: Card) => ({ ...card, quantity: 0 }));
-                
-                return expandedCards;
-              })()}
+              cards={transformedCards.map((card: Card) => ({ ...card, quantity: 0 }))}
               isLoading={isLoading}
               error={error}
               onCardClick={handleCardClick}
