@@ -99,14 +99,10 @@ class UserPreference(Base):
 
     def to_dict(self):
         """Convert user preferences to dictionary for JSON serialization."""
+        # Only return background - other fields (theme, cards_per_page) are deprecated
+        # They remain in DB schema for backwards compatibility but aren't used
         return {
-            "id": self.id,
-            "user_id": self.user_id,
             "background": self.background,
-            "cards_per_page": self.cards_per_page,
-            "theme": self.theme,
-            "created_at": self.created_at.isoformat() if self.created_at else None,
-            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
 

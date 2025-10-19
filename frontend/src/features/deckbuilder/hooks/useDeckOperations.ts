@@ -7,6 +7,7 @@ import { useSessionStore } from '@/stores/sessionStore';
 import { fetchDeck } from '@/lib/deckUtils';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
 import { getProductImageCard } from '@/lib/imageUtils';
+import { apiConfig } from '@/lib/apiConfig';
 
 export function useDeckOperations(searchCache: CardCache, setSearchCache: (updater: (prev: CardCache) => CardCache) => void, sortBy: string = 'name') {
   const router = useRouter();
@@ -140,11 +141,10 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
 
     // Fetch missing cards if any
     if (missingCardIds.length > 0 && !fetchingRef.current) {
-      console.log('🃏 useDeckOperations: Missing cards, fetching:', missingCardIds);
       fetchingRef.current = true;
       
       // Fetch missing cards
-      fetch('/api/cards/batch', {
+      fetch(apiConfig.getApiUrl('/api/cards/batch'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product_ids: missingCardIds }),
@@ -170,9 +170,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
 
   // Update currentDeck in sessionStore
   const createSession = useCallback((deck: Deck) => {
-    console.log('🃏 Setting currentDeck in sessionStore:', deck);
     setCurrentDeck(deck);
-    console.log('🃏 Updated currentDeck to:', deck.name);
   }, [setCurrentDeck]);
 
   // Create new deck (save to database via API)
@@ -202,7 +200,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
         }
       };
       
-      const response = await fetch('/api/user/decks', {
+      const response = await fetch(apiConfig.getApiUrl('/api/user/decks'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -238,16 +236,11 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
   // Load deck
   const loadDeck = useCallback(async (id: string) => {
     try {
-      console.log('🃏 Loading deck:', id);
       // Load specific deck from API using new utility
       const deck = await fetchDeck(id);
-      console.log('🃏 Fetched deck:', deck);
       if (deck) {
         // Update currentDeck in sessionStore
-        console.log('🃏 Updating currentDeck for deck:', deck.name);
         createSession(deck);
-        console.log('🃏 currentDeck updated in sessionStore');
-        
       } else {
         // Deck not found, redirect to deck list
         router.push('/deckbuilder');
@@ -263,7 +256,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     if (!isValidDeck(currentDeck)) return;
     
     try {
-      const response = await fetch(`/api/user/decks/${currentDeck.id}`, {
+      const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${currentDeck.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -342,7 +335,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     if (!isValidDeck(currentDeck)) return;
     
     try {
-      const response = await fetch(`/api/user/decks/${currentDeck.id}`, {
+      const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${currentDeck.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -390,8 +383,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     // Fetch missing card data if needed
     if (missingCardIds.length > 0) {
       try {
-        console.log('🃏 Fetching missing card data for hand items:', missingCardIds);
-        const response = await fetch('/api/cards/batch', {
+        const response = await fetch(apiConfig.getApiUrl('/api/cards/batch'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ product_ids: missingCardIds }),
@@ -407,9 +399,8 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
             });
             return newCache;
           });
-          console.log('✅ Fetched card data for hand items');
         } else {
-          console.error('❌ Failed to fetch card data for hand items');
+          console.error('Failed to fetch card data for hand items');
         }
       } catch (error) {
         console.error('❌ Error fetching card data for hand items:', error);
@@ -471,9 +462,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
 
   // Print to proxy
   const handlePrintToProxy = useCallback(() => {
-    console.log('🖨️ handlePrintToProxy called!');
     if (!isValidDeck(currentDeck)) {
-      console.log('❌ No valid deck to print');
       return;
     }
     
@@ -483,13 +472,9 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       quantity: deckCard.quantity
     }));
     
-    console.log('🖨️ Print items:', printItems);
-    
     // Add to print list in sessionStore
     const { setPrintList } = useSessionStore.getState();
     setPrintList(printItems);
-    
-    console.log(`✅ Added ${printItems.length} card types to print list!`);
     
     // Dispatch event to update proxy printer page
     window.dispatchEvent(new CustomEvent('printListUpdated'));
@@ -512,7 +497,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       } as any;
       // Save to database immediately
       try {
-        const response = await fetch(`/api/user/decks/${currentDeck.id}`, {
+        const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${currentDeck.id}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -536,12 +521,9 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
   const handleCoverSelection = useCallback(async (cardImageUrl: string) => {
     if (!isValidDeck(currentDeck)) return;
     
-    console.log('🖼️ handleCoverSelection called with:', cardImageUrl);
-    console.log('🖼️ Current deck before update:', currentDeck.name, 'current cover:', (currentDeck as any).cover);
-    
     // Save to database immediately
     try {
-      const response = await fetch(`/api/user/decks/${currentDeck.id}`, {
+      const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${currentDeck.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -554,8 +536,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       });
       
       if (response.ok) {
-        console.log('Deck cover updated successfully');
-        
         // Update the session store with the new cover
         const updatedDeck = {
           ...currentDeck,
@@ -563,7 +543,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
         } as any;
         
         setCurrentDeck(updatedDeck);
-        console.log('🖼️ Updated deck with cover:', updatedDeck.cover);
       } else {
         console.error('Failed to update deck cover');
       }
@@ -590,7 +569,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
     // Save current deck to database before clearing session
     if (isValidDeck(currentDeck)) {
       try {
-        const response = await fetch(`/api/user/decks/${currentDeck.id}`, {
+        const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${currentDeck.id}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -663,13 +642,7 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
 
   // Generate decklist image
   const generateDecklistImage = useCallback(async () => {
-    console.log('🖼️ generateDecklistImage called!');
-    console.log('🖼️ currentDeck:', currentDeck);
-    console.log('🖼️ isValidDeck:', isValidDeck(currentDeck));
-    console.log('🖼️ cards length:', (currentDeck as any).cards?.length || 0);
-    
     if (!isValidDeck(currentDeck) || !(currentDeck as any).cards || (currentDeck as any).cards.length === 0) {
-      console.log('❌ No cards in deck to generate image');
       return;
     }
     
@@ -681,13 +654,9 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       const cardIds = (currentDeck as any).cards.map((deckCard: any) => deckCard.card_id);
       const missingCardIds = cardIds.filter((id: number) => !searchCache[id]);
       
-      console.log('🖼️ Card IDs in deck:', cardIds);
-      console.log('🖼️ Missing from cache:', missingCardIds);
-      
       // Fetch missing card data if needed
       if (missingCardIds.length > 0) {
-        console.log('🖼️ Fetching missing card data for:', missingCardIds);
-        const response = await fetch('/api/cards/batch', {
+        const response = await fetch(apiConfig.getApiUrl('/api/cards/batch'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ product_ids: missingCardIds }),
@@ -699,7 +668,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
         
         const rawCards = await response.json();
         const cleanCards = transformRawCardsToCards(rawCards);
-        console.log('🖼️ Fetched missing card data:', cleanCards);
         
         // Update cache with new cards
         setSearchCache(prev => {
@@ -715,7 +683,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       const deckCardsWithFullData = (currentDeck as any).cards.map((deckCard: any) => {
         const fullCardData = searchCache[deckCard.card_id];
         if (fullCardData) {
-          console.log(`🖼️ Card ${fullCardData.name}: product_id = ${fullCardData.product_id}`);
           return {
             name: fullCardData.name,
             product_id: fullCardData.product_id,
@@ -724,7 +691,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
             RequiredEnergy: fullCardData.attributes?.find(attr => attr.name === 'required_energy')?.value || '0'
           };
         } else {
-          console.log(`🖼️ Card data not found in cache for ${deckCard.card_id}`);
           return {
             name: `Card ${deckCard.card_id}`,
             product_id: deckCard.card_id, // Use card_id as fallback product_id
@@ -734,8 +700,6 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
           };
         }
       });
-      
-      console.log(`🖼️ Generating decklist image for ${deckCardsWithFullData.length} card types`);
       
       // Generate the image
       const imageBlob = await generateImage({
@@ -753,10 +717,8 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
       
-      console.log('✅ Decklist image generated and downloaded!');
-      
     } catch (error) {
-      console.error('❌ Error generating decklist image:', error);
+      console.error('Error generating decklist image:', error);
     }
   }, [currentDeck, searchCache]);
 

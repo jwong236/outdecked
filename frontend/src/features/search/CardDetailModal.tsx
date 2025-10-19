@@ -35,19 +35,6 @@ export function CardDetailModal({
   const [imageLoading, setImageLoading] = useState(true);
   const [imageError, setImageError] = useState(false);
 
-  // Debug: Log card data received by modal
-  useEffect(() => {
-    if (card) {
-      console.log('🔍 CardDetailModal received card:', {
-        name: card.name,
-        product_id: card.product_id,
-        hasAttributes: !!card.attributes,
-        attributesCount: card.attributes?.length || 0,
-        attributes: card.attributes,
-        fullCard: card
-      });
-    }
-  }, [card]);
 
   useEffect(() => {
     if (card) {

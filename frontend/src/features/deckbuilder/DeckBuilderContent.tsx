@@ -9,12 +9,14 @@ import { DeckBuilderSettingsModal } from './components/modals/DeckBuilderSetting
 import { DeckBuilderSearchSettingsModal } from './components/modals/DeckBuilderSearchSettingsModal';
 import { CardDetailModal } from '@/features/search/CardDetailModal';
 import { useDeckOperations } from './hooks/useDeckOperations';
+import { useDeckAutoSave } from './hooks/useDeckAutoSave';
+import { useModalManager } from './hooks/useModalManager';
 import { useSessionStore } from '@/stores/sessionStore';
 import { StandardModal } from '@/components/shared/modals/BaseModal';
-// Removed useAuth import - now using sessionStore
-import { Card, CardCache } from '@/types/card';
+import { CardCache } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
 import { getProductImageIcon, getProductImageCard } from '@/lib/imageUtils';
+import { apiConfig } from '@/lib/apiConfig';
 
 export function DeckBuilderContent() {
   const router = useRouter();
@@ -37,19 +39,6 @@ export function DeckBuilderContent() {
   
   // Note: Cache is now persistent across deck loads for better performance
   
-  // Debug: Log CardCache contents
-  React.useEffect(() => {
-    console.log('🔍 CardCache contents:', {
-      totalCards: Object.keys(searchCache).length,
-      cacheKeys: Object.keys(searchCache).slice(0, 10),
-      sampleCard: Object.values(searchCache)[0] ? {
-        product_id: Object.values(searchCache)[0].product_id,
-        name: Object.values(searchCache)[0].name,
-        attributesCount: Object.values(searchCache)[0].attributes?.length || 0,
-        attributes: Object.values(searchCache)[0].attributes?.slice(0, 3) || []
-      } : null
-    });
-  }, [searchCache]);
   
   
   // Current search results for navigation
@@ -68,7 +57,7 @@ export function DeckBuilderContent() {
   // Function to fetch missing card data and populate cache
   const fetchMissingCardData = async (cardIds: string[]) => {
     try {
-      const response = await fetch('/api/cards/batch', {
+      const response = await fetch(apiConfig.getApiUrl('/api/cards/batch'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,107 +83,21 @@ export function DeckBuilderContent() {
     }
   };
   
-  // Modal state for card details (same pattern as SearchLayout)
-  const [selectedCard, setSelectedCard] = React.useState<any>(null);
-  const [selectedCardIndex, setSelectedCardIndex] = React.useState<number>(0);
-  const [selectedCardSource, setSelectedCardSource] = React.useState<'search' | 'deck' | null>(null);
-  
-  // Recalculate selectedCardIndex when search results change (for search cards)
-  React.useEffect(() => {
-    if (selectedCard && selectedCardSource === 'search' && currentSearchResults.length > 0) {
-      const newIndex = currentSearchResults.findIndex(c => c.product_id === selectedCard.product_id);
-      if (newIndex !== -1 && newIndex !== selectedCardIndex) {
-        console.log('🔍 Recalculating index for search card:', {
-          cardName: selectedCard.name,
-          oldIndex: selectedCardIndex,
-          newIndex,
-          searchResultsCount: currentSearchResults.length
-        });
-        setSelectedCardIndex(newIndex);
-      }
-    }
-  }, [currentSearchResults, selectedCard, selectedCardSource, selectedCardIndex]);
-  
-  // Modal state for deck settings
-  const [showDeckSettingsModal, setShowDeckSettingsModal] = React.useState(false);
-  const [showSearchSettingsModal, setShowSearchSettingsModal] = React.useState(false);
-  const [showCoverModal, setShowCoverModal] = React.useState(false);
-  
-  // Modal handlers (same pattern as SearchLayout)
-  const handleCardClick = (card: any, source: 'search' | 'deck' = 'search') => {
-    // Get full card data from search cache using product_id
-    const fullCardData = searchCache[card.product_id];
-    
-    if (fullCardData) {
-      // Find the card in the appropriate array for navigation
-      let index = 0;
-      let allCards: any[] = [];
-      
-      if (source === 'search') {
-        allCards = currentSearchResults;
-        index = allCards.findIndex(c => c.product_id === card.product_id);
-      } else if (source === 'deck') {
-        allCards = currentExpandedCards;
-        index = allCards.findIndex(c => c.product_id === card.product_id);
-      }
-      
-      setSelectedCard(fullCardData); // Use full card data from cache
-      setSelectedCardIndex(index);
-      setSelectedCardSource(source);
-      
-      console.log('🔍 Card Click:', {
-        cardName: fullCardData.name,
-        source,
-        hasAttributes: fullCardData.attributes?.length || 0,
-        productId: card.product_id,
-        fullCardData: fullCardData,
-        attributes: fullCardData.attributes
-      });
-    } else {
-      console.error('🔍 Card not found in cache:', { 
-        productId: card.product_id, 
-        cardName: card.name,
-        cacheKeys: Object.keys(searchCache).slice(0, 5)
-      });
-    }
-  };
-
-  const handleCloseModal = () => {
-    setSelectedCard(null);
-    setSelectedCardIndex(0);
-    setSelectedCardSource(null);
-  };
-
-  const handleNavigate = (newIndex: number) => {
-    let allCards: any[] = [];
-    
-    // Get the appropriate cards array based on source
-    if (selectedCardSource === 'search') {
-      // It's a search card - use current search results (maintains sort order)
-      allCards = currentSearchResults;
-      console.log('🔍 Navigate: Using search results:', {
-        source: selectedCardSource,
-        searchResultsCount: currentSearchResults.length,
-        newIndex,
-        targetCard: allCards[newIndex]?.name
-      });
-    } else if (selectedCardSource === 'deck') {
-      // It's a deck card - use the properly sorted expanded cards array
-      allCards = currentExpandedCards;
-      console.log('🔍 Navigate: Using expanded cards:', {
-        source: selectedCardSource,
-        expandedCardsCount: currentExpandedCards.length,
-        newIndex,
-        targetCard: allCards[newIndex]?.name
-      });
-    }
-    
-    // Navigate to the new index
-    if (newIndex >= 0 && newIndex < allCards.length) {
-      setSelectedCard(allCards[newIndex]);
-      setSelectedCardIndex(newIndex);
-    }
-  };
+  // Modal management hook
+  const {
+    showDeckSettingsModal,
+    setShowDeckSettingsModal,
+    showSearchSettingsModal,
+    setShowSearchSettingsModal,
+    showCoverModal,
+    setShowCoverModal,
+    selectedCard,
+    selectedCardIndex,
+    selectedCardSource,
+    handleCardClick,
+    handleCloseModal,
+    handleNavigate,
+  } = useModalManager(searchCache, currentSearchResults, currentExpandedCards);
   
 
   // Buy Deck handler - generates TCGPlayer Mass Entry URL
@@ -210,7 +113,7 @@ export function DeckBuilderContent() {
         quantity: card.quantity || 1
       }));
 
-      const response = await fetch('/api/tcgplayer/mass-entry', {
+      const response = await fetch(apiConfig.getApiUrl('/api/tcgplayer/mass-entry'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -246,13 +149,16 @@ export function DeckBuilderContent() {
     
     const loadDeckData = async () => {
       try {
-        const response = await fetch(`/api/user/decks/${deckId}`, {
+        const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${deckId}`), {
           credentials: 'include',
         });
         
+        if (!response.ok) {
+          console.error('Failed to load deck:', response.status);
+          return;
+        }
         
         const data = await response.json();
-        
         
         if (data.success && data.deck) {
           // Migrate deck structure to new format
@@ -291,6 +197,7 @@ export function DeckBuilderContent() {
           // Note: Card data fetching will be handled by a separate effect
         }
       } catch (error) {
+        console.error('Error loading deck:', error);
       }
     };
 
@@ -310,112 +217,14 @@ export function DeckBuilderContent() {
     }
   }, [currentDeck, searchCache]); // Run when deck or cache changes
 
-  // Use a ref to capture the current deck value at unmount time
-  const currentDeckRef = useRef(currentDeck);
-  const isSavingRef = useRef(false);
-  
-  // Update the ref whenever currentDeck changes
-  useEffect(() => {
-    currentDeckRef.current = currentDeck;
-  }, [currentDeck]);
-
-  // Save currentDeck to database when user leaves the page
-  useEffect(() => {
-    const handleBeforeUnload = async (event: BeforeUnloadEvent) => {
-      const deckToSave = currentDeckRef.current;
-      
-      if (deckToSave && Object.keys(deckToSave).length > 0 && 'id' in deckToSave && deckToSave.id && !isSavingRef.current) {
-        isSavingRef.current = true;
-        // Use sendBeacon for reliable saving on page unload
-        const data = JSON.stringify(deckToSave);
-        const blob = new Blob([data], { type: 'application/json' });
-        
-        // Use fetch to trigger browser notification
-        event.preventDefault();
-        event.returnValue = 'Your deck changes are being saved automatically.';
-        
-        try {
-          const response = await fetch(`/api/user/decks/${(deckToSave as any).id}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: data,
-          });
-          
-          if (response.ok) {
-          } else {
-            console.error('❌ Failed to save deck:', response.status);
-          }
-        } catch (error) {
-          console.error('❌ Error saving deck on unload:', error);
-        }
-      }
-    };
-
-    // Save when component unmounts (navigation within app)
-    const handleUnmount = async () => {
-      const deckToSave = currentDeckRef.current;
-      
-      if (deckToSave && Object.keys(deckToSave).length > 0 && 'id' in deckToSave && deckToSave.id && !isSavingRef.current) {
-        // Check if user is still authenticated before attempting save
-        if (!user.id) {
-          console.log('🔄 User not authenticated, skipping deck save on unmount');
-          clearCurrentDeck();
-          return;
-        }
-        
-        isSavingRef.current = true;
-        try {
-          const deckId = (deckToSave as any).id;
-          const response = await fetch(`/api/user/decks/${deckId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(deckToSave),
-          });
-          
-          
-          if (response.ok) {
-          } else {
-            let errorText = '';
-            try {
-              errorText = await response.text();
-            } catch (e) {
-              errorText = 'Could not read response body';
-            }
-            console.error('Failed to save deck on unmount:', {
-              status: response.status,
-              statusText: response.statusText,
-              body: errorText || 'Empty response body'
-            });
-          }
-        } catch (error) {
-          console.error('Error saving deck on unmount:', error);
-        }
-      }
-      
-      // Clear session after save
-      clearCurrentDeck();
-    };
-
-    // Add event listeners
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    
-    // Return cleanup function for component unmount
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      handleUnmount();
-    };
-  }, [clearCurrentDeck]); // Remove user from dependencies to prevent race condition during session init
+  // Auto-save deck on page exit/unmount
+  useDeckAutoSave(currentDeck || {});
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
       {/* Header */}
       <DeckBuilderHeader 
-        onShowDeckSettings={() => {
-          console.log('🔧 Opening deck settings modal');
-          setShowDeckSettingsModal(true);
-        }}
+        onShowDeckSettings={() => setShowDeckSettingsModal(true)}
         onShowCoverModal={() => setShowCoverModal(true)}
         deckOperations={deckOperations}
         onBuyDeck={handleBuyDeck}
@@ -431,10 +240,7 @@ export function DeckBuilderContent() {
           fetchMissingCardData={fetchMissingCardData}
           onSearchResultsChange={setCurrentSearchResults}
           onQuantityChange={deckOperations.handleQuantityChange}
-          onShowDeckSettings={() => {
-            console.log('🔧 Opening search settings modal from search section');
-            setShowSearchSettingsModal(true);
-          }}
+          onShowDeckSettings={() => setShowSearchSettingsModal(true)}
         />
 
         {/* Right Side - Current Deck */}
@@ -453,10 +259,7 @@ export function DeckBuilderContent() {
       {showDeckSettingsModal && (
         <DeckBuilderSettingsModal
           isOpen={showDeckSettingsModal}
-          onClose={() => {
-            console.log('🔧 Closing deck settings modal');
-            setShowDeckSettingsModal(false);
-          }}
+          onClose={() => setShowDeckSettingsModal(false)}
         />
       )}
 
@@ -464,10 +267,7 @@ export function DeckBuilderContent() {
       {showSearchSettingsModal && (
         <DeckBuilderSearchSettingsModal
           isOpen={showSearchSettingsModal}
-          onClose={() => {
-            console.log('🔧 Closing search settings modal');
-            setShowSearchSettingsModal(false);
-          }}
+          onClose={() => setShowSearchSettingsModal(false)}
         />
       )}
 
@@ -499,7 +299,6 @@ export function DeckBuilderContent() {
                       key={`${deckCard.card_id}-${index}`}
                       onClick={() => {
                         const imageUrl = getProductImageCard(deckCard.card_id);
-                        console.log('🖼️ Setting deck cover to:', imageUrl, 'for card:', fullCardData.name);
                         deckOperations.handleCoverSelection(imageUrl);
                         setShowCoverModal(false);
                       }}
@@ -551,21 +350,9 @@ export function DeckBuilderContent() {
           // Get the appropriate cards array based on source
           if (selectedCardSource === 'search') {
             // It's a search card - use current search results (maintains sort order)
-            console.log('🔍 Modal: Using search results for navigation:', {
-              source: selectedCardSource,
-              searchResultsCount: currentSearchResults.length,
-              selectedCardName: selectedCard.name,
-              selectedCardIndex: selectedCardIndex
-            });
             return currentSearchResults;
           } else if (selectedCardSource === 'deck') {
             // It's a deck card - use the properly sorted expanded cards array
-            console.log('🔍 Modal: Using expanded cards for navigation:', {
-              source: selectedCardSource,
-              expandedCardsCount: currentExpandedCards.length,
-              selectedCardName: selectedCard.name,
-              selectedCardIndex: selectedCardIndex
-            });
             return currentExpandedCards;
           }
           return [];
@@ -575,21 +362,9 @@ export function DeckBuilderContent() {
         hasNextPage={(() => {
           if (!selectedCard) return false;
           if (selectedCardSource === 'search') {
-            const hasNext = selectedCardIndex < currentSearchResults.length - 1;
-            console.log('🔍 hasNextPage check (search):', {
-              selectedCardIndex,
-              searchResultsLength: currentSearchResults.length,
-              hasNext
-            });
-            return hasNext;
+            return selectedCardIndex < currentSearchResults.length - 1;
           } else if (selectedCardSource === 'deck') {
-            const hasNext = selectedCardIndex < currentExpandedCards.length - 1;
-            console.log('🔍 hasNextPage check (deck):', {
-              selectedCardIndex,
-              expandedCardsLength: currentExpandedCards.length,
-              hasNext
-            });
-            return hasNext;
+            return selectedCardIndex < currentExpandedCards.length - 1;
           }
           return false;
         })()}

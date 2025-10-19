@@ -76,15 +76,6 @@ export function DeckListPage() {
 
     try {
       const fullDecks = await fetchDecksBatch(deckBuilder.deckList);
-      
-      // Debug: Check if timestamps are now available
-      console.log('Deck timestamps after fix:', fullDecks.map(deck => ({
-        name: deck.name,
-        updated_at: deck.updated_at,
-        created_at: deck.created_at,
-        last_modified: deck.last_modified
-      })));
-      
       setDecks(fullDecks);
     } catch (error) {
       console.error('Error loading decks:', error);
@@ -122,7 +113,6 @@ export function DeckListPage() {
           throw new Error(`Failed to rename deck: ${responseData.error || 'Unknown error'}`);
         }
 
-        console.log('✅ Deck renamed successfully');
         // The UI will automatically update when loadDecks() is called due to the useEffect dependency
       } catch (error) {
         console.error('Error renaming deck:', error);
@@ -197,7 +187,6 @@ export function DeckListPage() {
         throw new Error(`Failed to update deck cover: ${responseData.error || 'Unknown error'}`);
       }
 
-      console.log('✅ Deck cover updated successfully');
       // The UI will automatically update when loadDecks() is called due to the useEffect dependency
     } catch (error) {
       console.error('Error updating deck cover:', error);
@@ -233,7 +222,6 @@ export function DeckListPage() {
         if (error instanceof Error && error.message.includes('404')) {
           const updatedDeckIds = deckBuilder.deckList.filter(id => id !== deckToDelete.id);
           setDeckList(updatedDeckIds);
-          console.log('✅ Deck removed from sessionStore (was already deleted from database)');
         }
       }
     }
@@ -281,8 +269,8 @@ export function DeckListPage() {
         case 'most_recent':
           // Sort by most recently updated/created - only use actual timestamps
           const getTimestamp = (deck: Deck) => {
-            // Only use updated_at or created_at, no fallbacks
-            const timestamp = deck.updated_at || deck.created_at;
+            // Only use last_modified or created_date, no fallbacks
+            const timestamp = deck.last_modified || deck.created_date;
             if (!timestamp) return 0;
             
             const date = new Date(timestamp);
@@ -372,10 +360,7 @@ export function DeckListPage() {
                         alt={`${deck.name} cover`}
                         className="w-40 h-auto rounded-lg border border-white/20"
                         onError={(e) => {
-                          console.error('🖼️ Failed to load deck cover:', deck.cover, 'for deck:', deck.name);
                           e.currentTarget.style.display = 'none';
-                        }}
-                        onLoad={() => {
                         }}
                       />
                     ) : (
@@ -543,7 +528,7 @@ export function DeckListPage() {
                       <div className="flex justify-between">
                         <span>Created:</span>
                         <span className="text-white">
-                          {formatDate(deck.created_at || deck.created_date || '')}
+                          {formatDate(deck.created_date || '')}
                         </span>
                       </div>
                       <div className="flex justify-between">

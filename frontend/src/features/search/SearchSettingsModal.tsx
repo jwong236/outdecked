@@ -140,14 +140,8 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
         checked: currentRarities.includes(value) 
       })));
 
-      console.log('🔍 Fetched filter options:', {
-        series: seriesData.length,
-        cardTypes: cardTypeData.length,
-        printTypes: printTypeData.length,
-        rarities: rarityData.length
-      });
     } catch (error) {
-      console.error('🔍 Error fetching filter options:', error);
+      console.error('Error fetching filter options:', error);
     } finally {
       setLoading(false);
     }
@@ -276,7 +270,6 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
   };
 
   const handleSeriesChange = (series: string) => {
-    console.log('🔍 handleSeriesChange called with:', series);
     setSeries(series);
   };
 

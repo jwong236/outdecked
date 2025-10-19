@@ -6,6 +6,7 @@ import { CollapsibleFilterSection } from '@/features/search/CollapsibleFilterSec
 import { useSessionStore } from '@/stores/sessionStore';
 import { ArrowPathIcon } from '@heroicons/react/24/outline';
 import { StandardModal } from '@/components/shared/modals/BaseModal';
+import { apiConfig } from '@/lib/apiConfig';
 
 interface DeckBuilderSearchSettingsModalProps {
   isOpen: boolean;
@@ -35,10 +36,10 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
     try {
       // Fetch all filter options in parallel
       const [seriesRes, cardTypeRes, printTypeRes, rarityRes] = await Promise.all([
-        fetch('/api/cards/attributes/series?game=Union Arena', { credentials: 'include' }),
-        fetch('/api/cards/attributes/card_type?game=Union Arena', { credentials: 'include' }),
-        fetch('/api/cards/attributes/print_type?game=Union Arena', { credentials: 'include' }),
-        fetch('/api/cards/attributes/rarity?game=Union Arena', { credentials: 'include' })
+        fetch(apiConfig.getApiUrl('/api/cards/attributes/series?game=Union Arena'), { credentials: 'include' }),
+        fetch(apiConfig.getApiUrl('/api/cards/attributes/card_type?game=Union Arena'), { credentials: 'include' }),
+        fetch(apiConfig.getApiUrl('/api/cards/attributes/print_type?game=Union Arena'), { credentials: 'include' }),
+        fetch(apiConfig.getApiUrl('/api/cards/attributes/rarity?game=Union Arena'), { credentials: 'include' })
       ]);
 
       const [seriesData, cardTypeData, printTypeData, rarityData] = await Promise.all([
@@ -74,14 +75,8 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
         checked: currentRarities.includes(value) 
       })));
 
-      console.log('🃏 Fetched filter options:', {
-        series: seriesData.length,
-        cardTypes: cardTypeData.length,
-        printTypes: printTypeData.length,
-        rarities: rarityData.length
-      });
     } catch (error) {
-      console.error('🃏 Error fetching filter options:', error);
+      console.error('Error fetching filter options:', error);
     } finally {
       setLoading(false);
     }
@@ -245,11 +240,7 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
   };
 
   const handleSeriesChange = (series: string) => {
-    console.log('🃏 handleSeriesChange called with:', series);
-    console.log('🃏 currentDeck:', currentDeck);
-    
     if (!currentDeck || Object.keys(currentDeck).length === 0 || !('preferences' in currentDeck)) {
-      console.log('🃏 handleSeriesChange: Invalid currentDeck, returning');
       return;
     }
     
@@ -278,9 +269,7 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
       }
     };
     
-    console.log('🃏 handleSeriesChange: Updated deck:', updatedDeck);
     setCurrentDeck(updatedDeck);
-    console.log('🃏 handleSeriesChange: setCurrentDeck called');
   };
 
 

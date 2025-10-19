@@ -53,6 +53,27 @@ export function SearchLayout({
     setIsClient(true);
   }, []);
 
+  // Load searchPreferences from sessionStorage on mount
+  useEffect(() => {
+    if (!isClient) return;
+    
+    const saved = sessionStorage.getItem('outdecked-search-state');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setSearchPreferences(parsed);
+      } catch (e) {
+        console.error('Failed to parse search state');
+      }
+    }
+  }, [isClient, setSearchPreferences]);
+
+  // Save searchPreferences to sessionStorage on change
+  useEffect(() => {
+    if (!isClient) return;
+    sessionStorage.setItem('outdecked-search-state', JSON.stringify(searchPreferences));
+  }, [searchPreferences, isClient]);
+
   // Debounce the search query
   useEffect(() => {
     const timer = setTimeout(() => {

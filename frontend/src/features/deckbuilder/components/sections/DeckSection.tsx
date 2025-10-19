@@ -6,6 +6,7 @@ import { DeckValidation } from '@/lib/deckValidation';
 import { useSessionStore } from '@/stores/sessionStore';
 import { Card, CardCache } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
+import { apiConfig } from '@/lib/apiConfig';
 
 interface DeckSectionProps {
   searchCache: CardCache;
@@ -27,7 +28,7 @@ export const DeckSection = React.memo(function DeckSection({ searchCache, setSea
   // Function to fetch missing card data
   const fetchMissingCardData = React.useCallback(async (cardIds: string[]) => {
     try {
-      const response = await fetch('/api/cards/batch', {
+      const response = await fetch(apiConfig.getApiUrl('/api/cards/batch'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product_ids: cardIds }),

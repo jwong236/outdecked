@@ -4,8 +4,10 @@ import React from 'react';
 import { DeckBuilderSearchGrid } from '../grids/DeckBuilderSearchGrid';
 import { CompactFilterSection } from '../filters/CompactFilterSection';
 import { useSessionStore } from '@/stores/sessionStore';
-import { Card, ExpandedCard, CardCache } from '@/types/card';
+import { Card, ExpandedCard, CardCache, SearchResponse } from '@/types/card';
 import { transformRawCardsToCards } from '@/lib/cardTransform';
+import { apiClient } from '@/lib/api';
+import { apiConfig } from '@/lib/apiConfig';
 
 interface SearchSectionProps {
   searchCache: CardCache;
@@ -66,7 +68,7 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
     
     if (currentSeries) {
       try {
-        const response = await fetch(`/api/cards/colors/${encodeURIComponent(currentSeries)}?game=Union Arena`, {
+        const response = await fetch(apiConfig.getApiUrl(`/api/cards/colors/${encodeURIComponent(currentSeries)}?game=Union Arena`), {
           credentials: 'include'
         });
         const colors = await response.json();
@@ -160,31 +162,17 @@ export const SearchSection = React.memo(function SearchSection({ searchCache, se
   const fetchCards = React.useCallback(async () => {
     setSearchLoading(true);
     try {
-      // Use deck preferences directly (unified SearchParams structure)
-      // This includes the saved color filter from the deck
-      const filters = currentDeck?.preferences?.filters || [];
-      
-      // Note: All filters (including color) are now handled by deck.preferences.filters
-      
-      // Build request body with unified filter system
-      const requestBody = {
-        game: 'Union Arena',
+      // Use useSearchCards hook approach - build search params
+      const searchParams = {
+        query: debouncedSearchQuery.trim() || '',
+        sort: currentSort,
         page: currentPage,
         per_page: itemsPerPage,
-        sort: currentSort,
-        query: debouncedSearchQuery.trim() || '',
-        filters: filters
+        filters: currentDeck?.preferences?.filters || []
       };
       
-      const response = await fetch('/api/cards', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify(requestBody)
-      });
-      const data = await response.json();
+      // Use the same API client that main search uses
+      const data = await apiClient.searchCards(searchParams) as SearchResponse;
       
       if (data.cards) {
         // Transform raw API data to clean Card objects once

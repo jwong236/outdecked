@@ -4,6 +4,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useSearchCards, useSeriesValues, useColorValues, useFilterFields, useFilterValues, useColorsForSeries } from '@/lib/hooks';
 import { Card, SearchParams } from '@/types/card';
+import { apiConfig } from '@/lib/apiConfig';
 
 export function useSearchLogic() {
   const { deckBuilder } = useSessionStore();
@@ -35,12 +36,6 @@ export function useSearchLogic() {
   // Initialize filter states when API data is available and apply saved preferences
   React.useEffect(() => {
     if (cardTypeOptionsData && currentDeck) {
-      console.log('🔄 Initializing card type filters:', {
-        deckId: currentDeck.id,
-        cardTypeFilters: currentDeck.preferences?.filters?.filter(f => f.field === 'card_type'),
-        cardTypeOptionsData
-      });
-      
       const initialCardTypeFilters: Record<string, boolean> = {};
       const cardTypeFilters = currentDeck.preferences?.filters?.filter(f => f.field === 'card_type') || [];
       
@@ -56,12 +51,6 @@ export function useSearchLogic() {
 
   React.useEffect(() => {
     if (rarityOptionsData && currentDeck) {
-      console.log('🔄 Initializing rarity filters:', {
-        deckId: currentDeck.id,
-        rarityFilters: currentDeck.preferences?.filters?.filter(f => f.field === 'rarity'),
-        rarityOptionsData
-      });
-      
       const initialRarityFilters: Record<string, boolean> = {};
       const rarityFilters = currentDeck.preferences?.filters?.filter(f => f.field === 'rarity') || [];
       
@@ -78,11 +67,6 @@ export function useSearchLogic() {
 
   React.useEffect(() => {
     if (printTypeOptionsData && currentDeck) {
-      console.log('🔄 Initializing print type filters:', {
-        deckId: currentDeck.id,
-        printTypeFilters: currentDeck.preferences?.filters?.filter(f => f.field === 'print_type'),
-        printTypeOptionsData
-      });
       
       const initialPrintTypeFilters: Record<string, boolean> = {};
       const printTypeFilters = currentDeck.preferences?.filters?.filter(f => f.field === 'print_type') || [];
@@ -115,11 +99,6 @@ export function useSearchLogic() {
   // Load deck preferences to local state only (no global search preferences)
   React.useEffect(() => {
     if (currentDeck) {
-      console.log('🔄 Loading deck preferences:', {
-        deckId: currentDeck.id,
-        preferences: currentDeck.preferences
-      });
-      
       // Load color preference to local state only
       const colorFilter = currentDeck.preferences?.filters?.find(f => f.field === 'activation_energy');
       if (colorFilter) {
@@ -222,7 +201,7 @@ export function useSearchLogic() {
         };
         
         // Save to database immediately
-        fetch(`/api/user/decks/${currentDeck.id}`, {
+        fetch(apiConfig.getApiUrl(`/api/user/decks/${currentDeck.id}`), {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -266,7 +245,7 @@ export function useSearchLogic() {
         };
         
         // Save to database immediately
-        fetch(`/api/user/decks/${updatedDeck.id}`, {
+        fetch(apiConfig.getApiUrl(`/api/user/decks/${updatedDeck.id}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -311,7 +290,7 @@ export function useSearchLogic() {
         };
         
         // Save to database immediately
-        fetch(`/api/user/decks/${updatedDeck.id}`, {
+        fetch(apiConfig.getApiUrl(`/api/user/decks/${updatedDeck.id}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -328,11 +307,8 @@ export function useSearchLogic() {
   // handleColorChange removed - we use handleSearchColorChange instead
 
   const handleSeriesChange = useCallback(async (series: string) => {
-    console.log('🔄 handleSeriesChange called with series:', series);
-    
     // Update the deck's defaultSeries if we have a current deck
     if (currentDeck) {
-      console.log('🔄 Updating deck series from', currentDeck?.preferences?.filters?.find(f => f.field === 'series')?.value, 'to', series);
       // Update series filter in unified SearchParams structure
       const currentFilters = currentDeck.preferences?.filters || [];
       const filteredFilters = currentFilters.filter(f => f.field !== 'series');
@@ -351,7 +327,7 @@ export function useSearchLogic() {
       
       // Save to database immediately
       try {
-        const response = await fetch(`/api/user/decks/${updatedDeck.id}`, {
+        const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${updatedDeck.id}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
@@ -407,7 +383,7 @@ export function useSearchLogic() {
       
       // Save to database
       try {
-        const response = await fetch(`/api/user/decks/${updatedDeck.id}`, {
+        const response = await fetch(apiConfig.getApiUrl(`/api/user/decks/${updatedDeck.id}`), {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

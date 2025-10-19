@@ -468,8 +468,6 @@ export const useSessionStore = create<SessionState>()(
 
   loadAllUserData: async (): Promise<void> => {
     try {
-      console.log('🔄 Loading user data from database...');
-      
       // Load user preferences, hand, and deck data in parallel
       const [preferencesResult, handResponse, decksResponse] = await Promise.allSettled([
         get().loadUserPreferences(),
@@ -484,8 +482,6 @@ export const useSessionStore = create<SessionState>()(
       const decksData = decksResponse.status === 'fulfilled' && decksResponse.value.ok 
         ? await decksResponse.value.json() 
         : { data: { deck_ids: [] } };
-      
-      console.log('✅ User data loaded from database');
       
       // Convert hand data to CardRef format
       const handArray = Array.isArray(handData.hand) ? handData.hand : [];
@@ -873,11 +869,9 @@ export const useSessionStore = create<SessionState>()(
   syncWithDatabase: async () => {
     const state = get();
     if (!state.user.id) {
-      console.log('⚠️ Cannot sync - user not logged in');
       return;
     }
 
-    console.log('🔄 Syncing session with database...');
     // TODO: Implement database sync logic
     // This will upload local changes and download user data
     get().markAsSynced();
@@ -897,13 +891,11 @@ export const useSessionStore = create<SessionState>()(
         body: JSON.stringify({ hand: state.handCart.handItems }),
       });
 
-      if (response.ok) {
-        console.log('✅ Hand synced to database');
-      } else {
-        console.error('❌ Failed to sync hand to database:', response.status);
+      if (!response.ok) {
+        console.error('Failed to sync hand to database:', response.status);
       }
     } catch (error) {
-      console.error('❌ Error syncing hand to database:', error);
+      console.error('Error syncing hand to database:', error);
     }
   },
 
@@ -923,7 +915,7 @@ export const useSessionStore = create<SessionState>()(
         // Only persist the data we want to save across browser sessions
         user: state.user,
         preferences: state.preferences,
-        // searchPreferences NOT persisted - handled manually in SearchLayout with sessionStorage
+        // searchPreferences NOT persisted - uses sessionStorage instead (clears on browser close)
         handCart: state.handCart,
         deckBuilder: {
           // Only persist deckList, NOT currentDeck - load from database instead
@@ -936,14 +928,6 @@ export const useSessionStore = create<SessionState>()(
           lastSync: state.sessionState.lastSync,
         },
       }),
-      migrate: (persistedState: any, version: number) => {
-        // Migration function to update old data structures
-        if (persistedState?.searchPreferences?.sort === 'name') {
-          console.log('🔄 Migrating sort value from "name" to "recent_series_rarity_desc"');
-          persistedState.searchPreferences.sort = 'recent_series_rarity_desc';
-        }
-        return persistedState;
-      },
     }
   ),
     { name: 'SessionStore' } // This will show up in Redux DevTools
