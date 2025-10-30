@@ -63,14 +63,18 @@ export function CreateDeckModal({ isOpen, onClose, onDeckCreated }: CreateDeckMo
           per_page: 25,
           filters: [
             // Default filters for new decks
+            // Basic Prints Only - Base OR Starter Deck
             { type: 'or' as const, field: 'print_type', value: 'Base', displayText: 'Basic Prints Only' },
             { type: 'or' as const, field: 'print_type', value: 'Starter Deck', displayText: 'Basic Prints Only' },
-            { type: 'not' as const, field: 'card_type', value: 'Action Point', displayText: 'No Action Points' },
+            // Base Rarity Only - Common OR Uncommon OR Rare OR Super Rare (no Action Point)
             { type: 'or' as const, field: 'rarity', value: 'Common', displayText: 'Base Rarity Only' },
             { type: 'or' as const, field: 'rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
             { type: 'or' as const, field: 'rarity', value: 'Rare', displayText: 'Base Rarity Only' },
             { type: 'or' as const, field: 'rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
-            { type: 'or' as const, field: 'rarity', value: 'Action Point', displayText: 'Base Rarity Only' }
+            // Default Card Types - Character, Event, Site (no Action Point)
+            { type: 'or' as const, field: 'card_type', value: 'Character', displayText: 'Card Type: Character' },
+            { type: 'or' as const, field: 'card_type', value: 'Event', displayText: 'Card Type: Event' },
+            { type: 'or' as const, field: 'card_type', value: 'Site', displayText: 'Card Type: Site' }
           ]
         };
         

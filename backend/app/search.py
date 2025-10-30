@@ -102,11 +102,12 @@ def detect_print_type(abbreviation, card_name=None):
         return "Base"
 
 
-def handle_api_search():
-    """Handle the /api/cards route with GET and query syntax."""
-    db_session = get_session()
+def _parse_search_params(request):
+    """Parse search parameters from request.
 
-    # Parse GET parameters
+    Returns:
+        dict: Contains page, per_page, sort_by, search_query, query_filters, query_fields
+    """
     page = int(request.args.get("page", 1))
     per_page = int(request.args.get("per_page", 24))
     sort_by = request.args.get("sort", "recent_series_rarity_desc")
@@ -124,7 +125,26 @@ def handle_api_search():
     # Detect which fields are specified in query (for smart preset handling)
     query_fields = {f["field"] for f in query_filters}
 
-    # Initialize filters list
+    return {
+        "page": page,
+        "per_page": per_page,
+        "sort_by": sort_by,
+        "search_query": search_query,
+        "query_filters": query_filters,
+        "query_fields": query_fields,
+    }
+
+
+def _apply_preset_filters(request, query_fields):
+    """Apply preset filters based on request parameters.
+
+    Args:
+        request: Flask request object
+        query_fields: Set of fields already in query filters
+
+    Returns:
+        list: Filter dictionaries to apply
+    """
     filters = []
 
     # Apply presets ONLY if query doesn't override them
@@ -149,13 +169,19 @@ def handle_api_search():
     if "no_ap" in request.args and "card_type" not in query_fields:
         filters.append({"type": "not", "field": "card_type", "value": "Action Point"})
 
-    # Add query filters (these take precedence)
-    filters.extend(query_filters)
+    return filters
 
-    # Build base query with group name
-    base_query = "FROM cards c LEFT JOIN groups g ON c.group_id = g.id"
 
-    # Build WHERE clause
+def _build_where_conditions(filters, search_query):
+    """Build WHERE clause and parameters from filters.
+
+    Args:
+        filters: List of filter dictionaries
+        search_query: Search query string for name matching
+
+    Returns:
+        tuple: (where_clause string, params dictionary)
+    """
     where_conditions = []
     params = {}
 
@@ -257,93 +283,85 @@ def handle_api_search():
     if not_conditions:
         where_conditions.extend(not_conditions)
 
-    # Legacy print_type handling removed - now handled by unified filter system
-
-    # Legacy direct filter parameter handling removed - now handled by unified filter system
-
-    # Legacy advanced filter handling removed - now handled by unified filter system
-
     where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
-    # Debug output removed for performance
 
-    # Build ORDER BY clause
-    order_clause = "ORDER BY c.name"  # Default
-    if sort_by:
-        if sort_by == "price_desc":
-            order_clause = "ORDER BY COALESCE(cp.market_price, cp.mid_price) DESC"
-        elif sort_by == "price_asc":
-            order_clause = "ORDER BY COALESCE(cp.market_price, cp.mid_price) ASC"
-        elif sort_by == "rarity_desc":
-            order_clause = """ORDER BY CASE 
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Common' THEN 1
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Uncommon' THEN 2
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Rare' THEN 3
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Super Rare' THEN 4
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Ultra Rare' THEN 5
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Secret Rare' THEN 6
-                ELSE 7
-            END DESC"""
-        elif sort_by == "rarity_asc":
-            order_clause = """ORDER BY CASE 
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Common' THEN 1
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Uncommon' THEN 2
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Rare' THEN 3
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Super Rare' THEN 4
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Ultra Rare' THEN 5
-                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Secret Rare' THEN 6
+    return where_clause, params
+
+
+def _build_sort_clause(sort_by):
+    """Build ORDER BY clause from sort parameter.
+
+    Args:
+        sort_by: Sort parameter string
+
+    Returns:
+        str: ORDER BY SQL clause
+    """
+    if not sort_by:
+        return "ORDER BY c.name"
+
+    if sort_by == "price_desc":
+        return "ORDER BY COALESCE(cp.market_price, cp.mid_price) DESC"
+    elif sort_by == "price_asc":
+        return "ORDER BY COALESCE(cp.market_price, cp.mid_price) ASC"
+    elif sort_by == "rarity_desc":
+        return """ORDER BY CASE 
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Common' THEN 1
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Uncommon' THEN 2
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Rare' THEN 3
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Super Rare' THEN 4
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Ultra Rare' THEN 5
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Secret Rare' THEN 6
+            ELSE 7
+        END DESC"""
+    elif sort_by == "rarity_asc":
+        return """ORDER BY CASE 
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Common' THEN 1
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Uncommon' THEN 2
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Rare' THEN 3
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Super Rare' THEN 4
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Ultra Rare' THEN 5
+            WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Secret Rare' THEN 6
+            ELSE 7
+        END ASC"""
+    elif sort_by == "name_asc":
+        return "ORDER BY c.name ASC"
+    elif sort_by == "name_desc":
+        return "ORDER BY c.name DESC"
+    elif sort_by == "number_desc":
+        return "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'card_number'), -3) AS INTEGER) DESC"
+    elif sort_by == "number_asc":
+        return "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'card_number'), -3) AS INTEGER) ASC"
+    elif sort_by == "required_energy_desc":
+        return "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'required_energy') AS INTEGER) DESC"
+    elif sort_by == "required_energy_asc":
+        return "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'required_energy') AS INTEGER) ASC"
+    elif sort_by == "recent_series_rarity_desc":
+        # Sort by most recent series first (published_on DESC), then by rarity DESC
+        return """ORDER BY g.published_on DESC, 
+            CASE 
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Secret Rare' THEN 1
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Ultra Rare' THEN 2
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Super Rare' THEN 3
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Rare' THEN 4
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Uncommon' THEN 5
+                WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Common' THEN 6
                 ELSE 7
             END ASC"""
-        elif sort_by == "name_asc":
-            order_clause = "ORDER BY c.name ASC"
-        elif sort_by == "name_desc":
-            order_clause = "ORDER BY c.name DESC"
-        elif sort_by == "number_desc":
-            order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'card_number'), -3) AS INTEGER) DESC"
-        elif sort_by == "number_asc":
-            order_clause = "ORDER BY CAST(SUBSTR((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'card_number'), -3) AS INTEGER) ASC"
-        elif sort_by == "required_energy_desc":
-            order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'required_energy') AS INTEGER) DESC"
-        elif sort_by == "required_energy_asc":
-            order_clause = "ORDER BY CAST((SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'required_energy') AS INTEGER) ASC"
-        elif sort_by == "recent_series_rarity_desc":
-            # Sort by most recent series first (published_on DESC), then by rarity DESC
-            order_clause = """ORDER BY g.published_on DESC, 
-                CASE 
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Secret Rare' THEN 1
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Ultra Rare' THEN 2
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Super Rare' THEN 3
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Rare' THEN 4
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Uncommon' THEN 5
-                    WHEN (SELECT value FROM card_attributes WHERE card_id = c.id AND name = 'rarity') = 'Common' THEN 6
-                    ELSE 7
-                END ASC"""
 
-    # Get total count - need to match the main query structure with JOINs
-    count_query = f"SELECT COUNT(DISTINCT c.id) as total {base_query} LEFT JOIN card_attributes cm ON c.id = cm.card_id LEFT JOIN card_prices cp ON c.id = cp.card_id {where_clause}"
-    total_cards = db_session.execute(text(count_query), params).fetchone()[0]
+    # Default fallback
+    return "ORDER BY c.name"
 
-    # Calculate offset for pagination
-    offset = (page - 1) * per_page
 
-    # Get paginated results with metadata and prices (TCGCSV-aligned)
-    # Use market_price if available, otherwise fall back to mid_price
-    # Aggregate prices to avoid duplicates from multiple price records
-    search_query = (
-        f"SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, STRING_AGG(cm.name || ':' || cm.value || ':' || cm.display_name, '|||') as metadata, "
-        f"COALESCE(MAX(cp.market_price), MAX(cp.mid_price)) as price {base_query} "
-        f"LEFT JOIN card_attributes cm ON c.id = cm.card_id "
-        f"LEFT JOIN card_prices cp ON c.id = cp.card_id "
-        f"{where_clause} "
-        f"GROUP BY c.id, g.name, g.abbreviation, g.published_on {order_clause} LIMIT :per_page OFFSET :offset"
-    )
-    search_params = params.copy()
-    search_params["per_page"] = per_page
-    search_params["offset"] = offset
+def _process_card_results(raw_cards):
+    """Process raw card database results into API format.
 
-    cursor = db_session.execute(text(search_query), search_params)
-    raw_cards = [row._mapping for row in cursor.fetchall()]
+    Args:
+        raw_cards: List of raw card dictionaries from database
 
-    # Process cards to include metadata as individual fields
+    Returns:
+        list: Processed card dictionaries with attributes
+    """
     cards = []
     for card in raw_cards:
         # Start with basic card data
@@ -358,13 +376,12 @@ def handle_api_search():
             "group_id": card.get("group_id", 0),
             "group_name": card.get("group_name"),
             "group_abbreviation": card.get("group_abbreviation"),
-            # print_type now comes from card_attributes via metadata processing
             "image_count": card.get("image_count", 0),
             "is_presale": card.get("is_presale", False),
             "released_on": card.get("released_on", ""),
             "presale_note": card.get("presale_note", ""),
             "modified_on": card.get("modified_on", ""),
-            "price": card.get("price", None),  # Add price from card_prices table
+            "price": card.get("price", None),
             "low_price": card.get("low_price"),
             "mid_price": card.get("mid_price"),
             "high_price": card.get("high_price"),
@@ -404,6 +421,63 @@ def handle_api_search():
         processed_card["attributes"] = attributes
 
         cards.append(processed_card)
+
+    return cards
+
+
+def handle_api_search():
+    """Handle the /api/cards route with GET and query syntax."""
+    db_session = get_session()
+
+    # Parse search parameters
+    params_data = _parse_search_params(request)
+    page = params_data["page"]
+    per_page = params_data["per_page"]
+    sort_by = params_data["sort_by"]
+    search_query = params_data["search_query"]
+    query_filters = params_data["query_filters"]
+    query_fields = params_data["query_fields"]
+
+    # Apply preset filters and query filters
+    filters = _apply_preset_filters(request, query_fields)
+    filters.extend(query_filters)
+
+    # Build base query with group name
+    base_query = "FROM cards c LEFT JOIN groups g ON c.group_id = g.id"
+
+    # Build WHERE clause and parameters
+    where_clause, params = _build_where_conditions(filters, search_query)
+
+    # Build ORDER BY clause
+    order_clause = _build_sort_clause(sort_by)
+
+    # Get total count - need to match the main query structure with JOINs
+    count_query = f"SELECT COUNT(DISTINCT c.id) as total {base_query} LEFT JOIN card_attributes cm ON c.id = cm.card_id LEFT JOIN card_prices cp ON c.id = cp.card_id {where_clause}"
+    total_cards = db_session.execute(text(count_query), params).fetchone()[0]
+
+    # Calculate offset for pagination
+    offset = (page - 1) * per_page
+
+    # Get paginated results with metadata and prices (TCGCSV-aligned)
+    # Use market_price if available, otherwise fall back to mid_price
+    # Aggregate prices to avoid duplicates from multiple price records
+    search_query = (
+        f"SELECT c.*, g.name as group_name, g.abbreviation as group_abbreviation, STRING_AGG(cm.name || ':' || cm.value || ':' || cm.display_name, '|||') as metadata, "
+        f"COALESCE(MAX(cp.market_price), MAX(cp.mid_price)) as price {base_query} "
+        f"LEFT JOIN card_attributes cm ON c.id = cm.card_id "
+        f"LEFT JOIN card_prices cp ON c.id = cp.card_id "
+        f"{where_clause} "
+        f"GROUP BY c.id, g.name, g.abbreviation, g.published_on {order_clause} LIMIT :per_page OFFSET :offset"
+    )
+    search_params = params.copy()
+    search_params["per_page"] = per_page
+    search_params["offset"] = offset
+
+    cursor = db_session.execute(text(search_query), search_params)
+    raw_cards = [row._mapping for row in cursor.fetchall()]
+
+    # Process card results
+    cards = _process_card_results(raw_cards)
 
     db_session.close()
 

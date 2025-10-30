@@ -186,16 +186,17 @@ export function useDeckOperations(searchCache: CardCache, setSearchCache: (updat
           per_page: 25,
           filters: [
             // Basic Prints Only - Base OR Starter Deck
-            { type: 'or', field: 'print_type', value: 'Base', displayText: 'Print Type: Base' },
-            { type: 'or', field: 'print_type', value: 'Starter Deck', displayText: 'Print Type: Starter Deck' },
-            // No Action Points - exclude Action Point cards
-            { type: 'not', field: 'card_type', value: 'Action Point', displayText: 'Card Type: Action Point' },
-            // Base Rarity Only - Common OR Uncommon OR Rare OR Super Rare OR Action Point
-            { type: 'or', field: 'rarity', value: 'Common', displayText: 'Rarity: Common' },
-            { type: 'or', field: 'rarity', value: 'Uncommon', displayText: 'Rarity: Uncommon' },
-            { type: 'or', field: 'rarity', value: 'Rare', displayText: 'Rarity: Rare' },
-            { type: 'or', field: 'rarity', value: 'Super Rare', displayText: 'Rarity: Super Rare' },
-            { type: 'or', field: 'rarity', value: 'Action Point', displayText: 'Rarity: Action Point' },
+            { type: 'or', field: 'print_type', value: 'Base', displayText: 'Basic Prints Only' },
+            { type: 'or', field: 'print_type', value: 'Starter Deck', displayText: 'Basic Prints Only' },
+            // Base Rarity Only - Common OR Uncommon OR Rare OR Super Rare (no Action Point)
+            { type: 'or', field: 'rarity', value: 'Common', displayText: 'Base Rarity Only' },
+            { type: 'or', field: 'rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
+            { type: 'or', field: 'rarity', value: 'Rare', displayText: 'Base Rarity Only' },
+            { type: 'or', field: 'rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
+            // Default Card Types - Character, Event, Site (no Action Point)
+            { type: 'or', field: 'card_type', value: 'Character', displayText: 'Card Type: Character' },
+            { type: 'or', field: 'card_type', value: 'Event', displayText: 'Card Type: Event' },
+            { type: 'or', field: 'card_type', value: 'Site', displayText: 'Card Type: Site' },
           ]
         }
       };

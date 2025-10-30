@@ -159,19 +159,11 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
            printTypes.includes('Starter Deck');
   }, [searchPreferences.filters]);
 
-  const isNoActionPoints = React.useMemo(() => {
-    // Check if there's a NOT filter for Action Point card type
-    return searchPreferences.filters.some(f => 
-      f.field === 'card_type' && f.type === 'not' && f.value === 'Action Point'
-    );
-  }, [searchPreferences.filters]);
-
   const isBaseRarityOnly = React.useMemo(() => {
     const rarityFilters = searchPreferences.filters.filter(f => f.field === 'rarity' && f.type === 'or');
     const rarities = rarityFilters.map(f => f.value);
     const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
     // Base rarity is active if it has the 4 core base rarities
-    // (Action Point may or may not be included depending on no_ap preset)
     return baseRarities.every(rarity => rarities.includes(rarity));
   }, [searchPreferences.filters]);
   
@@ -298,33 +290,10 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
           prev.map(option => ({ ...option, checked: false }))
         );
       }
-    } else if (filter === 'noActionPoints') {
-      if (value) {
-        // Apply No Action Points preset - add NOT filter for Action Point card type
-        const filter: FilterOption = {
-          type: 'not',
-          field: 'card_type',
-          value: 'Action Point',
-          displayText: 'No Action Points',
-        };
-        addFilter(filter);
-      } else {
-        // Remove No Action Points preset - remove the NOT filter
-        const filterIndex = searchPreferences.filters.findIndex(f => 
-          f.field === 'card_type' && f.type === 'not' && f.value === 'Action Point'
-        );
-        if (filterIndex !== -1) {
-          removeFilter(filterIndex);
-        }
-      }
     } else if (filter === 'baseRarityOnly') {
       if (value) {
-        // Apply Base Rarity Only preset - check base rarities
-        // Action Point is included if no_ap is not active
-        const hasNoAp = isNoActionPoints;
-        const baseRarities = hasNoAp 
-          ? ['Common', 'Uncommon', 'Rare', 'Super Rare']
-          : ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
+        // Apply Base Rarity Only preset - check base rarities (4 core rarities, no Action Point)
+        const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
         
         rarityOptions?.forEach(option => {
           const shouldBeChecked = baseRarities.includes(option.value);
@@ -445,19 +414,6 @@ export function SearchSettingsModal({ isOpen, onClose }: SearchSettingsModalProp
                     <div>
                       <span className="text-white font-medium">Basic Prints Only</span>
                       <p className="text-white/60 text-sm">Only show base set cards, exclude special prints</p>
-                    </div>
-                  </label>
-                  
-                  <label className="flex items-start space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isNoActionPoints}
-                      onChange={(e) => handleDefaultFilterChange('noActionPoints', e.target.checked)}
-                      className="w-5 h-5 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2 mt-1"
-                    />
-                    <div>
-                      <span className="text-white font-medium">No Action Points</span>
-                      <p className="text-white/60 text-sm">Exclude Action Point cards from search results</p>
                     </div>
                   </label>
                   

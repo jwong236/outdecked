@@ -28,9 +28,11 @@ export function ActiveFilters({
   // Only show pills for basic filters and advanced filters from searchPreferences (excluding default filters)
   const nonDefaultFilters = searchPreferences.filters.filter(filter => {
     const isDefaultFilter = 
-      filter.displayText === 'Base Prints Only' ||
-      filter.displayText === 'No Action Points' ||
-      filter.displayText === 'Base Rarity Only';
+      filter.displayText === 'Basic Prints Only' ||
+      filter.displayText === 'Base Rarity Only' ||
+      filter.displayText === 'Card Type: Character' ||
+      filter.displayText === 'Card Type: Event' ||
+      filter.displayText === 'Card Type: Site';
     return !isDefaultFilter;
   });
   

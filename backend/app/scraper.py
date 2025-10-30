@@ -7,6 +7,11 @@ No TCGPlayer scraping needed - all data comes from TCGCSV!
 import requests
 import time
 import logging
+from dotenv import load_dotenv
+
+# Load environment variables from .env file BEFORE importing database
+load_dotenv()
+
 from database import get_session
 from models import Card, CardAttribute, CardPrice, Group, Category
 from sqlalchemy import text

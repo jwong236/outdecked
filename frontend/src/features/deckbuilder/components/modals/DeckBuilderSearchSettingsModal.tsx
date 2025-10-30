@@ -53,9 +53,10 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
       setSeriesOptions(seriesData.map((value: string) => ({ value, label: value })));
       
       // For collapsible options, check if they're in currentDeck preferences
-      const currentPrintTypes = currentDeck?.preferences?.filters?.filter(f => f.field === 'print_type').map(f => f.value) || [];
-      const currentCardTypes = currentDeck?.preferences?.filters?.filter(f => f.field === 'card_type').map(f => f.value) || [];
-      const currentRarities = currentDeck?.preferences?.filters?.filter(f => f.field === 'rarity').map(f => f.value) || [];
+      // Exclude NOT filters when determining checkbox state
+      const currentPrintTypes = currentDeck?.preferences?.filters?.filter(f => f.field === 'print_type' && f.type !== 'not').map(f => f.value) || [];
+      const currentCardTypes = currentDeck?.preferences?.filters?.filter(f => f.field === 'card_type' && f.type !== 'not').map(f => f.value) || [];
+      const currentRarities = currentDeck?.preferences?.filters?.filter(f => f.field === 'rarity' && f.type !== 'not').map(f => f.value) || [];
       
       setCollapsiblePrintTypeOptions(printTypeData.map((value: string) => ({ 
         value, 
@@ -94,23 +95,56 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
            printTypes.includes('Starter Deck');
   }, [currentDeck]);
 
-  const isNoActionPoints = React.useMemo(() => {
-    if (!currentDeck || !('preferences' in currentDeck)) return false;
-    const cardTypes = currentDeck.preferences?.filters?.filter(f => f.field === 'card_type').map(f => f.value) || [];
-    const hasActionPoint = cardTypes.includes('Action Point');
-    const hasCharacter = cardTypes.includes('Character');
-    const hasEvent = cardTypes.includes('Event');
-    const hasSite = cardTypes.includes('Site');
-    return !hasActionPoint && hasCharacter && hasEvent && hasSite;
-  }, [currentDeck]);
-
   const isBaseRarityOnly = React.useMemo(() => {
     if (!currentDeck || !('preferences' in currentDeck)) return false;
     const rarities = currentDeck.preferences?.filters?.filter(f => f.field === 'rarity').map(f => f.value) || [];
-    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
+    const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
     return baseRarities.every(rarity => rarities.includes(rarity)) && 
            rarities.length === baseRarities.length;
   }, [currentDeck]);
+  
+  // Sync collapsible checkbox states with deck filters (exclude NOT filters)
+  React.useEffect(() => {
+    if (collapsibleCardTypeOptions.length > 0 && currentDeck?.preferences?.filters) {
+      const currentCardTypes = currentDeck.preferences.filters
+        .filter(f => f.field === 'card_type' && f.type !== 'not')
+        .map(f => f.value);
+      setCollapsibleCardTypeOptions(prev => 
+        prev.map(option => ({ 
+          ...option, 
+          checked: currentCardTypes.includes(option.value) 
+        }))
+      );
+    }
+  }, [currentDeck?.preferences?.filters, collapsibleCardTypeOptions.length]);
+
+  React.useEffect(() => {
+    if (collapsiblePrintTypeOptions.length > 0 && currentDeck?.preferences?.filters) {
+      const currentPrintTypes = currentDeck.preferences.filters
+        .filter(f => f.field === 'print_type' && f.type !== 'not')
+        .map(f => f.value);
+      setCollapsiblePrintTypeOptions(prev => 
+        prev.map(option => ({ 
+          ...option, 
+          checked: currentPrintTypes.includes(option.value) 
+        }))
+      );
+    }
+  }, [currentDeck?.preferences?.filters, collapsiblePrintTypeOptions.length]);
+
+  React.useEffect(() => {
+    if (rarityOptions.length > 0 && currentDeck?.preferences?.filters) {
+      const currentRarities = currentDeck.preferences.filters
+        .filter(f => f.field === 'rarity' && f.type !== 'not')
+        .map(f => f.value);
+      setRarityOptions(prev => 
+        prev.map(option => ({ 
+          ...option, 
+          checked: currentRarities.includes(option.value) 
+        }))
+      );
+    }
+  }, [currentDeck?.preferences?.filters, rarityOptions.length]);
   
   // Handler functions that update sessionStore
   const handlePrintTypeChange = (value: string, checked: boolean) => {
@@ -166,7 +200,7 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
       const exists = currentFilters.some(f => f.field === 'card_type' && f.value === value);
       if (!exists) {
         newFilters = [...currentFilters, {
-          type: 'and' as const,
+          type: 'or' as const,
           field: 'card_type',
           value: value,
           displayText: `Card Type: ${value}`
@@ -285,17 +319,9 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
           handlePrintTypeChange(option.value, shouldBeChecked);
         }
       });
-    } else if (filter === 'noActionPoints' && value) {
-      // Apply No Action Points preset - uncheck "Action Point", check all others
-      collapsibleCardTypeOptions?.forEach(option => {
-        const shouldBeChecked = option.value !== 'Action Point';
-        if (option.checked !== shouldBeChecked) {
-          handleCardTypeChange(option.value, shouldBeChecked);
-        }
-      });
     } else if (filter === 'baseRarityOnly' && value) {
-      // Apply Base Rarity Only preset - only check base rarities (including Action Point)
-      const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare', 'Action Point'];
+      // Apply Base Rarity Only preset - only check base rarities (4 core rarities, no Action Point)
+      const baseRarities = ['Common', 'Uncommon', 'Rare', 'Super Rare'];
       rarityOptions?.forEach(option => {
         const shouldBeChecked = baseRarities.includes(option.value);
         if (option.checked !== shouldBeChecked) {
@@ -356,19 +382,6 @@ export function DeckBuilderSearchSettingsModal({ isOpen, onClose }: DeckBuilderS
                     <div>
                       <span className="text-white font-medium">Basic Prints Only</span>
                       <p className="text-white/60 text-sm">Only show base set cards, exclude special prints</p>
-                    </div>
-                  </label>
-                  
-                  <label className="flex items-start space-x-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isNoActionPoints}
-                      onChange={(e) => handleDefaultFilterChange('noActionPoints', e.target.checked)}
-                      className="w-5 h-5 text-blue-600 bg-white/20 border-white/30 rounded focus:ring-blue-500 focus:ring-2 mt-1"
-                    />
-                    <div>
-                      <span className="text-white font-medium">No Action Points</span>
-                      <p className="text-white/60 text-sm">Exclude Action Point cards from search results</p>
                     </div>
                   </label>
                   

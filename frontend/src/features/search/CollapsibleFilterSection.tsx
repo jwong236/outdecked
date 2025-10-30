@@ -11,6 +11,7 @@ export interface FilterCheckboxOption {
 
 export interface CollapsibleFilterSectionProps {
   title: string;
+  description?: string;
   options: FilterCheckboxOption[];
   onOptionChange: (value: string, checked: boolean) => void;
   className?: string;
@@ -18,6 +19,7 @@ export interface CollapsibleFilterSectionProps {
 
 export function CollapsibleFilterSection({
   title,
+  description,
   options,
   onOptionChange,
   className = ''
@@ -48,6 +50,13 @@ export function CollapsibleFilterSection({
           )}
         </div>
       </button>
+
+      {/* Description */}
+      {description && (
+        <div className="px-4 py-2 text-sm text-white/70 border-t border-white/10">
+          {description}
+        </div>
+      )}
 
       {/* Content */}
       {isExpanded && (

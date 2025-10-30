@@ -159,16 +159,17 @@ const defaultSearchPreferences: SearchParams = {
   page: 1,
   filters: [
     // Basic Prints Only - Base OR Starter Deck
-    { type: 'or', field: 'print_type', value: 'Base', displayText: 'Base Prints Only' },
-    { type: 'or', field: 'print_type', value: 'Starter Deck', displayText: 'Base Prints Only' },
-    // No Action Points - exclude Action Point cards
-    { type: 'not', field: 'card_type', value: 'Action Point', displayText: 'No Action Points' },
-    // Base Rarity Only - Common OR Uncommon OR Rare OR Super Rare OR Action Point
+    { type: 'or', field: 'print_type', value: 'Base', displayText: 'Basic Prints Only' },
+    { type: 'or', field: 'print_type', value: 'Starter Deck', displayText: 'Basic Prints Only' },
+    // Base Rarity Only - Common OR Uncommon OR Rare OR Super Rare (no Action Point)
     { type: 'or', field: 'rarity', value: 'Common', displayText: 'Base Rarity Only' },
     { type: 'or', field: 'rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
     { type: 'or', field: 'rarity', value: 'Rare', displayText: 'Base Rarity Only' },
     { type: 'or', field: 'rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
-    { type: 'or', field: 'rarity', value: 'Action Point', displayText: 'Base Rarity Only' },
+    // Default Card Types - Character, Event, Site (no Action Point)
+    { type: 'or', field: 'card_type', value: 'Character', displayText: 'Card Type: Character' },
+    { type: 'or', field: 'card_type', value: 'Event', displayText: 'Card Type: Event' },
+    { type: 'or', field: 'card_type', value: 'Site', displayText: 'Card Type: Site' },
   ],
 };
 
@@ -189,7 +190,7 @@ const defaultProxyPrinter = {
     marginBottom: 0.5,
     marginLeft: 0.5,
     marginRight: 0.5,
-    cardGap: 0.1,
+    cardGap: 0,
     showPreview: false,
   },
 };
@@ -565,12 +566,13 @@ export const useSessionStore = create<SessionState>()(
       const defaultFilters = [
         { type: 'or' as const, field: 'print_type', value: 'Base', displayText: 'Basic Prints Only' },
         { type: 'or' as const, field: 'print_type', value: 'Starter Deck', displayText: 'Basic Prints Only' },
-        { type: 'not' as const, field: 'card_type', value: 'Action Point', displayText: 'No Action Points' },
         { type: 'or' as const, field: 'rarity', value: 'Common', displayText: 'Base Rarity Only' },
         { type: 'or' as const, field: 'rarity', value: 'Uncommon', displayText: 'Base Rarity Only' },
         { type: 'or' as const, field: 'rarity', value: 'Rare', displayText: 'Base Rarity Only' },
         { type: 'or' as const, field: 'rarity', value: 'Super Rare', displayText: 'Base Rarity Only' },
-        { type: 'or' as const, field: 'rarity', value: 'Action Point', displayText: 'Base Rarity Only' },
+        { type: 'or' as const, field: 'card_type', value: 'Character', displayText: 'Card Type: Character' },
+        { type: 'or' as const, field: 'card_type', value: 'Event', displayText: 'Card Type: Event' },
+        { type: 'or' as const, field: 'card_type', value: 'Site', displayText: 'Card Type: Site' },
       ];
       
       return {
